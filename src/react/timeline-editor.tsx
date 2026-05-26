@@ -15,6 +15,7 @@ import {
   clampTimelineEditorTime,
   createTimelineEditorSnapResolver,
   createTimelineEditorSnapOptions,
+  getTimelineEditorFrameDurationMs,
   getTimelineEditorItemEndMs,
 } from "../time";
 import {
@@ -99,6 +100,7 @@ export type TimelineEditorProps<
   selection?: TimelineEditorSelection;
   viewport?: TimelineEditorViewport;
   readOnly?: boolean;
+  frameRate?: number;
   snap?: Partial<TimelineEditorSnapOptions>;
   hotkeys?: Partial<TimelineEditorHotkeys>;
   onDocumentChange?: (document: TimelineEditorDocument<TTrackData, TItemData>) => void;
@@ -136,6 +138,7 @@ type TimelineEditorVisibleRange = {
 };
 
 const timelineEditorViewportOverscanMs = 2_000;
+export const timelineEditorTrackHeaderWidthPx = 144;
 export const timelineEditorMinPixelsPerSecond = 24;
 export const timelineEditorMaxPixelsPerSecond = 240;
 
@@ -156,6 +159,7 @@ export function TimelineEditor<
   selection = defaultTimelineEditorSelection,
   viewport,
   readOnly = false,
+  frameRate,
   snap,
   hotkeys,
   onDocumentChange,
@@ -190,9 +194,18 @@ export function TimelineEditor<
     [viewport],
   );
   const timelineWidthPx = getTimelineEditorWidthPx(durationMs, resolvedViewport.pixelsPerSecond);
+  const editorWidthPx = timelineEditorTrackHeaderWidthPx + timelineWidthPx;
+  const frameDurationMs = useMemo(() => getTimelineEditorFrameDurationMs(frameRate), [frameRate]);
   const resolvedSnap = useMemo(
-    () => createTimelineEditorSnapOptions(defaultTimelineEditorSnapMs, snap),
-    [snap],
+    () => createTimelineEditorSnapOptions(frameDurationMs ?? defaultTimelineEditorSnapMs, snap),
+    [frameDurationMs, snap],
+  );
+  const nudgeMs = useMemo(
+    () =>
+      frameDurationMs ??
+      getTimelineEditorSnapIntervalMs(resolvedSnap) ??
+      defaultTimelineEditorSnapMs,
+    [frameDurationMs, resolvedSnap],
   );
   const resolvedHotkeys = useMemo(
     () => ({ ...defaultTimelineEditorHotkeys, ...hotkeys }),
@@ -208,7 +221,13 @@ export function TimelineEditor<
   );
   const renderDocument = previewTracks ? { ...document, tracks: previewTracks } : document;
   const visibleRange = useMemo(
-    () => getTimelineEditorVisibleRange(durationMs, resolvedViewport, measuredViewport),
+    () =>
+      getTimelineEditorVisibleRange(
+        durationMs,
+        resolvedViewport,
+        measuredViewport,
+        timelineEditorTrackHeaderWidthPx,
+      ),
     [durationMs, resolvedViewport, measuredViewport],
   );
   const visibleTracks = useMemo(() => getVisibleTracks(renderDocument), [renderDocument]);
@@ -258,7 +277,8 @@ export function TimelineEditor<
 
     pendingWheelZoomRef.current = null;
     const nextScrollLeft = clampTimelineEditorTime(
-      (pendingWheelZoom.timeMs / 1_000) * resolvedViewport.pixelsPerSecond -
+      timelineEditorTrackHeaderWidthPx +
+        (pendingWheelZoom.timeMs / 1_000) * resolvedViewport.pixelsPerSecond -
         pendingWheelZoom.offsetX,
       0,
       Math.max(0, scroller.scrollWidth - scroller.clientWidth),
@@ -421,7 +441,9 @@ export function TimelineEditor<
       scroller.clientWidth,
     );
     const timeMs = clampTimelineEditorTime(
-      ((scroller.scrollLeft + offsetX) / Math.max(1, resolvedViewport.pixelsPerSecond)) * 1_000,
+      ((scroller.scrollLeft + offsetX - timelineEditorTrackHeaderWidthPx) /
+        Math.max(1, resolvedViewport.pixelsPerSecond)) *
+        1_000,
       0,
       durationMs,
     );
@@ -472,9 +494,9 @@ export function TimelineEditor<
         {
           type: "move-items",
           itemIds: selection.itemIds,
-          deltaMs: direction * defaultTimelineEditorSnapMs,
+          deltaMs: direction * nudgeMs,
         },
-        { durationMs },
+        { durationMs, snapMs: nudgeMs },
       );
       commitDocument(result.document);
       return;
@@ -511,58 +533,69 @@ export function TimelineEditor<
       onWheel={handleWheel}
       {...props}
     >
-      <div className="relative" style={{ width: timelineWidthPx }}>
+      <div className="relative" style={{ width: editorWidthPx }}>
         <div
           data-slot="timeline-editor-ruler"
-          className="relative h-10 border-b bg-muted/40"
-          onPointerDown={(event) => {
-            const timeMs = getTimelineEditorTimeFromPointer(event, durationMs);
-            const nextDocument = setTimelineEditorCurrentTime(document, timeMs, {
-              durationMs,
-              snapMs: defaultTimelineEditorSnapMs,
-            });
-            onCurrentTimeChange?.(nextDocument.currentTimeMs ?? 0);
-            commitDocument(nextDocument);
+          className="grid h-10 border-b bg-muted/40"
+          style={{
+            gridTemplateColumns: `${timelineEditorTrackHeaderWidthPx}px ${timelineWidthPx}px`,
           }}
         >
-          {ticks.map((tick) => (
-            <div
-              key={tick.timeMs}
-              className="absolute top-0 h-full border-l border-border"
-              style={{ left: `${(tick.timeMs / durationMs) * 100}%` }}
-            >
-              {tick.major ? (
-                <span className="ml-1 text-[10px] text-muted-foreground">{tick.label}</span>
-              ) : null}
-            </div>
-          ))}
-          {(document.markers ?? [])
-            .filter((marker) => isTimelineEditorTimeVisible(marker.timeMs, visibleRange))
-            .map((marker) => (
+          <div className="border-r bg-muted/20" />
+          <div
+            data-slot="timeline-editor-ruler-lane"
+            className="relative"
+            onPointerDown={(event) => {
+              const timeMs = getTimelineEditorTimeFromPointer(event, durationMs);
+              const nextDocument = setTimelineEditorCurrentTime(document, timeMs, {
+                durationMs,
+                snapMs: nudgeMs,
+              });
+              onCurrentTimeChange?.(nextDocument.currentTimeMs ?? 0);
+              commitDocument(nextDocument);
+            }}
+          >
+            {ticks.map((tick) => (
               <div
-                key={marker.id}
-                data-slot="timeline-editor-marker"
-                className="absolute top-0 h-full border-l-2"
-                style={{
-                  left: `${(marker.timeMs / durationMs) * 100}%`,
-                  borderColor: marker.color ?? "var(--primary)",
-                }}
-                title={marker.label}
-              />
+                key={tick.timeMs}
+                className="absolute top-0 h-full border-l border-border"
+                style={{ left: `${(tick.timeMs / durationMs) * 100}%` }}
+              >
+                {tick.major ? (
+                  <span className="ml-1 text-[10px] text-muted-foreground">{tick.label}</span>
+                ) : null}
+              </div>
             ))}
+            {(document.markers ?? [])
+              .filter((marker) => isTimelineEditorTimeVisible(marker.timeMs, visibleRange))
+              .map((marker) => (
+                <div
+                  key={marker.id}
+                  data-slot="timeline-editor-marker"
+                  className="absolute top-0 h-full border-l-2"
+                  style={{
+                    left: `${(marker.timeMs / durationMs) * 100}%`,
+                    borderColor: marker.color ?? "var(--primary)",
+                  }}
+                  title={marker.label}
+                />
+              ))}
+          </div>
         </div>
         <div
           data-slot="timeline-editor-playhead"
           className="pointer-events-none absolute top-0 bottom-0 z-20 w-px bg-primary"
           style={{
-            left: `${(clampTimelineEditorTime(document.currentTimeMs ?? 0, 0, durationMs) / durationMs) * 100}%`,
+            left: `${timelineEditorTrackHeaderWidthPx + (clampTimelineEditorTime(document.currentTimeMs ?? 0, 0, durationMs) / durationMs) * timelineWidthPx}px`,
           }}
         />
         {snapGuideMs !== null ? (
           <div
             data-slot="timeline-editor-snap-guide"
             className="pointer-events-none absolute top-0 bottom-0 z-10 w-px bg-ring"
-            style={{ left: `${(snapGuideMs / durationMs) * 100}%` }}
+            style={{
+              left: `${timelineEditorTrackHeaderWidthPx + (snapGuideMs / durationMs) * timelineWidthPx}px`,
+            }}
           />
         ) : null}
         <div data-slot="timeline-editor-tracks" className="divide-y">
@@ -591,8 +624,11 @@ export function TimelineEditor<
                 const track = (
                   <div
                     data-slot="timeline-editor-track"
-                    className="grid grid-cols-[9rem_minmax(0,1fr)]"
-                    style={{ minHeight: entry.track.height ?? 56 }}
+                    className="grid"
+                    style={{
+                      gridTemplateColumns: `${timelineEditorTrackHeaderWidthPx}px ${timelineWidthPx}px`,
+                      minHeight: entry.track.height ?? 56,
+                    }}
                   >
                     <div className="flex items-center border-r bg-muted/20 px-3 text-sm font-medium">
                       {renderTrackHeader ? (
@@ -845,12 +881,18 @@ function getTimelineEditorVisibleRange(
   durationMs: number,
   viewport: TimelineEditorViewport,
   measuredViewport: { scrollLeftPx: number; widthPx: number },
+  timelineOffsetPx = 0,
 ): TimelineEditorVisibleRange {
-  const measuredStartMs =
-    (measuredViewport.scrollLeftPx / Math.max(1, viewport.pixelsPerSecond)) * 1_000;
+  const pixelsPerSecond = Math.max(1, viewport.pixelsPerSecond);
+  const measuredStartPx = Math.max(0, measuredViewport.scrollLeftPx - timelineOffsetPx);
+  const measuredEndPx = Math.max(
+    measuredStartPx,
+    measuredViewport.scrollLeftPx + measuredViewport.widthPx - timelineOffsetPx,
+  );
+  const measuredStartMs = (measuredStartPx / pixelsPerSecond) * 1_000;
   const measuredDurationMs =
     measuredViewport.widthPx > 0
-      ? (measuredViewport.widthPx / Math.max(1, viewport.pixelsPerSecond)) * 1_000
+      ? ((measuredEndPx - measuredStartPx) / pixelsPerSecond) * 1_000
       : durationMs;
   const rawStartMs = viewport.visibleStartMs ?? viewport.scrollLeftMs ?? measuredStartMs;
   const rawEndMs = viewport.visibleEndMs ?? rawStartMs + measuredDurationMs;
@@ -897,6 +939,12 @@ function getNextTimelineEditorPixelsPerSecond(pixelsPerSecond: number, direction
     timelineEditorMinPixelsPerSecond,
     timelineEditorMaxPixelsPerSecond,
   );
+}
+
+function getTimelineEditorSnapIntervalMs(snap: TimelineEditorSnapOptions) {
+  const intervalTarget = snap.targets.find((target) => target.type === "interval");
+
+  return intervalTarget?.type === "interval" ? intervalTarget.intervalMs : undefined;
 }
 
 function getRangeSelectionIds<TTrackData, TItemData>(

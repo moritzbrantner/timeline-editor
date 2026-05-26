@@ -14,6 +14,7 @@ import {
   duplicateTimelineEditorItem,
   findTimelineEditorItem,
   formatTimelineEditorTimeMs,
+  getTimelineEditorFrameDurationMs,
   getTimelineEditorTicks,
   migrateTimelineEditorDocument,
   moveTimelineEditorItem,
@@ -74,6 +75,7 @@ beforeAll(() => {
 describe("@moritzbrantner/timeline-editor core", () => {
   test("normalizes, formats, and moves items across compatible tracks", () => {
     expect(formatTimelineEditorTimeMs(65_430)).toBe("1:05.4");
+    expect(getTimelineEditorFrameDurationMs(25)).toBe(40);
     expect(clampTimelineEditorTime(Number.POSITIVE_INFINITY, 0, 5_000)).toBe(5_000);
     expect(clampTimelineEditorTime(Number.NaN, 0, 5_000)).toBe(0);
     expect(
@@ -325,6 +327,37 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     ]);
   });
 
+  test("nudges timeline items by frame duration when a framerate is set", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks,
+    };
+    const handleDocumentChange = vi.fn();
+    const { container } = render(
+      <TimelineEditor
+        document={document}
+        selection={{ itemIds: ["brief"], anchorItemId: "brief" }}
+        viewport={{ pixelsPerSecond: 80 }}
+        frameRate={25}
+        onDocumentChange={handleDocumentChange}
+      />,
+    );
+    const editor = container.querySelector("[data-slot='timeline-editor']")!;
+
+    fireEvent.keyDown(editor, { key: "ArrowRight" });
+
+    expect(handleDocumentChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tracks: [
+          expect.objectContaining({
+            items: [expect.objectContaining({ id: "brief", startMs: 1_040 })],
+          }),
+          expect.anything(),
+        ],
+      }),
+    );
+  });
+
   test("filters offscreen timeline items in a large document", () => {
     const largeDocument: TimelineEditorDocument = {
       durationMs: 600_000,
@@ -381,7 +414,7 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
       expect.objectContaining({ itemId: "brief" }),
     );
 
-    fireEvent.pointerDown(container.querySelector("[data-slot='timeline-editor-ruler']")!, {
+    fireEvent.pointerDown(container.querySelector("[data-slot='timeline-editor-ruler-lane']")!, {
       clientX: 240,
     });
     expect(handleCurrentTimeChange).toHaveBeenCalled();

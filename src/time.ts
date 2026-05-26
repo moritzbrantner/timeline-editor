@@ -30,6 +30,14 @@ export function snapTimelineEditorTime(timeMs: number, snapMs = 0) {
   return Math.round(timeMs / snapMs) * snapMs;
 }
 
+export function getTimelineEditorFrameDurationMs(frameRate?: number) {
+  if (!Number.isFinite(frameRate) || frameRate === undefined || frameRate <= 0) {
+    return undefined;
+  }
+
+  return 1_000 / frameRate;
+}
+
 export function getTimelineEditorItemEndMs(item: { durationMs: number; startMs: number }) {
   return item.startMs + item.durationMs;
 }

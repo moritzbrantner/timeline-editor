@@ -75,7 +75,10 @@ const timelineAssets = [
 ] satisfies TimelineWorkbenchAsset[];
 
 function App() {
-  const readOnly = new URLSearchParams(window.location.search).get("readOnly") === "true";
+  const searchParams = new URLSearchParams(window.location.search);
+  const readOnly = searchParams.get("readOnly") === "true";
+  const frameRateParam = searchParams.get("frameRate");
+  const frameRate = frameRateParam ? Number(frameRateParam) : undefined;
   const [document, setDocument] = useState(createDocument);
   const [selection, setSelection] = useState<TimelineEditorSelection>({ itemIds: [] });
   const changes = useRef<string[]>([]);
@@ -117,6 +120,7 @@ function App() {
       selection={selection}
       readOnly={readOnly}
       pixelsPerSecond={80}
+      frameRate={frameRate}
       snapMs={100}
       assets={timelineAssets}
       onDocumentChange={handleDocumentChange}

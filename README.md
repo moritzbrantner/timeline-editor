@@ -61,12 +61,16 @@ export function Example() {
     <TimelineEditor
       document={document}
       selection={selection}
+      frameRate={24}
       onDocumentChange={setDocument}
       onSelectionChange={setSelection}
     />
   );
 }
 ```
+
+Set `frameRate` to make pointer snapping, keyboard nudging, and timing inputs
+use frame-sized increments.
 
 ## Development Example
 
@@ -117,6 +121,7 @@ limits, including when the currently selected track rejects the asset kind.
       { id: "audio", label: "Audio", acceptsItemKinds: ["audio"], items: [] },
     ],
   }}
+  frameRate={24}
   assets={[{ id: "scene", label: "Scene", kind: "video", durationMs: 2_000 }]}
   getItemContextMenuItems={(context) =>
     context.mediaType === "video"

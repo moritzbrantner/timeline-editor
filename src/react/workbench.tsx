@@ -27,6 +27,7 @@ import {
   duplicateTimelineEditorItems,
   formatTimelineEditorTimeMs,
   getTimelineEditorDurationMs,
+  getTimelineEditorFrameDurationMs,
   getTimelineEditorGroupedItemIds,
   getTimelineEditorItemEndMs,
   groupTimelineEditorItems,
@@ -35,6 +36,7 @@ import {
   normalizeTimelineEditorTracks,
   removeTimelineEditorItems,
   removeTimelineEditorTrack,
+  snapTimelineEditorTime,
   splitTimelineEditorItems,
   type TimelineEditorDocument,
   type TimelineEditorItem,
@@ -119,6 +121,7 @@ export type TimelineWorkbenchProps<
   selection?: TimelineEditorSelection;
   readOnly?: boolean;
   pixelsPerSecond?: number;
+  frameRate?: number;
   snapMs?: number;
   assets?: Array<TimelineWorkbenchAsset<TAssetData>>;
   className?: string;
@@ -214,6 +217,7 @@ export function TimelineWorkbench<
   selection,
   readOnly = false,
   pixelsPerSecond = 80,
+  frameRate,
   snapMs = 100,
   assets = [],
   className,
@@ -236,6 +240,8 @@ export function TimelineWorkbench<
     () => createTimelineEditorHistory() as TimelineEditorHistory<TTrackData, TItemData>,
   );
   const durationMs = document.durationMs ?? getTimelineEditorDurationMs(document.tracks, 30_000);
+  const frameDurationMs = getTimelineEditorFrameDurationMs(frameRate);
+  const resolvedSnapMs = frameDurationMs ?? snapMs;
   const currentTimeMs = document.currentTimeMs ?? 0;
   const resolvedSelection = selection ?? {
     itemIds: selectedItemId ? [selectedItemId] : [],
@@ -477,7 +483,9 @@ export function TimelineWorkbench<
       data: asset.data as TItemData | undefined,
     };
 
-    commitTracks(insertTimelineEditorItem(document.tracks, item, { durationMs, snapMs }));
+    commitTracks(
+      insertTimelineEditorItem(document.tracks, item, { durationMs, snapMs: resolvedSnapMs }),
+    );
     commitSelection({ itemIds: [item.id], anchorItemId: item.id });
   };
 
@@ -594,7 +602,10 @@ export function TimelineWorkbench<
           {renderInspector ? (
             renderInspector(inspectorContext)
           ) : (
-            <DefaultTimelineInspector context={inspectorContext} />
+            <DefaultTimelineInspector
+              context={inspectorContext}
+              timingStepMs={resolvedSnapMs > 0 ? resolvedSnapMs : undefined}
+            />
           )}
         </WorkbenchPanel>
       }
@@ -748,15 +759,16 @@ export function TimelineWorkbench<
           selection={resolvedSelection}
           viewport={internalViewport}
           snap={{
-            enabled: snapMs > 0,
+            enabled: resolvedSnapMs > 0,
             thresholdPx: 8,
             targets: [
-              { type: "interval", intervalMs: snapMs },
+              { type: "interval", intervalMs: resolvedSnapMs },
               { type: "marker" },
               { type: "item-edge" },
               { type: "playhead" },
             ],
           }}
+          frameRate={frameRate}
           readOnly={readOnly}
           hotkeys={defaultTimelineWorkbenchHotkeys}
           onCurrentTimeChange={onCurrentTimeChange}
@@ -820,10 +832,13 @@ function createTimelineWorkbenchTrack<TTrackData, TItemData>(
 
 function DefaultTimelineInspector<TData>({
   context,
+  timingStepMs,
 }: {
   context: TimelineWorkbenchInspectorContext<TData>;
+  timingStepMs?: number;
 }) {
   const item = context.selectedItem;
+  const inputStepMs = timingStepMs ?? 100;
 
   if (context.selectedItems.length > 1) {
     return (
@@ -863,8 +878,8 @@ function DefaultTimelineInspector<TData>({
           title: "Timing",
           fields: [
             { id: "label", label: "Label", type: "text" },
-            { id: "startMs", label: "Start", type: "number", min: 0, step: 100 },
-            { id: "durationMs", label: "Duration", type: "number", min: 100, step: 100 },
+            { id: "startMs", label: "Start", type: "number", min: 0, step: inputStepMs },
+            { id: "durationMs", label: "Duration", type: "number", min: 100, step: inputStepMs },
             { id: "endMs", label: "End", type: "number", readOnly: true },
             { id: "kind", label: "Kind", type: "text" },
             { id: "locked", label: "Locked", type: "boolean" },
@@ -874,8 +889,14 @@ function DefaultTimelineInspector<TData>({
       onApply={(values) => {
         context.updateSelectedItem({
           label: String(values.label ?? item.label),
-          startMs: toNumber(values.startMs, item.startMs),
-          durationMs: toNumber(values.durationMs, item.durationMs),
+          startMs: snapTimelineWorkbenchInspectorTime(
+            toNumber(values.startMs, item.startMs),
+            timingStepMs,
+          ),
+          durationMs: snapTimelineWorkbenchInspectorTime(
+            toNumber(values.durationMs, item.durationMs),
+            timingStepMs,
+          ),
           kind: String(values.kind ?? "") || undefined,
           locked: Boolean(values.locked),
         });
@@ -887,4 +908,8 @@ function DefaultTimelineInspector<TData>({
 function toNumber(value: InspectorFieldValue, fallback: number) {
   const nextValue = typeof value === "number" ? value : Number(value);
   return Number.isFinite(nextValue) ? nextValue : fallback;
+}
+
+function snapTimelineWorkbenchInspectorTime(timeMs: number, snapMs?: number) {
+  return snapMs && snapMs > 0 ? snapTimelineEditorTime(timeMs, snapMs) : timeMs;
 }

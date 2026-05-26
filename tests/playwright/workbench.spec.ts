@@ -48,6 +48,10 @@ function getTimelineRuler(page: Page) {
   return page.locator("[data-slot='timeline-editor-ruler']").last();
 }
 
+function getTimelineRulerLane(page: Page) {
+  return page.locator("[data-slot='timeline-editor-ruler-lane']").last();
+}
+
 async function getItem(page: Page, itemId: string) {
   const state = await getHarnessState(page);
 
@@ -77,14 +81,16 @@ async function drag(locator: Locator, deltaX: number) {
 }
 
 async function scrubRulerTo(page: Page, fraction: number) {
-  const ruler = getTimelineRuler(page);
-  const rulerBox = await ruler.boundingBox();
-  expect(rulerBox).not.toBeNull();
+  const lane = getTimelineRulerLane(page);
+  const laneBox = await lane.boundingBox();
+  expect(laneBox).not.toBeNull();
 
-  await page.mouse.click(
-    rulerBox!.x + rulerBox!.width * fraction,
-    rulerBox!.y + rulerBox!.height / 2,
-  );
+  await lane.click({
+    position: {
+      x: laneBox!.width * fraction,
+      y: laneBox!.height / 2,
+    },
+  });
 }
 
 test("renders the timeline workbench", async ({ page }) => {
@@ -115,10 +121,22 @@ test("selects an item and scrubs the ruler", async ({ page }) => {
   await expect.poll(async () => (await getHarnessState(page)).document.currentTimeMs).toBe(4_000);
 });
 
+test("aligns timeline zero after the track names", async ({ page }) => {
+  await page.goto("/");
+
+  const laneBox = await getTimelineRulerLane(page).boundingBox();
+  const clipBox = await getClip(page, "Brief").boundingBox();
+  expect(laneBox).not.toBeNull();
+  expect(clipBox).not.toBeNull();
+
+  expect(Math.round(clipBox!.x - laneBox!.x)).toBe(80);
+});
+
 test("inserts an asset at the playhead", async ({ page }) => {
   await page.goto("/");
 
   await scrubRulerTo(page, 0.75);
+  await expect.poll(async () => (await getHarnessState(page)).document.currentTimeMs).toBe(6_000);
   await page.getByRole("button", { name: /Prototype/ }).click();
 
   await expect(getClip(page, "Prototype")).toBeVisible();
@@ -322,6 +340,16 @@ test("nudges selected clips and selects all with keyboard shortcuts", async ({ p
   await expect
     .poll(async () => (await getHarnessState(page)).selectedItemIds.sort())
     .toEqual(["brief", "brief-copy"]);
+});
+
+test("nudges selected clips by frame when a framerate is set", async ({ page }) => {
+  await page.goto("/?frameRate=25");
+
+  await getClip(page, "Brief").click();
+  await getTimelineEditor(page).focus();
+  await page.keyboard.press("ArrowRight");
+
+  await expect.poll(async () => (await getItem(page, "brief"))?.startMs).toBe(1_040);
 });
 
 test("drags a clip with real browser pointer events", async ({ page }) => {
