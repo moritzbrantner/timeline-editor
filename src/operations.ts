@@ -59,33 +59,7 @@ export function normalizeTimelineEditorTracks<
   tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
   options: TimelineEditorOperationOptions = {},
 ): Array<TimelineEditorTrack<TTrackData, TItemData>> {
-  const durationMs = options.durationMs ?? Number.POSITIVE_INFINITY;
-  const minItemDurationMs = options.minItemDurationMs ?? defaultTimelineEditorMinItemDurationMs;
-
-  return tracks.map((track) => ({
-    ...track,
-    items: track.items
-      .map((item) => {
-        const maxStartMs = Math.max(0, durationMs - minItemDurationMs);
-        const startMs = clampTimelineEditorTime(item.startMs, 0, maxStartMs);
-        const durationLimitMs = Number.isFinite(durationMs)
-          ? Math.max(minItemDurationMs, durationMs - startMs)
-          : Number.POSITIVE_INFINITY;
-        const durationMsForItem = clampTimelineEditorTime(
-          item.durationMs,
-          minItemDurationMs,
-          durationLimitMs,
-        );
-
-        return {
-          ...item,
-          trackId: track.id,
-          startMs,
-          durationMs: durationMsForItem,
-        };
-      })
-      .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id)),
-  }));
+  return tracks.map((track) => normalizeTimelineEditorTrack(track, options));
 }
 
 export function normalizeTimelineEditorDocument<
@@ -405,6 +379,51 @@ export function moveTimelineEditorItems<
   deltaMs: number,
   options: TimelineEditorOperationOptions & { trackDelta?: number } = {},
 ) {
+  if (itemIds.length === 0 || (deltaMs === 0 && options.trackDelta === undefined)) {
+    return tracks;
+  }
+
+  if (options.trackDelta === undefined) {
+    const movingIds = new Set(itemIds);
+    const durationMs = options.durationMs ?? Number.POSITIVE_INFINITY;
+    const snapMs = getSnapMs(options);
+    let changed = false;
+
+    const nextTracks = tracks.map((track) => {
+      if (track.locked || !track.items.some((item) => movingIds.has(item.id))) {
+        return track;
+      }
+
+      let trackChanged = false;
+      const nextItems = track.items.map((item) => {
+        if (!movingIds.has(item.id) || item.locked) {
+          return item;
+        }
+
+        const maxStartMs = Math.max(0, durationMs - item.durationMs);
+        const startMs = clampTimelineEditorTime(
+          snapTimelineEditorTime(item.startMs + deltaMs, snapMs),
+          0,
+          maxStartMs,
+        );
+
+        if (startMs === item.startMs) {
+          return item;
+        }
+
+        changed = true;
+        trackChanged = true;
+        return { ...item, startMs };
+      });
+
+      return trackChanged
+        ? normalizeTimelineEditorTrack({ ...track, items: nextItems }, options)
+        : track;
+    });
+
+    return changed ? enforceOverlapPolicy(nextTracks, tracks, options) : tracks;
+  }
+
   let nextTracks = tracks;
 
   for (const itemId of itemIds) {
@@ -438,6 +457,39 @@ export function moveTimelineEditorItems<
   }
 
   return nextTracks;
+}
+
+function normalizeTimelineEditorTrack<TTrackData, TItemData>(
+  track: TimelineEditorTrack<TTrackData, TItemData>,
+  options: TimelineEditorOperationOptions = {},
+): TimelineEditorTrack<TTrackData, TItemData> {
+  const durationMs = options.durationMs ?? Number.POSITIVE_INFINITY;
+  const minItemDurationMs = options.minItemDurationMs ?? defaultTimelineEditorMinItemDurationMs;
+
+  return {
+    ...track,
+    items: track.items
+      .map((item) => {
+        const maxStartMs = Math.max(0, durationMs - minItemDurationMs);
+        const startMs = clampTimelineEditorTime(item.startMs, 0, maxStartMs);
+        const durationLimitMs = Number.isFinite(durationMs)
+          ? Math.max(minItemDurationMs, durationMs - startMs)
+          : Number.POSITIVE_INFINITY;
+        const durationMsForItem = clampTimelineEditorTime(
+          item.durationMs,
+          minItemDurationMs,
+          durationLimitMs,
+        );
+
+        return {
+          ...item,
+          trackId: track.id,
+          startMs,
+          durationMs: durationMsForItem,
+        };
+      })
+      .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id)),
+  };
 }
 
 export function duplicateTimelineEditorItems<

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { beforeAll, describe, expect, test, vi } from "vitest";
 
 import {
@@ -7,6 +8,7 @@ import {
   applyTimelineEditorCommandWithHistory,
   clampTimelineEditorTime,
   closeTimelineEditorGap,
+  createTimelineEditorSnapResolver,
   createTimelineEditorHistory,
   detectTimelineEditorOverlaps,
   duplicateTimelineEditorItem,
@@ -22,6 +24,7 @@ import {
   rippleDeleteTimelineEditorItems,
   serializeTimelineEditorDocument,
   splitTimelineEditorItem,
+  TimelineEditor,
   undoTimelineEditorHistory,
   validateTimelineEditorDocument,
   type TimelineEditorDocument,
@@ -52,6 +55,10 @@ const tracks: TimelineEditorTrack[] = normalizeTimelineEditorTracks([
     items: [],
   },
 ]);
+
+function firePointerEvent(element: Element, type: string, clientX: number) {
+  fireEvent(element, new MouseEvent(type, { bubbles: true, clientX }));
+}
 
 beforeAll(() => {
   vi.stubGlobal(
@@ -157,6 +164,45 @@ describe("@moritzbrantner/timeline-editor core", () => {
     ]);
   });
 
+  test("resolves snap targets without enumerating interval candidates", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 10_000,
+      currentTimeMs: 3_000,
+      markers: [{ id: "marker", timeMs: 2_500 }],
+      tracks,
+    };
+    const resolver = createTimelineEditorSnapResolver(
+      document,
+      {
+        enabled: true,
+        thresholdPx: 8,
+        targets: [
+          { type: "interval", intervalMs: 100 },
+          { type: "marker" },
+          { type: "item-edge" },
+          { type: "playhead" },
+          { type: "custom", id: "custom", timesMs: [3_750] },
+        ],
+      },
+      100,
+    );
+
+    expect(resolver(1_040)).toEqual({ timeMs: 1_000, snapped: true });
+    expect(resolver(2_470)).toEqual({ timeMs: 2_500, snapped: true });
+    expect(resolver(2_960)).toEqual({ timeMs: 3_000, snapped: true });
+    expect(resolver(3_760)).toEqual({ timeMs: 3_750, snapped: true });
+    expect(resolver(4_234)).toEqual({ timeMs: 4_200, snapped: true });
+
+    const resolverWithoutOwnEdges = createTimelineEditorSnapResolver(
+      document,
+      { enabled: true, thresholdPx: 8, targets: [{ type: "item-edge" }] },
+      100,
+      { excludeItemIds: ["brief"] },
+    );
+
+    expect(resolverWithoutOwnEdges(1_040)).toEqual({ timeMs: 1_040, snapped: false });
+  });
+
   test("applies commands, history, ripple delete, and gap closing", () => {
     const document: TimelineEditorDocument = {
       durationMs: 8_000,
@@ -203,6 +249,111 @@ describe("@moritzbrantner/timeline-editor core", () => {
 });
 
 describe("@moritzbrantner/timeline-editor React workbench", () => {
+  test("commits drag edits once and undo returns to the pre-drag document", () => {
+    const document: TimelineEditorDocument = {
+      tracks,
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+    };
+    let currentDocument = document;
+
+    function StatefulWorkbench() {
+      const [stateDocument, setStateDocument] = useState(document);
+      currentDocument = stateDocument;
+
+      return (
+        <TimelineWorkbench
+          document={stateDocument}
+          selectedItemId="brief"
+          onDocumentChange={(nextDocument) => {
+            currentDocument = nextDocument;
+            setStateDocument(nextDocument);
+          }}
+        />
+      );
+    }
+
+    const { container } = render(<StatefulWorkbench />);
+    const editor = container.querySelector("[data-slot='timeline-editor']")!;
+    const item = screen.getAllByRole("button", { name: "Brief" })[0]!;
+
+    firePointerEvent(item, "pointerdown", 0);
+    firePointerEvent(editor, "pointermove", 80);
+    expect(currentDocument.tracks[0]?.items[0]?.startMs).toBe(1_000);
+
+    firePointerEvent(editor, "pointerup", 80);
+    expect(currentDocument.tracks[0]?.items[0]?.startMs).toBe(2_000);
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(currentDocument.tracks[0]?.items[0]?.startMs).toBe(1_000);
+  });
+
+  test("moves multi-selection items during a single drag commit", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks: [
+        {
+          id: "planning",
+          label: "Planning",
+          items: [
+            { id: "brief", trackId: "planning", label: "Brief", startMs: 1_000, durationMs: 500 },
+            { id: "draft", trackId: "planning", label: "Draft", startMs: 2_000, durationMs: 500 },
+          ],
+        },
+      ],
+    };
+    const handleDocumentChange = vi.fn();
+    const { container } = render(
+      <TimelineEditor
+        document={document}
+        selection={{ itemIds: ["brief", "draft"], anchorItemId: "brief" }}
+        viewport={{ pixelsPerSecond: 80 }}
+        onDocumentChange={handleDocumentChange}
+      />,
+    );
+    const editor = container.querySelector("[data-slot='timeline-editor']")!;
+
+    firePointerEvent(screen.getByRole("button", { name: "Brief" }), "pointerdown", 0);
+    firePointerEvent(editor, "pointermove", 80);
+    expect(handleDocumentChange).not.toHaveBeenCalled();
+
+    firePointerEvent(editor, "pointerup", 80);
+    expect(handleDocumentChange).toHaveBeenCalledTimes(1);
+    expect(handleDocumentChange.mock.calls[0]?.[0].tracks[0]?.items).toEqual([
+      expect.objectContaining({ id: "brief", startMs: 2_000 }),
+      expect.objectContaining({ id: "draft", startMs: 3_000 }),
+    ]);
+  });
+
+  test("filters offscreen timeline items in a large document", () => {
+    const largeDocument: TimelineEditorDocument = {
+      durationMs: 600_000,
+      tracks: Array.from({ length: 50 }, (_, trackIndex) => ({
+        id: `track-${trackIndex}`,
+        label: `Track ${trackIndex}`,
+        items: Array.from({ length: 100 }, (_, itemIndex) => ({
+          id: `item-${trackIndex}-${itemIndex}`,
+          trackId: `track-${trackIndex}`,
+          label: `Item ${trackIndex}-${itemIndex}`,
+          startMs: itemIndex * 6_000,
+          durationMs: 1_000,
+        })),
+      })),
+    };
+
+    render(
+      <TimelineEditor
+        document={largeDocument}
+        selection={{ itemIds: ["item-49-99"], anchorItemId: "item-49-99" }}
+        viewport={{ pixelsPerSecond: 80, visibleStartMs: 0, visibleEndMs: 10_000 }}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Item 49-99" })).toBeTruthy();
+    expect(screen.queryAllByRole("button").length).toBeLessThan(250);
+    expect(screen.queryByRole("button", { name: "Item 0-50" })).toBeNull();
+  });
+
   test("renders, selects, scrubs, moves items, and respects read-only mode", () => {
     const document: TimelineEditorDocument = {
       tracks,
@@ -225,7 +376,7 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     );
 
     const item = screen.getAllByRole("button", { name: "Brief" })[0]!;
-    fireEvent.pointerDown(item, { clientX: 0 });
+    firePointerEvent(item, "pointerdown", 0);
     expect(handleSelectedItemChange).toHaveBeenCalledWith(
       expect.objectContaining({ itemId: "brief" }),
     );
@@ -235,9 +386,11 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     });
     expect(handleCurrentTimeChange).toHaveBeenCalled();
 
-    fireEvent.pointerMove(container.querySelector("[data-slot='timeline-editor']")!, {
-      clientX: 80,
-    });
+    handleDocumentChange.mockClear();
+    firePointerEvent(container.querySelector("[data-slot='timeline-editor']")!, "pointermove", 80);
+    expect(handleDocumentChange).not.toHaveBeenCalled();
+
+    firePointerEvent(container.querySelector("[data-slot='timeline-editor']")!, "pointerup", 80);
     expect(handleDocumentChange).toHaveBeenCalled();
 
     handleDocumentChange.mockClear();
@@ -249,10 +402,8 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
         onDocumentChange={handleDocumentChange}
       />,
     );
-    fireEvent.pointerDown(screen.getAllByRole("button", { name: "Brief" })[0]!, { clientX: 0 });
-    fireEvent.pointerMove(container.querySelector("[data-slot='timeline-editor']")!, {
-      clientX: 80,
-    });
+    firePointerEvent(screen.getAllByRole("button", { name: "Brief" })[0]!, "pointerdown", 0);
+    firePointerEvent(container.querySelector("[data-slot='timeline-editor']")!, "pointermove", 80);
     expect(handleDocumentChange).not.toHaveBeenCalled();
   });
 });

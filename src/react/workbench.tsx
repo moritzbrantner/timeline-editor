@@ -23,7 +23,6 @@ import {
   addTimelineEditorMarker,
   detectTimelineEditorOverlaps,
   duplicateTimelineEditorItems,
-  findTimelineEditorItem,
   formatTimelineEditorTimeMs,
   getTimelineEditorDurationMs,
   getTimelineEditorItemEndMs,
@@ -144,11 +143,28 @@ export function TimelineWorkbench<
     itemIds: selectedItemId ? [selectedItemId] : [],
     anchorItemId: selectedItemId ?? undefined,
   };
+  const itemLookup = useMemo(() => {
+    const lookup = new Map<
+      string,
+      {
+        item: TimelineEditorItem<TItemData>;
+        track: TimelineEditorTrack<TTrackData, TItemData>;
+      }
+    >();
+
+    for (const track of document.tracks) {
+      for (const item of track.items) {
+        lookup.set(item.id, { item, track });
+      }
+    }
+
+    return lookup;
+  }, [document.tracks]);
   const selectedItems = resolvedSelection.itemIds
-    .map((itemId) => findTimelineEditorItem(document.tracks, itemId)?.item)
+    .map((itemId) => itemLookup.get(itemId)?.item)
     .filter((item): item is TimelineEditorItem<TItemData> => Boolean(item));
   const selected = resolvedSelection.itemIds[0]
-    ? findTimelineEditorItem(document.tracks, resolvedSelection.itemIds[0])
+    ? itemLookup.get(resolvedSelection.itemIds[0])
     : undefined;
   const selectedItem = selected?.item;
   const selectedTrack = selected?.track;
@@ -201,7 +217,7 @@ export function TimelineWorkbench<
   const commitSelection = (nextSelection: TimelineEditorSelection) => {
     onSelectionChange?.(nextSelection);
     const nextSelected = nextSelection.itemIds[0]
-      ? findTimelineEditorItem(document.tracks, nextSelection.itemIds[0])
+      ? itemLookup.get(nextSelection.itemIds[0])
       : undefined;
     onSelectedItemChange?.({
       item: nextSelected?.item,
