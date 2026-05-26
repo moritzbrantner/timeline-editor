@@ -5,6 +5,7 @@ import { type ReactNode, useMemo, useState } from "react";
 import {
   Badge,
   Button,
+  type MenuActionItem,
   Slider,
   WorkbenchCanvas,
   WorkbenchLayout,
@@ -44,7 +45,11 @@ import {
   type TimelineEditorHistory,
 } from "../history";
 import { formatShortcutLabel } from "../shortcut-label";
-import { TimelineEditor } from "./timeline-editor";
+import {
+  TimelineEditor,
+  type TimelineEditorItemRenderContext,
+  type TimelineEditorItemContextMenuContext,
+} from "./timeline-editor";
 
 export type TimelineWorkbenchAsset<TData = Record<string, unknown>> = {
   id: string;
@@ -74,6 +79,25 @@ export type TimelineWorkbenchInspectorContext<TData = Record<string, unknown>> =
   updateSelectedItem: (patch: Partial<TimelineEditorItem<TData>>) => void;
 };
 
+export type TimelineWorkbenchItemContextMenuContext<
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+> = {
+  document: TimelineEditorDocument<TTrackData, TItemData>;
+  durationMs: number;
+  item: TimelineEditorItem<TItemData>;
+  itemIds: string[];
+  mediaType?: TimelineEditorItemKind;
+  readOnly: boolean;
+  selection: TimelineEditorSelection;
+  selectedItems: Array<TimelineEditorItem<TItemData>>;
+  track: TimelineEditorTrack<TTrackData, TItemData>;
+  deleteItems: (itemIds?: string[]) => void;
+  duplicateItems: (itemIds?: string[]) => void;
+  splitItems: (itemIds?: string[]) => void;
+  updateItem: (itemId: string, patch: Partial<TimelineEditorItem<TItemData>>) => void;
+};
+
 export type TimelineWorkbenchProps<
   TTrackData extends Record<string, unknown> = Record<string, unknown>,
   TItemData = Record<string, unknown>,
@@ -98,7 +122,11 @@ export type TimelineWorkbenchProps<
   ) => void;
   renderAsset?: (asset: TimelineWorkbenchAsset<TAssetData>) => ReactNode;
   renderInspector?: (context: TimelineWorkbenchInspectorContext<TItemData>) => ReactNode;
+  renderTimelineItem?: (context: TimelineEditorItemRenderContext<TItemData>) => ReactNode;
   renderToolbarActions?: (context: TimelineWorkbenchInspectorContext<TItemData>) => ReactNode;
+  getItemContextMenuItems?: (
+    context: TimelineWorkbenchItemContextMenuContext<TTrackData, TItemData>,
+  ) => MenuActionItem[];
 };
 
 export const defaultTimelineWorkbenchHotkeys = {
@@ -129,7 +157,9 @@ export function TimelineWorkbench<
   onAssetInsert,
   renderAsset,
   renderInspector,
+  renderTimelineItem,
   renderToolbarActions,
+  getItemContextMenuItems,
 }: TimelineWorkbenchProps<TTrackData, TItemData, TAssetData>) {
   const [internalViewport, setInternalViewport] = useState<TimelineEditorViewport>({
     pixelsPerSecond,
@@ -227,19 +257,25 @@ export function TimelineWorkbench<
     });
   };
 
-  const updateSelectedItem = (patch: Partial<TimelineEditorItem<TItemData>>) => {
-    if (readOnly || !selectedItem) {
+  const updateItem = (itemId: string, patch: Partial<TimelineEditorItem<TItemData>>) => {
+    if (readOnly) {
+      return;
+    }
+
+    const found = itemLookup.get(itemId);
+
+    if (!found || found.item.locked || found.track.locked) {
       return;
     }
 
     commitTracks(
       normalizeTimelineEditorTracks(
         document.tracks.map((track) =>
-          track.id === selectedItem.trackId
+          track.id === found.item.trackId
             ? {
                 ...track,
                 items: track.items.map((item) =>
-                  item.id === selectedItem.id ? { ...item, ...patch } : item,
+                  item.id === found.item.id ? { ...item, ...patch } : item,
                 ),
               }
             : track,
@@ -247,6 +283,37 @@ export function TimelineWorkbench<
         { durationMs },
       ),
     );
+  };
+
+  const updateSelectedItem = (patch: Partial<TimelineEditorItem<TItemData>>) => {
+    if (selectedItem) {
+      updateItem(selectedItem.id, patch);
+    }
+  };
+
+  const deleteItems = (itemIds = resolvedSelection.itemIds) => {
+    if (readOnly || itemIds.length === 0) {
+      return;
+    }
+
+    commitTracks(removeTimelineEditorItems(document.tracks, itemIds));
+    commitSelection({ itemIds: [] });
+  };
+
+  const duplicateItems = (itemIds = resolvedSelection.itemIds) => {
+    if (readOnly || itemIds.length === 0) {
+      return;
+    }
+
+    commitTracks(duplicateTimelineEditorItems(document.tracks, itemIds));
+  };
+
+  const splitItems = (itemIds = resolvedSelection.itemIds) => {
+    if (readOnly || itemIds.length === 0) {
+      return;
+    }
+
+    commitTracks(splitTimelineEditorItems(document.tracks, itemIds, currentTimeMs));
   };
 
   const inspectorContext = {
@@ -262,14 +329,12 @@ export function TimelineWorkbench<
 
   const insertAsset = (asset: TimelineWorkbenchAsset<TAssetData>) => {
     const selectedTrackForPlacement =
-      selectedTrack && !selectedTrack.locked ? selectedTrack : undefined;
+      selectedTrack && canPlaceTimelineWorkbenchAssetOnTrack(asset, selectedTrack)
+        ? selectedTrack
+        : undefined;
     const targetTrack =
       selectedTrackForPlacement ??
-      document.tracks.find(
-        (track) =>
-          !track.locked &&
-          (!track.acceptsItemKinds || !asset.kind || track.acceptsItemKinds.includes(asset.kind)),
-      );
+      document.tracks.find((track) => canPlaceTimelineWorkbenchAssetOnTrack(asset, track));
 
     if (!targetTrack || readOnly) {
       return;
@@ -294,6 +359,56 @@ export function TimelineWorkbench<
 
     commitTracks(insertTimelineEditorItem(document.tracks, item, { durationMs, snapMs }));
     commitSelection({ itemIds: [item.id], anchorItemId: item.id });
+  };
+
+  const getWorkbenchItemContextMenuItems = (
+    context: TimelineEditorItemContextMenuContext<TTrackData, TItemData>,
+  ): MenuActionItem[] => {
+    const itemIds = resolvedSelection.itemIds.includes(context.item.id)
+      ? resolvedSelection.itemIds
+      : [context.item.id];
+    const readOnlyContext = readOnly || context.readOnly;
+    const menuContext = {
+      document,
+      durationMs,
+      item: context.item,
+      itemIds,
+      mediaType: context.item.kind,
+      readOnly: readOnlyContext,
+      selection: resolvedSelection,
+      selectedItems: context.selectedItems,
+      track: context.track,
+      deleteItems,
+      duplicateItems,
+      splitItems,
+      updateItem,
+    } satisfies TimelineWorkbenchItemContextMenuContext<TTrackData, TItemData>;
+    const extensionItems = getItemContextMenuItems?.(menuContext) ?? [];
+    const defaultItems = [
+      {
+        id: "split",
+        label: "Split at playhead",
+        disabled: readOnlyContext,
+        onSelect: () => splitItems(itemIds),
+      },
+      {
+        id: "duplicate",
+        label: "Duplicate",
+        disabled: readOnlyContext,
+        onSelect: () => duplicateItems(itemIds),
+      },
+      {
+        id: "delete",
+        label: "Delete",
+        destructive: true,
+        disabled: readOnlyContext,
+        onSelect: () => deleteItems(itemIds),
+      },
+    ] satisfies MenuActionItem[];
+
+    return extensionItems.length > 0
+      ? [...defaultItems, { id: "media-actions", type: "separator" }, ...extensionItems]
+      : defaultItems;
   };
 
   const commitViewport = (nextViewport: TimelineEditorViewport) => {
@@ -398,13 +513,7 @@ export function TimelineWorkbench<
               variant="outline"
               disabled={readOnly || resolvedSelection.itemIds.length === 0}
               onClick={() => {
-                commitTracks(
-                  splitTimelineEditorItems(
-                    document.tracks,
-                    resolvedSelection.itemIds,
-                    currentTimeMs,
-                  ),
-                );
+                splitItems();
               }}
             >
               Split
@@ -415,9 +524,7 @@ export function TimelineWorkbench<
               variant="outline"
               disabled={readOnly || resolvedSelection.itemIds.length === 0}
               onClick={() => {
-                commitTracks(
-                  duplicateTimelineEditorItems(document.tracks, resolvedSelection.itemIds),
-                );
+                duplicateItems();
               }}
             >
               Duplicate
@@ -428,8 +535,7 @@ export function TimelineWorkbench<
               variant="destructive"
               disabled={readOnly || resolvedSelection.itemIds.length === 0}
               onClick={() => {
-                commitTracks(removeTimelineEditorItems(document.tracks, resolvedSelection.itemIds));
-                commitSelection({ itemIds: [] });
+                deleteItems();
               }}
             >
               Delete
@@ -502,6 +608,8 @@ export function TimelineWorkbench<
           onDocumentChange={commitDocument}
           onSelectionChange={commitSelection}
           onViewportChange={commitViewport}
+          renderItem={renderTimelineItem}
+          getItemContextMenuItems={getWorkbenchItemContextMenuItems}
         />
       </WorkbenchCanvas>
     </WorkbenchLayout>
@@ -511,6 +619,16 @@ export function TimelineWorkbench<
 type TimelineTrackForSelection<TItemData> =
   | TimelineEditorTrack<Record<string, unknown>, TItemData>
   | undefined;
+
+function canPlaceTimelineWorkbenchAssetOnTrack<TTrackData, TItemData, TAssetData>(
+  asset: TimelineWorkbenchAsset<TAssetData>,
+  track: TimelineEditorTrack<TTrackData, TItemData>,
+) {
+  return (
+    !track.locked &&
+    (!track.acceptsItemKinds || !asset.kind || track.acceptsItemKinds.includes(asset.kind))
+  );
+}
 
 function DefaultTimelineInspector<TData>({
   context,

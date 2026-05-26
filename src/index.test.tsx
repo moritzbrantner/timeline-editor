@@ -406,4 +406,105 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     firePointerEvent(container.querySelector("[data-slot='timeline-editor']")!, "pointermove", 80);
     expect(handleDocumentChange).not.toHaveBeenCalled();
   });
+
+  test("places assets on compatible tracks when the selected track rejects the media kind", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks: [
+        {
+          id: "video",
+          label: "Video",
+          acceptsItemKinds: ["video"],
+          items: [],
+        },
+        {
+          id: "audio",
+          label: "Audio",
+          acceptsItemKinds: ["audio"],
+          items: [
+            {
+              id: "voice",
+              trackId: "audio",
+              label: "Voice",
+              kind: "audio",
+              startMs: 1_000,
+              durationMs: 1_000,
+            },
+          ],
+        },
+      ],
+    };
+    const handleDocumentChange = vi.fn();
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        selectedItemId="voice"
+        assets={[{ id: "clip", label: "Camera", kind: "video", durationMs: 1_000 }]}
+        renderAsset={(asset) => asset.label}
+        onDocumentChange={handleDocumentChange}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Camera" })[0]!);
+
+    expect(handleDocumentChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tracks: [
+          expect.objectContaining({
+            id: "video",
+            items: [expect.objectContaining({ label: "Camera", kind: "video", trackId: "video" })],
+          }),
+          expect.objectContaining({ id: "audio" }),
+        ],
+      }),
+    );
+  });
+
+  test("extends timeline item context menus by media kind", async () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks: [
+        {
+          id: "video",
+          label: "Video",
+          acceptsItemKinds: ["video"],
+          items: [
+            {
+              id: "scene",
+              trackId: "video",
+              label: "Scene",
+              kind: "video",
+              startMs: 1_000,
+              durationMs: 1_000,
+            },
+          ],
+        },
+      ],
+    };
+    const handleCustomAction = vi.fn();
+
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        selectedItemId="scene"
+        getItemContextMenuItems={(context) =>
+          context.mediaType === "video"
+            ? [
+                {
+                  id: "transcode-video",
+                  label: "Transcode video",
+                  onSelect: () => handleCustomAction(context.item.id),
+                },
+              ]
+            : []
+        }
+      />,
+    );
+
+    fireEvent.contextMenu(container.querySelector("[data-slot='timeline-editor-clip']")!);
+    fireEvent.click(await screen.findByText("Transcode video"));
+
+    expect(handleCustomAction).toHaveBeenCalledWith("scene");
+  });
 });

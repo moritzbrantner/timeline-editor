@@ -2,7 +2,7 @@
 
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
-import { cn } from "@moritzbrantner/ui";
+import { ContextActionMenu, cn, type MenuActionItem } from "@moritzbrantner/ui";
 
 import {
   moveTimelineEditorItems,
@@ -56,6 +56,22 @@ export type TimelineEditorTrackRenderContext<TTrackData = Record<string, unknown
   collapsed: boolean;
 };
 
+export type TimelineEditorItemContextMenuContext<
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+> = TimelineEditorItemRenderContext<TItemData> & {
+  document: TimelineEditorDocument<TTrackData, TItemData>;
+  durationMs: number;
+  selection: TimelineEditorSelection;
+  selectedItems: Array<TimelineEditorItem<TItemData>>;
+  track: TimelineEditorTrack<TTrackData, TItemData>;
+};
+
+export type TimelineEditorItemContextMenuItems<
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+> = (context: TimelineEditorItemContextMenuContext<TTrackData, TItemData>) => MenuActionItem[];
+
 export type TimelineEditorProps<
   TTrackData extends Record<string, unknown> = Record<string, unknown>,
   TItemData = Record<string, unknown>,
@@ -72,6 +88,7 @@ export type TimelineEditorProps<
   onCurrentTimeChange?: (timeMs: number) => void;
   renderItem?: (context: TimelineEditorItemRenderContext<TItemData>) => ReactNode;
   renderTrackHeader?: (context: TimelineEditorTrackRenderContext<TTrackData>) => ReactNode;
+  getItemContextMenuItems?: TimelineEditorItemContextMenuItems<TTrackData, TItemData>;
 };
 
 type TimelineEditorSnapResolver = ReturnType<typeof createTimelineEditorSnapResolver>;
@@ -125,6 +142,7 @@ export function TimelineEditor<
   onCurrentTimeChange,
   renderItem,
   renderTrackHeader,
+  getItemContextMenuItems,
   className,
   onScroll,
   ...props
@@ -158,6 +176,11 @@ export function TimelineEditor<
   const [dragState, setDragState] = useState<TimelineEditorDragState<TItemData> | null>(null);
   const [snapGuideMs, setSnapGuideMs] = useState<number | null>(null);
   const selectedIds = useMemo(() => new Set(selection.itemIds), [selection.itemIds]);
+  const selectedItems = useMemo(
+    () =>
+      document.tracks.flatMap((track) => track.items.filter((item) => selectedIds.has(item.id))),
+    [document.tracks, selectedIds],
+  );
   const renderDocument = previewTracks ? { ...document, tracks: previewTracks } : document;
   const visibleRange = useMemo(
     () => getTimelineEditorVisibleRange(durationMs, resolvedViewport, measuredViewport),
@@ -487,11 +510,20 @@ export function TimelineEditor<
                   {getVisibleTimelineEditorItems(entry.track.items, visibleRange, selectedIds).map(
                     (item) => {
                       const selected = selectedIds.has(item.id);
-                      const locked = readOnly || entry.locked || item.locked;
-
-                      return (
+                      const locked = Boolean(readOnly || entry.locked || item.locked);
+                      const itemContext = {
+                        document,
+                        durationMs,
+                        item,
+                        readOnly: locked,
+                        selected,
+                        selectedItems,
+                        selection,
+                        track: entry.track,
+                      } satisfies TimelineEditorItemContextMenuContext<TTrackData, TItemData>;
+                      const contextMenuItems = getItemContextMenuItems?.(itemContext) ?? [];
+                      const clip = (
                         <div
-                          key={item.id}
                           data-slot="timeline-editor-clip"
                           data-selected={selected ? "true" : undefined}
                           role="button"
@@ -510,8 +542,13 @@ export function TimelineEditor<
                             ),
                             backgroundColor: item.color ?? "var(--primary)",
                           }}
+                          onContextMenu={() => {
+                            if (!selectedIds.has(item.id)) {
+                              commitSelection({ itemIds: [item.id], anchorItemId: item.id });
+                            }
+                          }}
                           onPointerDown={(event) => {
-                            if (locked) {
+                            if (locked || event.button !== 0) {
                               return;
                             }
 
@@ -546,7 +583,7 @@ export function TimelineEditor<
                             data-slot="timeline-editor-resize-start"
                             className="absolute inset-y-1 left-0 w-2 cursor-ew-resize rounded-l-md bg-white/25"
                             onPointerDown={(event) => {
-                              if (locked) {
+                              if (locked || event.button !== 0) {
                                 return;
                               }
 
@@ -578,7 +615,7 @@ export function TimelineEditor<
                             data-slot="timeline-editor-resize-end"
                             className="absolute inset-y-1 right-0 w-2 cursor-ew-resize rounded-r-md bg-white/25"
                             onPointerDown={(event) => {
-                              if (locked) {
+                              if (locked || event.button !== 0) {
                                 return;
                               }
 
@@ -601,6 +638,20 @@ export function TimelineEditor<
                             }}
                           />
                         </div>
+                      );
+
+                      if (contextMenuItems.length === 0) {
+                        return <div key={item.id}>{clip}</div>;
+                      }
+
+                      return (
+                        <ContextActionMenu
+                          key={item.id}
+                          items={contextMenuItems}
+                          contentProps={{ "data-slot": "timeline-editor-clip-menu" }}
+                        >
+                          {clip}
+                        </ContextActionMenu>
                       );
                     },
                   )}

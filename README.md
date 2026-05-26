@@ -15,7 +15,7 @@ this package.
 ## Main APIs
 
 - `TimelineEditor` for a controlled, self-contained React timeline surface.
-- `TimelineWorkbench` for a controlled workbench with assets, toolbar actions, inspector, markers, and zoom.
+- `TimelineWorkbench` for a controlled workbench with assets, toolbar actions, inspector, markers, item context menus, and zoom.
 - `normalizeTimelineEditorTracks(...)`, `moveTimelineEditorItem(...)`, `resizeTimelineEditorItem(...)`, `splitTimelineEditorItem(...)`, and `duplicateTimelineEditorItem(...)`.
 - `insertTimelineEditorItem(...)`, `removeTimelineEditorItems(...)`, `moveTimelineEditorItems(...)`, `splitTimelineEditorItems(...)`, and `duplicateTimelineEditorItems(...)`.
 - `applyTimelineEditorCommand(...)`, `createTimelineEditorHistory(...)`, `undoTimelineEditorHistory(...)`, and `redoTimelineEditorHistory(...)`.
@@ -90,6 +90,29 @@ import {
 
 const stored = serializeTimelineEditorDocument(document);
 const restored = parseTimelineEditorDocument(stored);
+```
+
+## Media Kinds
+
+Timeline items and workbench assets can declare a `kind`, and tracks can limit
+placement with `acceptsItemKinds`. Workbench asset insertion respects those
+limits, including when the currently selected track rejects the asset kind.
+
+```tsx
+<TimelineWorkbench
+  document={{
+    tracks: [
+      { id: "video", label: "Video", acceptsItemKinds: ["video"], items: [] },
+      { id: "audio", label: "Audio", acceptsItemKinds: ["audio"], items: [] },
+    ],
+  }}
+  assets={[{ id: "scene", label: "Scene", kind: "video", durationMs: 2_000 }]}
+  getItemContextMenuItems={(context) =>
+    context.mediaType === "video"
+      ? [{ id: "transcode", label: "Transcode", onSelect: () => transcode(context.item) }]
+      : []
+  }
+/>
 ```
 
 ## Notes
