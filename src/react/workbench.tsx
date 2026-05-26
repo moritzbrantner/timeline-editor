@@ -103,7 +103,9 @@ export type TimelineWorkbenchItemContextMenuContext<
   track: TimelineEditorTrack<TTrackData, TItemData>;
   deleteItems: (itemIds?: string[]) => void;
   duplicateItems: (itemIds?: string[]) => void;
+  groupItems: (itemIds?: string[]) => void;
   splitItems: (itemIds?: string[]) => void;
+  ungroupItems: (itemIds?: string[]) => void;
   updateItem: (itemId: string, patch: Partial<TimelineEditorItem<TItemData>>) => void;
 };
 
@@ -137,6 +139,63 @@ export type TimelineWorkbenchProps<
     context: TimelineWorkbenchItemContextMenuContext<TTrackData, TItemData>,
   ) => MenuActionItem[];
 };
+
+type TimelineWorkbenchItemCommandMenuInput = {
+  canUngroup: boolean;
+  itemIds: string[];
+  readOnly: boolean;
+  deleteItems: (itemIds?: string[]) => void;
+  duplicateItems: (itemIds?: string[]) => void;
+  groupItems: (itemIds?: string[]) => void;
+  splitItems: (itemIds?: string[]) => void;
+  ungroupItems: (itemIds?: string[]) => void;
+};
+
+function getTimelineWorkbenchItemCommandMenuItems({
+  canUngroup,
+  itemIds,
+  readOnly,
+  deleteItems,
+  duplicateItems,
+  groupItems,
+  splitItems,
+  ungroupItems,
+}: TimelineWorkbenchItemCommandMenuInput): MenuActionItem[] {
+  return [
+    {
+      id: "split",
+      label: "Split at playhead",
+      disabled: readOnly || itemIds.length === 0,
+      onSelect: () => splitItems(itemIds),
+    },
+    {
+      id: "duplicate",
+      label: "Duplicate",
+      disabled: readOnly || itemIds.length === 0,
+      onSelect: () => duplicateItems(itemIds),
+    },
+    {
+      id: "group",
+      label: "Group",
+      disabled: readOnly || itemIds.length < 2,
+      onSelect: () => groupItems(itemIds),
+    },
+    {
+      id: "ungroup",
+      label: "Ungroup",
+      disabled: readOnly || !canUngroup,
+      onSelect: () => ungroupItems(itemIds),
+    },
+    { id: "item-command-separator", type: "separator" },
+    {
+      id: "delete",
+      label: "Delete",
+      destructive: true,
+      disabled: readOnly || itemIds.length === 0,
+      onSelect: () => deleteItems(itemIds),
+    },
+  ];
+}
 
 export const defaultTimelineWorkbenchHotkeys = {
   delete: "Delete",
@@ -207,7 +266,9 @@ export function TimelineWorkbench<
     : undefined;
   const selectedItem = selected?.item;
   const selectedTrack = selected?.track;
-  const hasSelectedItemGroup = selectedItems.some((item) => item.itemGroupId);
+  const hasItemGroup = (itemIds: string[]) =>
+    itemIds.some((itemId) => Boolean(itemLookup.get(itemId)?.item.itemGroupId));
+  const hasSelectedItemGroup = hasItemGroup(resolvedSelection.itemIds);
   const overlaps = useMemo(() => detectTimelineEditorOverlaps(document.tracks), [document.tracks]);
   const assetBrowserItems = useMemo(
     () =>
@@ -359,22 +420,20 @@ export function TimelineWorkbench<
     commitSelection({ itemIds: [] });
   };
 
-  const groupItems = () => {
-    if (readOnly || resolvedSelection.itemIds.length < 2) {
+  const groupItems = (itemIds = resolvedSelection.itemIds) => {
+    if (readOnly || itemIds.length < 2) {
       return;
     }
 
-    commitDocument(
-      groupTimelineEditorItems(document, resolvedSelection.itemIds, {}, { durationMs }),
-    );
+    commitDocument(groupTimelineEditorItems(document, itemIds, {}, { durationMs }));
   };
 
-  const ungroupItems = () => {
-    if (readOnly || !hasSelectedItemGroup) {
+  const ungroupItems = (itemIds = resolvedSelection.itemIds) => {
+    if (readOnly || !hasItemGroup(itemIds)) {
       return;
     }
 
-    commitDocument(ungroupTimelineEditorItems(document, resolvedSelection.itemIds, { durationMs }));
+    commitDocument(ungroupTimelineEditorItems(document, itemIds, { durationMs }));
   };
 
   const inspectorContext = {
@@ -428,6 +487,12 @@ export function TimelineWorkbench<
     const itemIds = resolvedSelection.itemIds.includes(context.item.id)
       ? resolvedSelection.itemIds
       : [context.item.id];
+    const menuSelection = resolvedSelection.itemIds.includes(context.item.id)
+      ? resolvedSelection
+      : { itemIds, anchorItemId: context.item.id };
+    const contextSelectedItems = itemIds
+      .map((itemId) => itemLookup.get(itemId)?.item)
+      .filter((item): item is TimelineEditorItem<TItemData> => Boolean(item));
     const readOnlyContext = readOnly || context.readOnly;
     const menuContext = {
       document,
@@ -436,36 +501,27 @@ export function TimelineWorkbench<
       itemIds,
       mediaType: context.item.kind,
       readOnly: readOnlyContext,
-      selection: resolvedSelection,
-      selectedItems: context.selectedItems,
+      selection: menuSelection,
+      selectedItems: contextSelectedItems,
       track: context.track,
       deleteItems,
       duplicateItems,
+      groupItems,
       splitItems,
+      ungroupItems,
       updateItem,
     } satisfies TimelineWorkbenchItemContextMenuContext<TTrackData, TItemData>;
     const extensionItems = getItemContextMenuItems?.(menuContext) ?? [];
-    const defaultItems = [
-      {
-        id: "split",
-        label: "Split at playhead",
-        disabled: readOnlyContext,
-        onSelect: () => splitItems(itemIds),
-      },
-      {
-        id: "duplicate",
-        label: "Duplicate",
-        disabled: readOnlyContext,
-        onSelect: () => duplicateItems(itemIds),
-      },
-      {
-        id: "delete",
-        label: "Delete",
-        destructive: true,
-        disabled: readOnlyContext,
-        onSelect: () => deleteItems(itemIds),
-      },
-    ] satisfies MenuActionItem[];
+    const defaultItems = getTimelineWorkbenchItemCommandMenuItems({
+      canUngroup: hasItemGroup(itemIds),
+      itemIds,
+      readOnly: readOnlyContext,
+      deleteItems,
+      duplicateItems,
+      groupItems,
+      splitItems,
+      ungroupItems,
+    });
 
     return extensionItems.length > 0
       ? [...defaultItems, { id: "media-actions", type: "separator" }, ...extensionItems]

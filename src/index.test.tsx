@@ -507,4 +507,79 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
 
     expect(handleCustomAction).toHaveBeenCalledWith("scene");
   });
+
+  test("runs workbench item commands from the context menu", async () => {
+    let document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks: [
+        {
+          id: "video",
+          label: "Video",
+          acceptsItemKinds: ["video"],
+          items: [
+            {
+              id: "scene",
+              trackId: "video",
+              label: "Scene",
+              kind: "video",
+              startMs: 1_000,
+              durationMs: 1_000,
+            },
+            {
+              id: "overlay",
+              trackId: "video",
+              label: "Overlay",
+              kind: "video",
+              startMs: 3_000,
+              durationMs: 1_000,
+            },
+          ],
+        },
+      ],
+    };
+    const selection = { itemIds: ["scene", "overlay"], anchorItemId: "scene" };
+    const handleDocumentChange = vi.fn((nextDocument: TimelineEditorDocument) => {
+      document = nextDocument;
+    });
+    const renderWorkbench = () => (
+      <TimelineWorkbench
+        document={document}
+        selection={selection}
+        onDocumentChange={handleDocumentChange}
+      />
+    );
+
+    const { container, rerender } = render(renderWorkbench());
+
+    fireEvent.contextMenu(container.querySelector("[data-slot='timeline-editor-clip']")!);
+
+    expect(await screen.findByRole("menuitem", { name: "Split at playhead" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Duplicate" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "Group" }));
+
+    expect(handleDocumentChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        itemGroups: [expect.objectContaining({ itemIds: ["scene", "overlay"] })],
+      }),
+    );
+
+    rerender(renderWorkbench());
+    fireEvent.contextMenu(container.querySelector("[data-slot='timeline-editor-clip']")!);
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Ungroup" }));
+
+    expect(handleDocumentChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        itemGroups: undefined,
+        tracks: [
+          expect.objectContaining({
+            items: [
+              expect.objectContaining({ id: "scene", itemGroupId: undefined }),
+              expect.objectContaining({ id: "overlay", itemGroupId: undefined }),
+            ],
+          }),
+        ],
+      }),
+    );
+  });
 });
