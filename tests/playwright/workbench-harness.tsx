@@ -6,7 +6,9 @@ import { createRoot } from "react-dom/client";
 import {
   TimelineWorkbench,
   type TimelineEditorDocument,
+  type TimelineEditorSelection,
   type TimelineEditorTrack,
+  type TimelineWorkbenchAsset,
   type TimelineWorkbenchSelection,
 } from "@moritzbrantner/timeline-editor";
 
@@ -14,6 +16,7 @@ type HarnessState = {
   changes: string[];
   document: TimelineEditorDocument;
   selectedItemId: string | null;
+  selectedItemIds: string[];
 };
 
 declare global {
@@ -52,19 +55,39 @@ const createDocument = (): TimelineEditorDocument => ({
   markers: [{ id: "handoff", timeMs: 4_000, label: "Handoff" }],
 });
 
+const timelineAssets = [
+  {
+    id: "prototype",
+    label: "Prototype",
+    kind: "review",
+    durationMs: 1_000,
+    color: "#16a34a",
+    description: "Review pass",
+  },
+  {
+    id: "handoff-task",
+    label: "Handoff task",
+    kind: "task",
+    durationMs: 1_500,
+    color: "#9333ea",
+    description: "Planning task",
+  },
+] satisfies TimelineWorkbenchAsset[];
+
 function App() {
   const readOnly = new URLSearchParams(window.location.search).get("readOnly") === "true";
   const [document, setDocument] = useState(createDocument);
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [selection, setSelection] = useState<TimelineEditorSelection>({ itemIds: [] });
   const changes = useRef<string[]>([]);
 
   useEffect(() => {
     window["__timelineEditorHarness"] = {
       changes: changes.current,
       document,
-      selectedItemId,
+      selectedItemId: selection.itemIds[0] ?? null,
+      selectedItemIds: selection.itemIds,
     };
-  }, [document, selectedItemId]);
+  }, [document, selection]);
 
   const recordChange = (change: string) => {
     changes.current = [...changes.current, change];
@@ -79,21 +102,33 @@ function App() {
     recordChange(`current-time:${timeMs}`);
   };
 
+  const handleSelectionChange = (nextSelection: TimelineEditorSelection) => {
+    recordChange(`selection:${nextSelection.itemIds.join(",")}`);
+    setSelection(nextSelection);
+  };
+
   const handleSelectedItemChange = (selection: TimelineWorkbenchSelection) => {
     recordChange(`selected:${selection.itemId ?? ""}`);
-    setSelectedItemId(selection.itemId ?? null);
   };
 
   return (
     <TimelineWorkbench
       document={document}
-      selectedItemId={selectedItemId}
+      selection={selection}
       readOnly={readOnly}
       pixelsPerSecond={80}
       snapMs={100}
+      assets={timelineAssets}
       onDocumentChange={handleDocumentChange}
       onCurrentTimeChange={handleCurrentTimeChange}
+      onSelectionChange={handleSelectionChange}
       onSelectedItemChange={handleSelectedItemChange}
+      renderAsset={(asset) => (
+        <div>
+          <div>{asset.label}</div>
+          <div className="text-xs text-muted-foreground">{asset.description}</div>
+        </div>
+      )}
     />
   );
 }

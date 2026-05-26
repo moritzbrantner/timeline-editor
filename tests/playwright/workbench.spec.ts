@@ -4,16 +4,24 @@ type TimelineEditorHarnessState = {
   changes: string[];
   document: {
     currentTimeMs?: number;
+    markers?: Array<{
+      id: string;
+      label: string;
+      timeMs: number;
+    }>;
     tracks: Array<{
       id: string;
       items: Array<{
         durationMs: number;
         id: string;
+        label: string;
         startMs: number;
+        trackId: string;
       }>;
     }>;
   };
   selectedItemId: string | null;
+  selectedItemIds: string[];
 };
 
 async function getHarnessState(page: Page) {
@@ -23,7 +31,7 @@ async function getHarnessState(page: Page) {
 }
 
 function getClip(page: Page, name: string) {
-  return page.getByRole("button", { name });
+  return page.getByRole("button", { exact: true, name });
 }
 
 function getTimelineEditor(page: Page) {
@@ -38,6 +46,12 @@ async function getItem(page: Page, itemId: string) {
   const state = await getHarnessState(page);
 
   return state.document.tracks.flatMap((track) => track.items).find((item) => item.id === itemId);
+}
+
+async function getItems(page: Page) {
+  const state = await getHarnessState(page);
+
+  return state.document.tracks.flatMap((track) => track.items);
 }
 
 async function drag(locator: Locator, deltaX: number) {
@@ -56,9 +70,22 @@ async function drag(locator: Locator, deltaX: number) {
   await locator.page().mouse.up();
 }
 
+async function scrubRulerTo(page: Page, fraction: number) {
+  const ruler = getTimelineRuler(page);
+  const rulerBox = await ruler.boundingBox();
+  expect(rulerBox).not.toBeNull();
+
+  await page.mouse.click(
+    rulerBox!.x + rulerBox!.width * fraction,
+    rulerBox!.y + rulerBox!.height / 2,
+  );
+}
+
 test("renders the timeline workbench", async ({ page }) => {
   await page.goto("/");
 
+  await expect(page.getByRole("button", { name: /Prototype/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Handoff task/ })).toBeVisible();
   await expect(page.getByText("Planning").last()).toBeVisible();
   await expect(page.getByText("Review").last()).toBeVisible();
   await expect(getClip(page, "Brief")).toBeVisible();
@@ -77,13 +104,113 @@ test("selects an item and scrubs the ruler", async ({ page }) => {
   await expect.poll(async () => (await getHarnessState(page)).selectedItemId).toBe("brief");
   await expect(clip).toHaveAttribute("aria-pressed", "true");
 
-  const ruler = getTimelineRuler(page);
-  const rulerBox = await ruler.boundingBox();
-  expect(rulerBox).not.toBeNull();
-
-  await page.mouse.click(rulerBox!.x + rulerBox!.width / 2, rulerBox!.y + rulerBox!.height / 2);
+  await scrubRulerTo(page, 0.5);
 
   await expect.poll(async () => (await getHarnessState(page)).document.currentTimeMs).toBe(4_000);
+});
+
+test("inserts an asset at the playhead", async ({ page }) => {
+  await page.goto("/");
+
+  await scrubRulerTo(page, 0.75);
+  await page.getByRole("button", { name: /Prototype/ }).click();
+
+  await expect(getClip(page, "Prototype")).toBeVisible();
+  await expect
+    .poll(async () => (await getItems(page)).find((item) => item.label === "Prototype"))
+    .toEqual(
+      expect.objectContaining({
+        durationMs: 1_000,
+        label: "Prototype",
+        startMs: 6_000,
+        trackId: "planning",
+      }),
+    );
+  await expect
+    .poll(async () => (await getHarnessState(page)).selectedItemId)
+    .toMatch(/^prototype-/);
+});
+
+test("duplicates, deletes, undoes, and redoes from the toolbar", async ({ page }) => {
+  await page.goto("/");
+
+  await getClip(page, "Brief").click();
+  await page.getByRole("button", { name: "Duplicate" }).click();
+
+  await expect
+    .poll(async () => await getItem(page, "brief-copy"))
+    .toEqual(
+      expect.objectContaining({
+        durationMs: 2_000,
+        startMs: 3_000,
+      }),
+    );
+
+  await page.getByRole("button", { name: "Delete" }).click();
+
+  await expect.poll(async () => await getItem(page, "brief")).toBeUndefined();
+  await expect.poll(async () => await getItem(page, "brief-copy")).toBeDefined();
+
+  await page.getByRole("button", { name: "Undo" }).click();
+
+  await expect
+    .poll(async () => await getItem(page, "brief"))
+    .toEqual(expect.objectContaining({ startMs: 1_000 }));
+
+  await page.getByRole("button", { name: "Redo" }).click();
+
+  await expect.poll(async () => await getItem(page, "brief")).toBeUndefined();
+});
+
+test("splits a clip at the playhead and adds a marker", async ({ page }) => {
+  await page.goto("/");
+
+  await scrubRulerTo(page, 0.25);
+  await getClip(page, "Brief").click();
+  await page.getByRole("button", { name: "Split" }).click();
+
+  await expect
+    .poll(async () => await getItem(page, "brief"))
+    .toEqual(
+      expect.objectContaining({
+        durationMs: 1_000,
+        startMs: 1_000,
+      }),
+    );
+  await expect
+    .poll(async () => await getItem(page, "brief-part-2"))
+    .toEqual(
+      expect.objectContaining({
+        durationMs: 1_000,
+        startMs: 2_000,
+      }),
+    );
+
+  await page.getByRole("button", { name: "Marker" }).click();
+
+  await expect
+    .poll(async () =>
+      (await getHarnessState(page)).document.markers?.some((marker) => marker.timeMs === 2_000),
+    )
+    .toBe(true);
+});
+
+test("nudges selected clips and selects all with keyboard shortcuts", async ({ page }) => {
+  await page.goto("/");
+
+  await getClip(page, "Brief").click();
+  await getTimelineEditor(page).focus();
+  await page.keyboard.press("ArrowRight");
+
+  await expect.poll(async () => (await getItem(page, "brief"))?.startMs).toBe(1_100);
+
+  await page.getByRole("button", { name: "Duplicate" }).click();
+  await getTimelineEditor(page).focus();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+A" : "Control+A");
+
+  await expect
+    .poll(async () => (await getHarnessState(page)).selectedItemIds.sort())
+    .toEqual(["brief", "brief-copy"]);
 });
 
 test("drags a clip with real browser pointer events", async ({ page }) => {
