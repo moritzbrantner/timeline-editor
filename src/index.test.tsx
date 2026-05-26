@@ -3,18 +3,27 @@ import { beforeAll, describe, expect, test, vi } from "vitest";
 
 import {
   TimelineWorkbench,
+  applyTimelineEditorCommand,
+  applyTimelineEditorCommandWithHistory,
   clampTimelineEditorTime,
+  closeTimelineEditorGap,
+  createTimelineEditorHistory,
   detectTimelineEditorOverlaps,
   duplicateTimelineEditorItem,
   findTimelineEditorItem,
   formatTimelineEditorTimeMs,
-  fromUiTimelineEditorTracks,
+  getTimelineEditorTicks,
+  migrateTimelineEditorDocument,
   moveTimelineEditorItem,
   normalizeTimelineEditorTracks,
+  parseTimelineEditorDocument,
   removeTimelineEditorItem,
   resizeTimelineEditorItem,
+  rippleDeleteTimelineEditorItems,
+  serializeTimelineEditorDocument,
   splitTimelineEditorItem,
-  toUiTimelineEditorTracks,
+  undoTimelineEditorHistory,
+  validateTimelineEditorDocument,
   type TimelineEditorDocument,
   type TimelineEditorTrack,
 } from "@moritzbrantner/timeline-editor";
@@ -133,20 +142,62 @@ describe("@moritzbrantner/timeline-editor core", () => {
     expect(findTimelineEditorItem(removed, "brief-part-2-2")).toBeUndefined();
   });
 
-  test("roundtrips timeline tracks through the UI adapter", () => {
-    const uiTracks = toUiTimelineEditorTracks(tracks);
-    const roundtrip = fromUiTimelineEditorTracks(
-      [
+  test("validates, serializes, migrates, and creates timeline ticks", () => {
+    const document: TimelineEditorDocument = { tracks, durationMs: 8_000 };
+    const serialized = serializeTimelineEditorDocument(document);
+
+    expect(serialized.schemaVersion).toBe(1);
+    expect(parseTimelineEditorDocument(serialized).tracks[0]?.items[0]?.id).toBe("brief");
+    expect(migrateTimelineEditorDocument(document).schemaVersion).toBe(1);
+    expect(validateTimelineEditorDocument(document)).toHaveLength(0);
+    expect(getTimelineEditorTicks(2_000, 1_000)).toEqual([
+      { timeMs: 0, label: "0:00.0", major: true },
+      { timeMs: 1_000, label: "0:01.0", major: false },
+      { timeMs: 2_000, label: "0:02.0", major: false },
+    ]);
+  });
+
+  test("applies commands, history, ripple delete, and gap closing", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      groups: [{ id: "phase", label: "Phase", trackIds: ["planning"] }],
+      tracks: [
         {
-          ...uiTracks[0]!,
-          clips: [{ ...uiTracks[0]!.clips[0]!, start: 2, end: 4 }],
+          id: "planning",
+          label: "Planning",
+          items: [
+            { id: "brief", trackId: "planning", label: "Brief", startMs: 1_000, durationMs: 1_000 },
+            { id: "draft", trackId: "planning", label: "Draft", startMs: 3_000, durationMs: 1_000 },
+          ],
         },
       ],
-      tracks,
+    };
+    const selection = { itemIds: ["brief"], anchorItemId: "brief" };
+    const moved = applyTimelineEditorCommand(
+      document,
+      selection,
+      { type: "move-items", itemIds: ["brief"], deltaMs: 500 },
+      { durationMs: 8_000 },
     );
 
-    expect(roundtrip[0]?.items[0]).toEqual(
-      expect.objectContaining({ id: "brief", startMs: 2_000, durationMs: 2_000 }),
+    expect(moved.document.tracks[0]?.items[0]?.startMs).toBe(1_500);
+
+    const withHistory = applyTimelineEditorCommandWithHistory(
+      document,
+      selection,
+      createTimelineEditorHistory(),
+      { type: "delete-selection" },
+    );
+    const undo = undoTimelineEditorHistory(withHistory.history);
+
+    expect(withHistory.document.tracks[0]?.items).toHaveLength(1);
+    expect(undo.document?.tracks[0]?.items).toHaveLength(2);
+
+    expect(rippleDeleteTimelineEditorItems(document.tracks, ["brief"])[0]?.items[0]).toEqual(
+      expect.objectContaining({ id: "draft", startMs: 2_000 }),
+    );
+    expect(closeTimelineEditorGap(document.tracks, "planning", 2_000, 3_000)[0]?.items[1]).toEqual(
+      expect.objectContaining({ id: "draft", startMs: 2_000 }),
     );
   });
 });
