@@ -10,6 +10,7 @@ import {
   type TimelineEditorDocument,
   type TimelineEditorDuplicateItemInput,
   type TimelineEditorItem,
+  type TimelineEditorItemGroup,
   type TimelineEditorMarker,
   type TimelineEditorMoveItemInput,
   type TimelineEditorOperationOptions,
@@ -71,10 +72,46 @@ export function normalizeTimelineEditorDocument<
   options: TimelineEditorOperationOptions = {},
 ) {
   const durationMs = options.durationMs ?? document.durationMs;
+  const normalizedTracks = normalizeTimelineEditorTracks(document.tracks, {
+    ...options,
+    durationMs,
+  });
+  const itemGroupCounts = new Map<string, number>();
+
+  for (const track of normalizedTracks) {
+    for (const item of track.items) {
+      if (item.itemGroupId) {
+        itemGroupCounts.set(item.itemGroupId, (itemGroupCounts.get(item.itemGroupId) ?? 0) + 1);
+      }
+    }
+  }
+
+  const validItemGroupIds = new Set(
+    [...itemGroupCounts.entries()]
+      .filter(([, count]) => count > 1)
+      .map(([itemGroupId]) => itemGroupId),
+  );
+  const tracks: Array<TimelineEditorTrack<TTrackData, TItemData>> = [];
+
+  for (const track of normalizedTracks) {
+    let trackChanged = false;
+    const items = track.items.map((item) => {
+      if (!item.itemGroupId || validItemGroupIds.has(item.itemGroupId)) {
+        return item;
+      }
+
+      trackChanged = true;
+      return { ...item, itemGroupId: undefined };
+    });
+
+    tracks.push(trackChanged ? { ...track, items } : track);
+  }
+  const itemGroups = normalizeTimelineEditorItemGroups(document.itemGroups ?? [], tracks);
 
   return {
     ...document,
-    tracks: normalizeTimelineEditorTracks(document.tracks, { ...options, durationMs }),
+    tracks,
+    itemGroups,
     markers: document.markers
       ?.map((marker) => ({
         ...marker,
@@ -82,6 +119,188 @@ export function normalizeTimelineEditorDocument<
       }))
       .sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id)),
   };
+}
+
+export function addTimelineEditorTrack<
+  TTrackData = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+  TGroupData = Record<string, unknown>,
+>(
+  document: TimelineEditorDocument<TTrackData, TItemData, TGroupData>,
+  track: Omit<TimelineEditorTrack<TTrackData, TItemData>, "items"> &
+    Partial<Pick<TimelineEditorTrack<TTrackData, TItemData>, "items">>,
+  options: TimelineEditorOperationOptions = {},
+) {
+  if (document.tracks.some((candidate) => candidate.id === track.id)) {
+    return document;
+  }
+
+  return normalizeTimelineEditorDocument(
+    {
+      ...document,
+      tracks: [...document.tracks, { ...track, items: track.items ?? [] }],
+    },
+    options,
+  );
+}
+
+export function removeTimelineEditorTrack<
+  TTrackData = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+  TGroupData = Record<string, unknown>,
+>(
+  document: TimelineEditorDocument<TTrackData, TItemData, TGroupData>,
+  trackId: string,
+  options: TimelineEditorOperationOptions = {},
+) {
+  if (!document.tracks.some((track) => track.id === trackId)) {
+    return document;
+  }
+
+  const removedItemIds = new Set(
+    document.tracks.find((track) => track.id === trackId)?.items.map((item) => item.id) ?? [],
+  );
+
+  return normalizeTimelineEditorDocument(
+    {
+      ...document,
+      tracks: document.tracks.filter((track) => track.id !== trackId),
+      groups: document.groups
+        ?.map((group) => ({
+          ...group,
+          trackIds: group.trackIds.filter((candidate) => candidate !== trackId),
+        }))
+        .filter((group) => group.trackIds.length > 0),
+      itemGroups: document.itemGroups
+        ?.map((group) => ({
+          ...group,
+          itemIds: group.itemIds.filter((itemId) => !removedItemIds.has(itemId)),
+        }))
+        .filter((group) => group.itemIds.length > 1),
+    },
+    options,
+  );
+}
+
+export function groupTimelineEditorItems<
+  TTrackData = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+  TGroupData = Record<string, unknown>,
+>(
+  document: TimelineEditorDocument<TTrackData, TItemData, TGroupData>,
+  itemIds: readonly string[],
+  group: Partial<TimelineEditorItemGroup> = {},
+  options: TimelineEditorOperationOptions = {},
+) {
+  const groupableIds = new Set(
+    document.tracks
+      .flatMap((track) => (track.locked ? [] : track.items))
+      .filter((item) => itemIds.includes(item.id) && !item.locked)
+      .map((item) => item.id),
+  );
+
+  if (groupableIds.size < 2) {
+    return document;
+  }
+
+  const existingIds = new Set(document.itemGroups?.map((candidate) => candidate.id));
+  const itemGroupId =
+    group.id && !existingIds.has(group.id)
+      ? group.id
+      : createTimelineEditorItemGroupId(document, group.id ?? "item-group");
+  const nextItemGroup = {
+    id: itemGroupId,
+    label: group.label ?? `Group ${(document.itemGroups?.length ?? 0) + 1}`,
+    itemIds: [...groupableIds],
+    data: group.data,
+  } satisfies TimelineEditorItemGroup;
+  const replacedGroupIds = new Set(
+    document.tracks
+      .flatMap((track) => track.items)
+      .filter((item) => groupableIds.has(item.id) && item.itemGroupId)
+      .map((item) => item.itemGroupId!),
+  );
+
+  return normalizeTimelineEditorDocument(
+    {
+      ...document,
+      tracks: document.tracks.map((track) => ({
+        ...track,
+        items: track.items.map((item) =>
+          groupableIds.has(item.id) ? { ...item, itemGroupId } : item,
+        ),
+      })),
+      itemGroups: [
+        ...(document.itemGroups ?? []).filter((candidate) => !replacedGroupIds.has(candidate.id)),
+        nextItemGroup,
+      ],
+    },
+    options,
+  );
+}
+
+export function ungroupTimelineEditorItems<
+  TTrackData = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+  TGroupData = Record<string, unknown>,
+>(
+  document: TimelineEditorDocument<TTrackData, TItemData, TGroupData>,
+  itemIds: readonly string[],
+  options: TimelineEditorOperationOptions = {},
+) {
+  const selectedIds = new Set(itemIds);
+  const itemGroupIds = new Set(
+    document.tracks
+      .flatMap((track) => track.items)
+      .filter((item) => selectedIds.has(item.id) && item.itemGroupId)
+      .map((item) => item.itemGroupId!),
+  );
+
+  if (itemGroupIds.size === 0) {
+    return document;
+  }
+
+  return normalizeTimelineEditorDocument(
+    {
+      ...document,
+      tracks: document.tracks.map((track) => ({
+        ...track,
+        items: track.items.map((item) =>
+          item.itemGroupId && itemGroupIds.has(item.itemGroupId)
+            ? { ...item, itemGroupId: undefined }
+            : item,
+        ),
+      })),
+      itemGroups: document.itemGroups?.filter((group) => !itemGroupIds.has(group.id)),
+    },
+    options,
+  );
+}
+
+export function getTimelineEditorGroupedItemIds<
+  TTrackData = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+  TGroupData = Record<string, unknown>,
+>(document: TimelineEditorDocument<TTrackData, TItemData, TGroupData>, itemIds: readonly string[]) {
+  const selectedIds = new Set(itemIds);
+  const itemGroupIds = new Set(
+    document.tracks
+      .flatMap((track) => track.items)
+      .filter((item) => selectedIds.has(item.id) && item.itemGroupId)
+      .map((item) => item.itemGroupId!),
+  );
+
+  if (itemGroupIds.size === 0) {
+    return [...selectedIds];
+  }
+
+  for (const item of document.tracks.flatMap((track) => track.items)) {
+    if (item.itemGroupId && itemGroupIds.has(item.itemGroupId)) {
+      selectedIds.add(item.id);
+    }
+  }
+
+  return [...selectedIds];
 }
 
 export function moveTimelineEditorItem<
@@ -303,6 +522,7 @@ export function duplicateTimelineEditorItem<
     ...found.item,
     id: duplicateId,
     trackId: targetTrack.id,
+    itemGroupId: undefined,
     startMs: input.startMs ?? getTimelineEditorItemEndMs(found.item),
   };
 
@@ -850,6 +1070,57 @@ function updateMarker(marker: TimelineEditorMarker, patch: Partial<TimelineEdito
 
 function updateItemStart<TItemData>(item: TimelineEditorItem<TItemData>, startMs: number) {
   return { ...item, startMs };
+}
+
+function normalizeTimelineEditorItemGroups<TTrackData, TItemData>(
+  itemGroups: TimelineEditorItemGroup[],
+  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
+) {
+  const itemIdsByGroupId = new Map<string, string[]>();
+
+  for (const item of tracks.flatMap((track) => track.items)) {
+    if (!item.itemGroupId) {
+      continue;
+    }
+
+    itemIdsByGroupId.set(item.itemGroupId, [
+      ...(itemIdsByGroupId.get(item.itemGroupId) ?? []),
+      item.id,
+    ]);
+  }
+
+  const knownGroupsById = new Map(itemGroups.map((group) => [group.id, group]));
+  const normalizedGroups = [...itemIdsByGroupId.entries()]
+    .filter(([, itemIds]) => itemIds.length > 1)
+    .map(([itemGroupId, itemIds]) => {
+      const group = knownGroupsById.get(itemGroupId);
+
+      return {
+        id: itemGroupId,
+        label: group?.label ?? itemGroupId,
+        itemIds,
+        data: group?.data,
+      } satisfies TimelineEditorItemGroup;
+    })
+    .sort((left, right) => left.id.localeCompare(right.id));
+
+  return normalizedGroups.length > 0 ? normalizedGroups : undefined;
+}
+
+function createTimelineEditorItemGroupId(
+  document: TimelineEditorDocument<unknown, unknown, unknown>,
+  baseId: string,
+) {
+  const existingIds = new Set(document.itemGroups?.map((group) => group.id));
+  let candidate = baseId;
+  let index = 2;
+
+  while (existingIds.has(candidate)) {
+    candidate = `${baseId}-${index}`;
+    index += 1;
+  }
+
+  return candidate;
 }
 
 function createTimelineEditorCopyId<

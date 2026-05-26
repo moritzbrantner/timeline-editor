@@ -2,6 +2,7 @@ import { normalizeTimelineEditorDocument } from "./operations";
 import {
   type TimelineEditorDocument,
   type TimelineEditorItem,
+  type TimelineEditorItemGroup,
   type TimelineEditorTrack,
 } from "./types";
 import { getTimelineEditorValidationErrors } from "./validation";
@@ -98,6 +99,12 @@ export function readTimelineEditorDocument(input: unknown, path: string): Timeli
     });
   }
 
+  if (Array.isArray(maybeSerialized.itemGroups)) {
+    document.itemGroups = maybeSerialized.itemGroups.map((group, index) =>
+      readItemGroup(group, withPath(path, `itemGroups[${index}]`)),
+    );
+  }
+
   return document;
 }
 
@@ -134,9 +141,23 @@ function readItem(input: unknown, path: string): TimelineEditorItem {
     label: requiredString(input.label, withPath(path, "label")),
     startMs: requiredNumber(input.startMs, withPath(path, "startMs")),
     durationMs: requiredNumber(input.durationMs, withPath(path, "durationMs")),
+    itemGroupId: optionalString(input.itemGroupId, withPath(path, "itemGroupId")),
     kind: optionalString(input.kind, withPath(path, "kind")),
     color: optionalString(input.color, withPath(path, "color")),
     locked: optionalBoolean(input.locked, withPath(path, "locked")),
+    data: isRecord(input.data) ? input.data : undefined,
+  };
+}
+
+function readItemGroup(input: unknown, path: string): TimelineEditorItemGroup {
+  if (!isRecord(input)) {
+    throw new TimelineEditorParseError([{ path, message: "Expected item group object." }]);
+  }
+
+  return {
+    id: requiredString(input.id, withPath(path, "id")),
+    label: requiredString(input.label, withPath(path, "label")),
+    itemIds: requiredStringArray(input.itemIds, withPath(path, "itemIds")),
     data: isRecord(input.data) ? input.data : undefined,
   };
 }

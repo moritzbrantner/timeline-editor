@@ -6,6 +6,7 @@ export type TimelineEditorItem<TData = Record<string, unknown>> = {
   label: string;
   startMs: number;
   durationMs: number;
+  itemGroupId?: string;
   kind?: TimelineEditorItemKind;
   color?: string;
   locked?: boolean;
@@ -34,6 +35,13 @@ export type TimelineEditorTrackGroup<TData = Record<string, unknown>> = {
   data?: TData;
 };
 
+export type TimelineEditorItemGroup<TData = Record<string, unknown>> = {
+  id: string;
+  label: string;
+  itemIds: string[];
+  data?: TData;
+};
+
 export type TimelineEditorMarker = {
   id: string;
   timeMs: number;
@@ -48,6 +56,7 @@ export type TimelineEditorDocument<
 > = {
   tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>;
   groups?: Array<TimelineEditorTrackGroup<TGroupData>>;
+  itemGroups?: TimelineEditorItemGroup[];
   durationMs?: number;
   currentTimeMs?: number;
   markers?: TimelineEditorMarker[];

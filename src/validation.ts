@@ -6,6 +6,8 @@ export function validateTimelineEditorDocument(document: TimelineEditorDocument)
   const trackIds = new Set<string>();
   const itemIds = new Set<string>();
   const groupIds = new Set<string>();
+  const itemGroupIds = new Set<string>();
+  const itemGroupRefs = new Map<string, Set<string>>();
   const markerIds = new Set<string>();
   const durationMs = document.durationMs ?? getTimelineEditorDurationMs(document.tracks, 1);
 
@@ -58,6 +60,11 @@ export function validateTimelineEditorDocument(document: TimelineEditorDocument)
           warning(`${itemPath}`, "item_exceeds_duration", "Item extends beyond document duration."),
         );
       }
+
+      if (item.itemGroupId) {
+        itemGroupRefs.set(item.itemGroupId, itemGroupRefs.get(item.itemGroupId) ?? new Set());
+        itemGroupRefs.get(item.itemGroupId)?.add(item.id);
+      }
     });
   });
 
@@ -85,6 +92,65 @@ export function validateTimelineEditorDocument(document: TimelineEditorDocument)
         );
       }
     });
+  });
+
+  document.itemGroups?.forEach((group, groupIndex) => {
+    const groupPath = `itemGroups[${groupIndex}]`;
+
+    if (!group.id) {
+      issues.push(error(`${groupPath}.id`, "missing_item_group_id", "Item group id is required."));
+    } else if (itemGroupIds.has(group.id)) {
+      issues.push(
+        error(`${groupPath}.id`, "duplicate_item_group_id", `Item group id "${group.id}" repeats.`),
+      );
+    }
+
+    itemGroupIds.add(group.id);
+
+    group.itemIds.forEach((itemId, itemIdIndex) => {
+      if (!itemIds.has(itemId)) {
+        issues.push(
+          error(
+            `${groupPath}.itemIds[${itemIdIndex}]`,
+            "unknown_item_group_item",
+            `Item group references unknown item "${itemId}".`,
+          ),
+        );
+        return;
+      }
+
+      if (!itemGroupRefs.get(group.id)?.has(itemId)) {
+        issues.push(
+          error(
+            `${groupPath}.itemIds[${itemIdIndex}]`,
+            "mismatched_item_group",
+            `Item "${itemId}" does not reference item group "${group.id}".`,
+          ),
+        );
+      }
+    });
+  });
+
+  itemGroupRefs.forEach((referencedItemIds, itemGroupId) => {
+    if (!itemGroupIds.has(itemGroupId)) {
+      issues.push(
+        error(
+          "itemGroups",
+          "missing_item_group",
+          `Items reference missing item group "${itemGroupId}".`,
+        ),
+      );
+    }
+
+    if (referencedItemIds.size < 2) {
+      issues.push(
+        warning(
+          "itemGroups",
+          "singleton_item_group",
+          `Item group "${itemGroupId}" should contain at least two items.`,
+        ),
+      );
+    }
   });
 
   document.markers?.forEach((marker, markerIndex) => {

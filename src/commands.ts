@@ -1,11 +1,15 @@
 import {
   closeTimelineEditorGap,
   duplicateTimelineEditorItems,
+  getTimelineEditorGroupedItemIds,
+  groupTimelineEditorItems,
   moveTimelineEditorItems,
+  normalizeTimelineEditorDocument,
   removeTimelineEditorItems,
   resizeTimelineEditorItem,
   rippleDeleteTimelineEditorItems,
   splitTimelineEditorItems,
+  ungroupTimelineEditorItems,
 } from "./operations";
 import {
   type TimelineEditorDocument,
@@ -20,6 +24,8 @@ export type TimelineEditorCommand =
   | { type: "resize-item"; itemId: string; edge: "start" | "end"; timeMs: number }
   | { type: "split-items"; itemIds: string[]; timeMs: number }
   | { type: "duplicate-selection" }
+  | { type: "group-selection"; groupId?: string; label?: string }
+  | { type: "ungroup-selection" }
   | { type: "ripple-delete"; itemIds: string[] }
   | { type: "close-gap"; trackId: string; startMs: number; endMs: number };
 
@@ -54,15 +60,23 @@ export function applyTimelineEditorCommand<
   }
 
   if (command.type === "delete-selection") {
-    const tracks = removeTimelineEditorItems(document.tracks, selection.itemIds);
+    const tracks = removeTimelineEditorItems(
+      document.tracks,
+      getTimelineEditorGroupedItemIds(document, selection.itemIds),
+    );
     return result(document, tracks, { itemIds: [] }, "Delete selection");
   }
 
   if (command.type === "move-items") {
-    const tracks = moveTimelineEditorItems(document.tracks, command.itemIds, command.deltaMs, {
-      ...options,
-      trackDelta: command.trackDelta,
-    });
+    const tracks = moveTimelineEditorItems(
+      document.tracks,
+      getTimelineEditorGroupedItemIds(document, command.itemIds),
+      command.deltaMs,
+      {
+        ...options,
+        trackDelta: command.trackDelta,
+      },
+    );
     return result(document, tracks, selection, `Move ${command.itemIds.length} items`);
   }
 
@@ -89,7 +103,7 @@ export function applyTimelineEditorCommand<
   if (command.type === "split-items") {
     const tracks = splitTimelineEditorItems(
       document.tracks,
-      command.itemIds,
+      getTimelineEditorGroupedItemIds(document, command.itemIds),
       command.timeMs,
       options,
     );
@@ -97,12 +111,46 @@ export function applyTimelineEditorCommand<
   }
 
   if (command.type === "duplicate-selection") {
-    const tracks = duplicateTimelineEditorItems(document.tracks, selection.itemIds, options);
+    const tracks = duplicateTimelineEditorItems(
+      document.tracks,
+      getTimelineEditorGroupedItemIds(document, selection.itemIds),
+      options,
+    );
     return result(document, tracks, selection, "Duplicate selection");
   }
 
+  if (command.type === "group-selection") {
+    const nextDocument = groupTimelineEditorItems(
+      document,
+      selection.itemIds,
+      { id: command.groupId, label: command.label },
+      options,
+    );
+
+    return {
+      document: nextDocument,
+      selection,
+      label: "Group selection",
+      changed: nextDocument !== document,
+    };
+  }
+
+  if (command.type === "ungroup-selection") {
+    const nextDocument = ungroupTimelineEditorItems(document, selection.itemIds, options);
+
+    return {
+      document: nextDocument,
+      selection,
+      label: "Ungroup selection",
+      changed: nextDocument !== document,
+    };
+  }
+
   if (command.type === "ripple-delete") {
-    const tracks = rippleDeleteTimelineEditorItems(document.tracks, command.itemIds);
+    const tracks = rippleDeleteTimelineEditorItems(
+      document.tracks,
+      getTimelineEditorGroupedItemIds(document, command.itemIds),
+    );
     return result(document, tracks, { itemIds: [] }, "Ripple delete");
   }
 
@@ -125,7 +173,7 @@ function result<TTrackData, TItemData, TGroupData>(
   const changed = tracks !== document.tracks;
 
   return {
-    document: changed ? { ...document, tracks } : document,
+    document: changed ? normalizeTimelineEditorDocument({ ...document, tracks }) : document,
     selection,
     label,
     changed,

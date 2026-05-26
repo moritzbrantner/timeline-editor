@@ -22,14 +22,19 @@ import {
 
 import {
   addTimelineEditorMarker,
+  addTimelineEditorTrack,
   detectTimelineEditorOverlaps,
   duplicateTimelineEditorItems,
   formatTimelineEditorTimeMs,
   getTimelineEditorDurationMs,
+  getTimelineEditorGroupedItemIds,
   getTimelineEditorItemEndMs,
+  groupTimelineEditorItems,
   insertTimelineEditorItem,
+  normalizeTimelineEditorDocument,
   normalizeTimelineEditorTracks,
   removeTimelineEditorItems,
+  removeTimelineEditorTrack,
   splitTimelineEditorItems,
   type TimelineEditorDocument,
   type TimelineEditorItem,
@@ -37,6 +42,7 @@ import {
   type TimelineEditorSelection,
   type TimelineEditorTrack,
   type TimelineEditorViewport,
+  ungroupTimelineEditorItems,
 } from "../core";
 import {
   createTimelineEditorHistory,
@@ -198,6 +204,7 @@ export function TimelineWorkbench<
     : undefined;
   const selectedItem = selected?.item;
   const selectedTrack = selected?.track;
+  const hasSelectedItemGroup = selectedItems.some((item) => item.itemGroupId);
   const overlaps = useMemo(() => detectTimelineEditorOverlaps(document.tracks), [document.tracks]);
   const assetBrowserItems = useMemo(
     () =>
@@ -238,10 +245,7 @@ export function TimelineWorkbench<
   };
 
   const commitTracks = (tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>) => {
-    commitDocument({
-      ...document,
-      tracks,
-    });
+    commitDocument(normalizeTimelineEditorDocument({ ...document, tracks }, { durationMs }));
   };
 
   const commitSelection = (nextSelection: TimelineEditorSelection) => {
@@ -296,7 +300,8 @@ export function TimelineWorkbench<
       return;
     }
 
-    commitTracks(removeTimelineEditorItems(document.tracks, itemIds));
+    const groupedItemIds = getTimelineEditorGroupedItemIds(document, itemIds);
+    commitTracks(removeTimelineEditorItems(document.tracks, groupedItemIds));
     commitSelection({ itemIds: [] });
   };
 
@@ -305,7 +310,12 @@ export function TimelineWorkbench<
       return;
     }
 
-    commitTracks(duplicateTimelineEditorItems(document.tracks, itemIds));
+    commitTracks(
+      duplicateTimelineEditorItems(
+        document.tracks,
+        getTimelineEditorGroupedItemIds(document, itemIds),
+      ),
+    );
   };
 
   const splitItems = (itemIds = resolvedSelection.itemIds) => {
@@ -313,7 +323,55 @@ export function TimelineWorkbench<
       return;
     }
 
-    commitTracks(splitTimelineEditorItems(document.tracks, itemIds, currentTimeMs));
+    commitTracks(
+      splitTimelineEditorItems(
+        document.tracks,
+        getTimelineEditorGroupedItemIds(document, itemIds),
+        currentTimeMs,
+      ),
+    );
+  };
+
+  const addTimeline = () => {
+    if (readOnly) {
+      return;
+    }
+
+    const track = createTimelineWorkbenchTrack(document.tracks);
+    commitDocument(addTimelineEditorTrack(document, track, { durationMs }));
+  };
+
+  const removeTimeline = () => {
+    if (readOnly || document.tracks.length === 0) {
+      return;
+    }
+
+    const trackId = selectedTrack?.id ?? document.tracks.at(-1)?.id;
+
+    if (!trackId) {
+      return;
+    }
+
+    commitDocument(removeTimelineEditorTrack(document, trackId, { durationMs }));
+    commitSelection({ itemIds: [] });
+  };
+
+  const groupItems = () => {
+    if (readOnly || resolvedSelection.itemIds.length < 2) {
+      return;
+    }
+
+    commitDocument(
+      groupTimelineEditorItems(document, resolvedSelection.itemIds, {}, { durationMs }),
+    );
+  };
+
+  const ungroupItems = () => {
+    if (readOnly || !hasSelectedItemGroup) {
+      return;
+    }
+
+    commitDocument(ungroupTimelineEditorItems(document, resolvedSelection.itemIds, { durationMs }));
   };
 
   const inspectorContext = {
@@ -532,6 +590,28 @@ export function TimelineWorkbench<
             <Button
               type="button"
               size="sm"
+              variant="outline"
+              disabled={readOnly || resolvedSelection.itemIds.length < 2}
+              onClick={() => {
+                groupItems();
+              }}
+            >
+              Group
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={readOnly || !hasSelectedItemGroup}
+              onClick={() => {
+                ungroupItems();
+              }}
+            >
+              Ungroup
+            </Button>
+            <Button
+              type="button"
+              size="sm"
               variant="destructive"
               disabled={readOnly || resolvedSelection.itemIds.length === 0}
               onClick={() => {
@@ -556,9 +636,34 @@ export function TimelineWorkbench<
             >
               Marker
             </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={readOnly}
+              onClick={() => {
+                addTimeline();
+              }}
+            >
+              Add Timeline
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={readOnly || document.tracks.length === 0}
+              onClick={() => {
+                removeTimeline();
+              }}
+            >
+              Remove Timeline
+            </Button>
             <Badge variant="outline">{document.tracks.length} tracks</Badge>
             {document.groups?.length ? (
               <Badge variant="outline">{document.groups.length} groups</Badge>
+            ) : null}
+            {document.itemGroups?.length ? (
+              <Badge variant="outline">{document.itemGroups.length} item groups</Badge>
             ) : null}
             <Badge variant={overlaps.length > 0 ? "destructive" : "secondary"}>
               {overlaps.length} overlaps
@@ -628,6 +733,25 @@ function canPlaceTimelineWorkbenchAssetOnTrack<TTrackData, TItemData, TAssetData
     !track.locked &&
     (!track.acceptsItemKinds || !asset.kind || track.acceptsItemKinds.includes(asset.kind))
   );
+}
+
+function createTimelineWorkbenchTrack<TTrackData, TItemData>(
+  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
+) {
+  const existingIds = new Set(tracks.map((track) => track.id));
+  let index = tracks.length + 1;
+  let id = `timeline-${index}`;
+
+  while (existingIds.has(id)) {
+    index += 1;
+    id = `timeline-${index}`;
+  }
+
+  return {
+    id,
+    label: `Timeline ${index}`,
+    items: [],
+  } satisfies TimelineEditorTrack<TTrackData, TItemData>;
 }
 
 function DefaultTimelineInspector<TData>({

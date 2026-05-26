@@ -5,6 +5,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { ContextActionMenu, cn, type MenuActionItem } from "@moritzbrantner/ui";
 
 import {
+  getTimelineEditorGroupedItemIds,
   moveTimelineEditorItems,
   resizeTimelineEditorItem,
   setTimelineEditorCurrentTime,
@@ -243,23 +244,30 @@ export function TimelineEditor<
     track: TimelineEditorTrack<TTrackData, TItemData>,
     event: React.PointerEvent,
   ) => {
+    const groupedItemIds = getTimelineEditorGroupedItemIds(document, [item.id]);
+
     if (event.metaKey || event.ctrlKey) {
-      const nextIds = selectedIds.has(item.id)
-        ? selection.itemIds.filter((itemId) => itemId !== item.id)
-        : [...selection.itemIds, item.id];
+      const groupedItemIdSet = new Set(groupedItemIds);
+      const isGroupSelected = groupedItemIds.every((itemId) => selectedIds.has(itemId));
+      const nextIds = isGroupSelected
+        ? selection.itemIds.filter((itemId) => !groupedItemIdSet.has(itemId))
+        : [...selection.itemIds, ...groupedItemIds.filter((itemId) => !selectedIds.has(itemId))];
       commitSelection({ itemIds: nextIds, anchorItemId: item.id });
       return;
     }
 
     if (event.shiftKey && selection.anchorItemId) {
       commitSelection({
-        itemIds: getRangeSelectionIds(track, selection.anchorItemId, item.id),
+        itemIds: getTimelineEditorGroupedItemIds(
+          document,
+          getRangeSelectionIds(track, selection.anchorItemId, item.id),
+        ),
         anchorItemId: selection.anchorItemId,
       });
       return;
     }
 
-    commitSelection({ itemIds: [item.id], anchorItemId: item.id });
+    commitSelection({ itemIds: groupedItemIds, anchorItemId: item.id });
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -526,6 +534,7 @@ export function TimelineEditor<
                         <div
                           data-slot="timeline-editor-clip"
                           data-selected={selected ? "true" : undefined}
+                          data-item-group-id={item.itemGroupId}
                           role="button"
                           tabIndex={-1}
                           aria-pressed={selected}
@@ -555,9 +564,10 @@ export function TimelineEditor<
                             event.stopPropagation();
                             captureTimelineEditorPointer(event.currentTarget, event.pointerId);
                             selectItem(item, entry.track, event);
-                            const activeSelection = selectedIds.has(item.id)
-                              ? selection.itemIds
-                              : [item.id];
+                            const activeSelection = getTimelineEditorGroupedItemIds(
+                              document,
+                              selectedIds.has(item.id) ? selection.itemIds : [item.id],
+                            );
                             const activeSelectionIds = new Set(activeSelection);
                             const originalItems = document.tracks.flatMap((track) =>
                               track.items.filter((candidate) =>

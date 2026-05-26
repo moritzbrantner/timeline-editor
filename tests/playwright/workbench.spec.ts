@@ -9,11 +9,17 @@ type TimelineEditorHarnessState = {
       label: string;
       timeMs: number;
     }>;
+    itemGroups?: Array<{
+      id: string;
+      itemIds: string[];
+      label: string;
+    }>;
     tracks: Array<{
       id: string;
       items: Array<{
         durationMs: number;
         id: string;
+        itemGroupId?: string;
         label: string;
         startMs: number;
         trackId: string;
@@ -129,6 +135,76 @@ test("inserts an asset at the playhead", async ({ page }) => {
   await expect
     .poll(async () => (await getHarnessState(page)).selectedItemId)
     .toMatch(/^prototype-/);
+});
+
+test("adds and removes whole timelines", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Add Timeline" }).click();
+
+  await expect(
+    page.locator("[data-slot='timeline-editor-track']").filter({ hasText: "Timeline 3" }).last(),
+  ).toBeVisible();
+  await expect
+    .poll(async () => (await getHarnessState(page)).document.tracks.map((track) => track.id))
+    .toEqual(["planning", "review", "timeline-3"]);
+
+  await getClip(page, "Brief").click();
+  await page.getByRole("button", { name: "Remove Timeline" }).click();
+
+  await expect.poll(async () => await getItem(page, "brief")).toBeUndefined();
+  await expect
+    .poll(async () => (await getHarnessState(page)).document.tracks.map((track) => track.id))
+    .toEqual(["review", "timeline-3"]);
+  await expect.poll(async () => (await getHarnessState(page)).selectedItemIds).toEqual([]);
+});
+
+test("groups and ungroups timeline items", async ({ page }) => {
+  await page.goto("/");
+
+  await scrubRulerTo(page, 0.5);
+  await page.getByRole("button", { name: /Handoff task/ }).click();
+  await getClip(page, "Brief").click({ modifiers: ["Control"] });
+
+  await expect
+    .poll(async () => (await getHarnessState(page)).selectedItemIds.sort())
+    .toEqual(expect.arrayContaining(["brief", expect.stringMatching(/^handoff-task-/)]));
+
+  await page.getByRole("button", { exact: true, name: "Group" }).click();
+
+  await expect.poll(async () => (await getHarnessState(page)).document.itemGroups).toHaveLength(1);
+
+  const groupedItems = await getItems(page);
+  const handoffTask = groupedItems.find((item) => item.label === "Handoff task");
+  const groupId = groupedItems.find((item) => item.id === "brief")?.itemGroupId;
+  expect(groupId).toBeTruthy();
+  expect(handoffTask?.itemGroupId).toBe(groupId);
+
+  await getClip(page, "Brief").click();
+  await expect
+    .poll(async () => (await getHarnessState(page)).selectedItemIds.sort())
+    .toEqual(["brief", handoffTask!.id].sort());
+
+  await drag(getClip(page, "Brief"), 80);
+
+  await expect.poll(async () => (await getItem(page, "brief"))?.startMs).toBe(2_000);
+  await expect.poll(async () => (await getItem(page, handoffTask!.id))?.startMs).toBe(5_000);
+
+  await page.getByRole("button", { exact: true, name: "Ungroup" }).click();
+
+  await expect
+    .poll(async () => (await getHarnessState(page)).document.itemGroups ?? [])
+    .toEqual([]);
+  await expect.poll(async () => (await getItem(page, "brief"))?.itemGroupId).toBeUndefined();
+  await expect
+    .poll(async () => (await getItem(page, handoffTask!.id))?.itemGroupId)
+    .toBeUndefined();
+
+  await getClip(page, "Brief").click();
+  await drag(getClip(page, "Brief"), 80);
+
+  await expect.poll(async () => (await getItem(page, "brief"))?.startMs).toBe(3_000);
+  await expect.poll(async () => (await getItem(page, handoffTask!.id))?.startMs).toBe(5_000);
 });
 
 test("duplicates, deletes, undoes, and redoes from the toolbar", async ({ page }) => {
