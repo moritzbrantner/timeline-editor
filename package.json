@@ -42,6 +42,8 @@
   "devDependencies": {
     "@changesets/changelog-github": "^0.6.0",
     "@changesets/cli": "^2.29.7",
+    "@playwright/test": "^1.60.0",
+    "@tailwindcss/vite": "^4.3.0",
     "@testing-library/react": "^16.3.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
@@ -52,6 +54,7 @@
     "react-dom": "^19.2.0",
     "tsup": "^8.5.0",
     "typescript": "6.0.2",
+    "vite": "^8.0.14",
     "vitest": "^4.1.2"
   },
   "publishConfig": {
@@ -67,6 +70,7 @@
     "prepack": "bun run build",
     "check-types": "tsc --noEmit",
     "test": "vitest run",
+    "test:playwright": "playwright test",
     "verify": "bun run format:check && bun run lint && bun run check-types && bun run test && bun run build"
   }
 }
