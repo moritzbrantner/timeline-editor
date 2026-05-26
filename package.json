@@ -76,6 +76,7 @@
   "scripts": {
     "build": "tsup src/index.ts src/core.ts src/react.tsx src/commands.ts src/history.ts src/serialization.ts --format esm --dts --clean --out-dir dist",
     "changeset": "changeset",
+    "dev": "vite --config examples/dev/vite.config.ts --host 127.0.0.1",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "lint": "oxlint --format=github",

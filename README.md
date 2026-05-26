@@ -68,6 +68,17 @@ export function Example() {
 }
 ```
 
+## Development Example
+
+Run the local Vite workbench to experiment with the package while developing:
+
+```sh
+bun dev
+```
+
+The example lives in `examples/dev` and imports the local `src` entrypoints through
+Vite aliases.
+
 ## Core Command Example
 
 ```ts
