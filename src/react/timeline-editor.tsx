@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { ContextActionMenu, cn, type MenuActionItem } from "@moritzbrantner/ui";
 
@@ -57,6 +57,19 @@ export type TimelineEditorTrackRenderContext<TTrackData = Record<string, unknown
   collapsed: boolean;
 };
 
+export type TimelineEditorTrackContextMenuContext<
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+> = {
+  document: TimelineEditorDocument<TTrackData, TItemData>;
+  durationMs: number;
+  locked: boolean;
+  readOnly: boolean;
+  selection: TimelineEditorSelection;
+  selectedItems: Array<TimelineEditorItem<TItemData>>;
+  track: TimelineEditorTrack<TTrackData, TItemData>;
+};
+
 export type TimelineEditorItemContextMenuContext<
   TTrackData extends Record<string, unknown> = Record<string, unknown>,
   TItemData = Record<string, unknown>,
@@ -72,6 +85,11 @@ export type TimelineEditorItemContextMenuItems<
   TTrackData extends Record<string, unknown> = Record<string, unknown>,
   TItemData = Record<string, unknown>,
 > = (context: TimelineEditorItemContextMenuContext<TTrackData, TItemData>) => MenuActionItem[];
+
+export type TimelineEditorTrackContextMenuItems<
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+> = (context: TimelineEditorTrackContextMenuContext<TTrackData, TItemData>) => MenuActionItem[];
 
 export type TimelineEditorProps<
   TTrackData extends Record<string, unknown> = Record<string, unknown>,
@@ -90,6 +108,7 @@ export type TimelineEditorProps<
   renderItem?: (context: TimelineEditorItemRenderContext<TItemData>) => ReactNode;
   renderTrackHeader?: (context: TimelineEditorTrackRenderContext<TTrackData>) => ReactNode;
   getItemContextMenuItems?: TimelineEditorItemContextMenuItems<TTrackData, TItemData>;
+  getTrackContextMenuItems?: TimelineEditorTrackContextMenuItems<TTrackData, TItemData>;
 };
 
 type TimelineEditorSnapResolver = ReturnType<typeof createTimelineEditorSnapResolver>;
@@ -117,6 +136,8 @@ type TimelineEditorVisibleRange = {
 };
 
 const timelineEditorViewportOverscanMs = 2_000;
+export const timelineEditorMinPixelsPerSecond = 24;
+export const timelineEditorMaxPixelsPerSecond = 240;
 
 export const defaultTimelineEditorHotkeys: TimelineEditorHotkeys = {
   delete: "Delete",
@@ -144,13 +165,16 @@ export function TimelineEditor<
   renderItem,
   renderTrackHeader,
   getItemContextMenuItems,
+  getTrackContextMenuItems,
   className,
   onScroll,
+  onWheel,
   ...props
 }: TimelineEditorProps<TTrackData, TItemData>) {
   const durationMs = getTimelineEditorDurationForDocument(document);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const previewTracksRef = useRef<Array<TimelineEditorTrack<TTrackData, TItemData>> | null>(null);
+  const pendingWheelZoomRef = useRef<{ offsetX: number; timeMs: number } | null>(null);
   const [measuredViewport, setMeasuredViewport] = useState({ scrollLeftPx: 0, widthPx: 1024 });
   const [previewTracks, setPreviewTracks] = useState<Array<
     TimelineEditorTrack<TTrackData, TItemData>
@@ -223,6 +247,28 @@ export function TimelineEditor<
       observer.disconnect();
     };
   }, []);
+
+  useLayoutEffect(() => {
+    const scroller = scrollerRef.current;
+    const pendingWheelZoom = pendingWheelZoomRef.current;
+
+    if (!scroller || !pendingWheelZoom) {
+      return;
+    }
+
+    pendingWheelZoomRef.current = null;
+    const nextScrollLeft = clampTimelineEditorTime(
+      (pendingWheelZoom.timeMs / 1_000) * resolvedViewport.pixelsPerSecond -
+        pendingWheelZoom.offsetX,
+      0,
+      Math.max(0, scroller.scrollWidth - scroller.clientWidth),
+    );
+    scroller.scrollLeft = nextScrollLeft;
+    setMeasuredViewport({
+      scrollLeftPx: nextScrollLeft,
+      widthPx: scroller.clientWidth,
+    });
+  }, [resolvedViewport.pixelsPerSecond]);
 
   const commitDocument = (nextDocument: TimelineEditorDocument<TTrackData, TItemData>) => {
     onDocumentChange?.(nextDocument);
@@ -349,6 +395,43 @@ export function TimelineEditor<
     onScroll?.(event);
   };
 
+  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    onWheel?.(event);
+
+    if (event.defaultPrevented || !event.ctrlKey) {
+      return;
+    }
+
+    event.preventDefault();
+    const direction = event.deltaY < 0 ? 1 : -1;
+    const nextPixelsPerSecond = getNextTimelineEditorPixelsPerSecond(
+      resolvedViewport.pixelsPerSecond,
+      direction,
+    );
+
+    if (nextPixelsPerSecond === resolvedViewport.pixelsPerSecond) {
+      return;
+    }
+
+    const scroller = event.currentTarget;
+    const scrollerRect = scroller.getBoundingClientRect();
+    const offsetX = clampTimelineEditorTime(
+      event.clientX - scrollerRect.left,
+      0,
+      scroller.clientWidth,
+    );
+    const timeMs = clampTimelineEditorTime(
+      ((scroller.scrollLeft + offsetX) / Math.max(1, resolvedViewport.pixelsPerSecond)) * 1_000,
+      0,
+      durationMs,
+    );
+    pendingWheelZoomRef.current = { offsetX, timeMs };
+    onViewportChange?.({
+      ...resolvedViewport,
+      pixelsPerSecond: nextPixelsPerSecond,
+    });
+  };
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (readOnly) {
       return;
@@ -405,10 +488,9 @@ export function TimelineEditor<
       const direction = matchesHotkey(event, resolvedHotkeys.zoomIn) ? 1 : -1;
       onViewportChange?.({
         ...resolvedViewport,
-        pixelsPerSecond: clampTimelineEditorTime(
-          resolvedViewport.pixelsPerSecond + direction * 16,
-          24,
-          240,
+        pixelsPerSecond: getNextTimelineEditorPixelsPerSecond(
+          resolvedViewport.pixelsPerSecond,
+          direction,
         ),
       });
     }
@@ -426,6 +508,7 @@ export function TimelineEditor<
       onPointerCancel={cancelDrag}
       onKeyDown={handleKeyDown}
       onScroll={handleScroll}
+      onWheel={handleWheel}
       {...props}
     >
       <div className="relative" style={{ width: timelineWidthPx }}>
@@ -494,179 +577,210 @@ export function TimelineEditor<
                 {entry.group.label}
               </div>
             ) : (
-              <div
-                key={entry.track.id}
-                data-slot="timeline-editor-track"
-                className="grid grid-cols-[9rem_minmax(0,1fr)]"
-                style={{ minHeight: entry.track.height ?? 56 }}
-              >
-                <div className="flex items-center border-r bg-muted/20 px-3 text-sm font-medium">
-                  {renderTrackHeader ? (
-                    renderTrackHeader({
-                      track: entry.track as TimelineEditorTrack<
-                        TTrackData,
-                        Record<string, unknown>
-                      >,
-                      locked: entry.locked,
-                      collapsed: false,
-                    })
-                  ) : (
-                    <span className="truncate">{entry.track.label}</span>
-                  )}
-                </div>
-                <div className="relative">
-                  {getVisibleTimelineEditorItems(entry.track.items, visibleRange, selectedIds).map(
-                    (item) => {
-                      const selected = selectedIds.has(item.id);
-                      const locked = Boolean(readOnly || entry.locked || item.locked);
-                      const itemContext = {
-                        document,
-                        durationMs,
-                        item,
-                        readOnly: locked,
-                        selected,
-                        selectedItems,
-                        selection,
-                        track: entry.track,
-                      } satisfies TimelineEditorItemContextMenuContext<TTrackData, TItemData>;
-                      const contextMenuItems = getItemContextMenuItems?.(itemContext) ?? [];
-                      const clip = (
-                        <div
-                          data-slot="timeline-editor-clip"
-                          data-selected={selected ? "true" : undefined}
-                          data-item-group-id={item.itemGroupId}
-                          role="button"
-                          tabIndex={-1}
-                          aria-pressed={selected}
-                          className={cn(
-                            "absolute top-2 bottom-2 flex min-w-8 cursor-grab items-center rounded-md border px-2 text-xs font-medium text-white shadow-sm outline-none data-[selected=true]:ring-2 data-[selected=true]:ring-ring",
-                            locked && "cursor-default opacity-60",
-                          )}
-                          style={{
-                            ...getTimelineEditorItemStyle(
-                              item.startMs,
-                              item.durationMs,
-                              timelineWidthPx,
-                              durationMs,
-                            ),
-                            backgroundColor: item.color ?? "var(--primary)",
-                          }}
-                          onContextMenu={() => {
-                            if (!selectedIds.has(item.id)) {
-                              commitSelection({ itemIds: [item.id], anchorItemId: item.id });
-                            }
-                          }}
-                          onPointerDown={(event) => {
-                            if (locked || event.button !== 0) {
-                              return;
-                            }
-
-                            event.stopPropagation();
-                            captureTimelineEditorPointer(event.currentTarget, event.pointerId);
-                            selectItem(item, entry.track, event);
-                            const activeSelection = getTimelineEditorGroupedItemIds(
-                              document,
-                              selectedIds.has(item.id) ? selection.itemIds : [item.id],
-                            );
-                            const activeSelectionIds = new Set(activeSelection);
-                            const originalItems = document.tracks.flatMap((track) =>
-                              track.items.filter((candidate) =>
-                                activeSelectionIds.has(candidate.id),
+              (() => {
+                const trackContext = {
+                  document,
+                  durationMs,
+                  locked: Boolean(readOnly || entry.locked),
+                  readOnly,
+                  selection,
+                  selectedItems,
+                  track: entry.track,
+                } satisfies TimelineEditorTrackContextMenuContext<TTrackData, TItemData>;
+                const trackContextMenuItems = getTrackContextMenuItems?.(trackContext) ?? [];
+                const track = (
+                  <div
+                    data-slot="timeline-editor-track"
+                    className="grid grid-cols-[9rem_minmax(0,1fr)]"
+                    style={{ minHeight: entry.track.height ?? 56 }}
+                  >
+                    <div className="flex items-center border-r bg-muted/20 px-3 text-sm font-medium">
+                      {renderTrackHeader ? (
+                        renderTrackHeader({
+                          track: entry.track as TimelineEditorTrack<
+                            TTrackData,
+                            Record<string, unknown>
+                          >,
+                          locked: entry.locked,
+                          collapsed: false,
+                        })
+                      ) : (
+                        <span className="truncate">{entry.track.label}</span>
+                      )}
+                    </div>
+                    <div className="relative">
+                      {getVisibleTimelineEditorItems(
+                        entry.track.items,
+                        visibleRange,
+                        selectedIds,
+                      ).map((item) => {
+                        const selected = selectedIds.has(item.id);
+                        const locked = Boolean(readOnly || entry.locked || item.locked);
+                        const itemContext = {
+                          document,
+                          durationMs,
+                          item,
+                          readOnly: locked,
+                          selected,
+                          selectedItems,
+                          selection,
+                          track: entry.track,
+                        } satisfies TimelineEditorItemContextMenuContext<TTrackData, TItemData>;
+                        const contextMenuItems = getItemContextMenuItems?.(itemContext) ?? [];
+                        const clip = (
+                          <div
+                            data-slot="timeline-editor-clip"
+                            data-selected={selected ? "true" : undefined}
+                            data-item-group-id={item.itemGroupId}
+                            role="button"
+                            tabIndex={-1}
+                            aria-pressed={selected}
+                            className={cn(
+                              "absolute top-2 bottom-2 flex min-w-8 cursor-grab items-center rounded-md border px-2 text-xs font-medium text-white shadow-sm outline-none data-[selected=true]:ring-2 data-[selected=true]:ring-ring",
+                              locked && "cursor-default opacity-60",
+                            )}
+                            style={{
+                              ...getTimelineEditorItemStyle(
+                                item.startMs,
+                                item.durationMs,
+                                timelineWidthPx,
+                                durationMs,
                               ),
-                            );
-                            setDragState({
-                              type: "move",
-                              itemId: item.id,
-                              startX: getTimelineEditorPointerClientX(event),
-                              originalItems,
-                              snapResolver: createTimelineEditorSnapResolver(
+                              backgroundColor: item.color ?? "var(--primary)",
+                            }}
+                            onContextMenu={(event) => {
+                              event.stopPropagation();
+
+                              if (!selectedIds.has(item.id)) {
+                                commitSelection({ itemIds: [item.id], anchorItemId: item.id });
+                              }
+                            }}
+                            onPointerDown={(event) => {
+                              if (locked || event.button !== 0) {
+                                return;
+                              }
+
+                              event.stopPropagation();
+                              captureTimelineEditorPointer(event.currentTarget, event.pointerId);
+                              selectItem(item, entry.track, event);
+                              const activeSelection = getTimelineEditorGroupedItemIds(
                                 document,
-                                resolvedSnap,
-                                resolvedViewport.pixelsPerSecond,
-                                { excludeItemIds: activeSelectionIds },
-                              ),
-                            });
-                          }}
-                        >
-                          <span
-                            aria-hidden="true"
-                            data-slot="timeline-editor-resize-start"
-                            className="absolute inset-y-1 left-0 w-2 cursor-ew-resize rounded-l-md bg-white/25"
-                            onPointerDown={(event) => {
-                              if (locked || event.button !== 0) {
-                                return;
-                              }
-
-                              event.stopPropagation();
-                              captureTimelineEditorPointer(event.currentTarget, event.pointerId);
-                              commitSelection({ itemIds: [item.id], anchorItemId: item.id });
+                                selectedIds.has(item.id) ? selection.itemIds : [item.id],
+                              );
+                              const activeSelectionIds = new Set(activeSelection);
+                              const originalItems = document.tracks.flatMap((track) =>
+                                track.items.filter((candidate) =>
+                                  activeSelectionIds.has(candidate.id),
+                                ),
+                              );
                               setDragState({
-                                type: "resize-start",
-                                item,
+                                type: "move",
+                                itemId: item.id,
                                 startX: getTimelineEditorPointerClientX(event),
-                                originalStartMs: item.startMs,
-                                originalEndMs: getTimelineEditorItemEndMs(item),
+                                originalItems,
                                 snapResolver: createTimelineEditorSnapResolver(
                                   document,
                                   resolvedSnap,
                                   resolvedViewport.pixelsPerSecond,
-                                  { excludeItemIds: [item.id] },
+                                  { excludeItemIds: activeSelectionIds },
                                 ),
                               });
                             }}
-                          />
-                          {renderItem ? (
-                            renderItem({ item, selected, readOnly })
-                          ) : (
-                            <span className="truncate">{item.label}</span>
-                          )}
-                          <span
-                            aria-hidden="true"
-                            data-slot="timeline-editor-resize-end"
-                            className="absolute inset-y-1 right-0 w-2 cursor-ew-resize rounded-r-md bg-white/25"
-                            onPointerDown={(event) => {
-                              if (locked || event.button !== 0) {
-                                return;
-                              }
+                          >
+                            <span
+                              aria-hidden="true"
+                              data-slot="timeline-editor-resize-start"
+                              className="absolute inset-y-1 left-0 w-2 cursor-ew-resize rounded-l-md bg-white/25"
+                              onPointerDown={(event) => {
+                                if (locked || event.button !== 0) {
+                                  return;
+                                }
 
-                              event.stopPropagation();
-                              captureTimelineEditorPointer(event.currentTarget, event.pointerId);
-                              commitSelection({ itemIds: [item.id], anchorItemId: item.id });
-                              setDragState({
-                                type: "resize-end",
-                                item,
-                                startX: getTimelineEditorPointerClientX(event),
-                                originalStartMs: item.startMs,
-                                originalEndMs: getTimelineEditorItemEndMs(item),
-                                snapResolver: createTimelineEditorSnapResolver(
-                                  document,
-                                  resolvedSnap,
-                                  resolvedViewport.pixelsPerSecond,
-                                  { excludeItemIds: [item.id] },
-                                ),
-                              });
-                            }}
-                          />
-                        </div>
-                      );
+                                event.stopPropagation();
+                                captureTimelineEditorPointer(event.currentTarget, event.pointerId);
+                                commitSelection({ itemIds: [item.id], anchorItemId: item.id });
+                                setDragState({
+                                  type: "resize-start",
+                                  item,
+                                  startX: getTimelineEditorPointerClientX(event),
+                                  originalStartMs: item.startMs,
+                                  originalEndMs: getTimelineEditorItemEndMs(item),
+                                  snapResolver: createTimelineEditorSnapResolver(
+                                    document,
+                                    resolvedSnap,
+                                    resolvedViewport.pixelsPerSecond,
+                                    { excludeItemIds: [item.id] },
+                                  ),
+                                });
+                              }}
+                            />
+                            {renderItem ? (
+                              renderItem({ item, selected, readOnly })
+                            ) : (
+                              <span className="truncate">{item.label}</span>
+                            )}
+                            <span
+                              aria-hidden="true"
+                              data-slot="timeline-editor-resize-end"
+                              className="absolute inset-y-1 right-0 w-2 cursor-ew-resize rounded-r-md bg-white/25"
+                              onPointerDown={(event) => {
+                                if (locked || event.button !== 0) {
+                                  return;
+                                }
 
-                      if (contextMenuItems.length === 0) {
-                        return <div key={item.id}>{clip}</div>;
-                      }
+                                event.stopPropagation();
+                                captureTimelineEditorPointer(event.currentTarget, event.pointerId);
+                                commitSelection({ itemIds: [item.id], anchorItemId: item.id });
+                                setDragState({
+                                  type: "resize-end",
+                                  item,
+                                  startX: getTimelineEditorPointerClientX(event),
+                                  originalStartMs: item.startMs,
+                                  originalEndMs: getTimelineEditorItemEndMs(item),
+                                  snapResolver: createTimelineEditorSnapResolver(
+                                    document,
+                                    resolvedSnap,
+                                    resolvedViewport.pixelsPerSecond,
+                                    { excludeItemIds: [item.id] },
+                                  ),
+                                });
+                              }}
+                            />
+                          </div>
+                        );
 
-                      return (
-                        <ContextActionMenu
-                          key={item.id}
-                          items={contextMenuItems}
-                          contentProps={{ "data-slot": "timeline-editor-clip-menu" }}
-                        >
-                          {clip}
-                        </ContextActionMenu>
-                      );
-                    },
-                  )}
-                </div>
-              </div>
+                        if (contextMenuItems.length === 0) {
+                          return <div key={item.id}>{clip}</div>;
+                        }
+
+                        return (
+                          <ContextActionMenu
+                            key={item.id}
+                            items={contextMenuItems}
+                            contentProps={{ "data-slot": "timeline-editor-clip-menu" }}
+                          >
+                            {clip}
+                          </ContextActionMenu>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+
+                if (trackContextMenuItems.length === 0) {
+                  return <div key={entry.track.id}>{track}</div>;
+                }
+
+                return (
+                  <ContextActionMenu
+                    key={entry.track.id}
+                    items={trackContextMenuItems}
+                    contentProps={{ "data-slot": "timeline-editor-track-menu" }}
+                  >
+                    {track}
+                  </ContextActionMenu>
+                );
+              })()
             ),
           )}
         </div>
@@ -775,6 +889,14 @@ function captureTimelineEditorPointer(element: Element, pointerId: number) {
   ) {
     element.setPointerCapture(pointerId);
   }
+}
+
+function getNextTimelineEditorPixelsPerSecond(pixelsPerSecond: number, direction: number) {
+  return clampTimelineEditorTime(
+    pixelsPerSecond + direction * 16,
+    timelineEditorMinPixelsPerSecond,
+    timelineEditorMaxPixelsPerSecond,
+  );
 }
 
 function getRangeSelectionIds<TTrackData, TItemData>(

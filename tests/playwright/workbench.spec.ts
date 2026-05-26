@@ -149,14 +149,49 @@ test("adds and removes whole timelines", async ({ page }) => {
     .poll(async () => (await getHarnessState(page)).document.tracks.map((track) => track.id))
     .toEqual(["planning", "review", "timeline-3"]);
 
-  await getClip(page, "Brief").click();
-  await page.getByRole("button", { name: "Remove Timeline" }).click();
+  const planningTrack = page
+    .locator("[data-slot='timeline-editor-track']")
+    .filter({ hasText: "Planning" })
+    .last();
+  const planningTrackBox = await planningTrack.boundingBox();
+  expect(planningTrackBox).not.toBeNull();
+
+  await planningTrack.click({
+    button: "right",
+    position: {
+      x: planningTrackBox!.width - 12,
+      y: planningTrackBox!.height / 2,
+    },
+  });
+  await page.getByText("Remove Timeline", { exact: true }).click();
 
   await expect.poll(async () => await getItem(page, "brief")).toBeUndefined();
   await expect
     .poll(async () => (await getHarnessState(page)).document.tracks.map((track) => track.id))
     .toEqual(["review", "timeline-3"]);
   await expect.poll(async () => (await getHarnessState(page)).selectedItemIds).toEqual([]);
+});
+
+test("zooms the timeline with ctrl mousewheel", async ({ page }) => {
+  await page.goto("/");
+
+  const ruler = getTimelineRuler(page);
+  const initialBox = await ruler.boundingBox();
+  const editorBox = await getTimelineEditor(page).boundingBox();
+  expect(initialBox).not.toBeNull();
+  expect(editorBox).not.toBeNull();
+
+  await getTimelineEditor(page).dispatchEvent("wheel", {
+    bubbles: true,
+    cancelable: true,
+    clientX: editorBox!.x + editorBox!.width / 2,
+    ctrlKey: true,
+    deltaY: -120,
+  });
+
+  await expect
+    .poll(async () => (await ruler.boundingBox())?.width ?? 0)
+    .toBeGreaterThan(initialBox!.width);
 });
 
 test("groups and ungroups timeline items", async ({ page }) => {

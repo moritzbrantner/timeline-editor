@@ -55,6 +55,9 @@ import {
   TimelineEditor,
   type TimelineEditorItemRenderContext,
   type TimelineEditorItemContextMenuContext,
+  timelineEditorMaxPixelsPerSecond,
+  timelineEditorMinPixelsPerSecond,
+  type TimelineEditorTrackContextMenuContext,
 } from "./timeline-editor";
 
 export type TimelineWorkbenchAsset<TData = Record<string, unknown>> = {
@@ -341,18 +344,18 @@ export function TimelineWorkbench<
     commitDocument(addTimelineEditorTrack(document, track, { durationMs }));
   };
 
-  const removeTimeline = () => {
+  const removeTimeline = (trackId?: string) => {
     if (readOnly || document.tracks.length === 0) {
       return;
     }
 
-    const trackId = selectedTrack?.id ?? document.tracks.at(-1)?.id;
+    const resolvedTrackId = trackId ?? selectedTrack?.id ?? document.tracks.at(-1)?.id;
 
-    if (!trackId) {
+    if (!resolvedTrackId) {
       return;
     }
 
-    commitDocument(removeTimelineEditorTrack(document, trackId, { durationMs }));
+    commitDocument(removeTimelineEditorTrack(document, resolvedTrackId, { durationMs }));
     commitSelection({ itemIds: [] });
   };
 
@@ -468,6 +471,19 @@ export function TimelineWorkbench<
       ? [...defaultItems, { id: "media-actions", type: "separator" }, ...extensionItems]
       : defaultItems;
   };
+
+  const getWorkbenchTrackContextMenuItems = (
+    context: TimelineEditorTrackContextMenuContext<TTrackData, TItemData>,
+  ): MenuActionItem[] => [
+    {
+      id: "remove-timeline",
+      label: "Remove Timeline",
+      description: context.track.label,
+      destructive: true,
+      disabled: readOnly,
+      onSelect: () => removeTimeline(context.track.id),
+    },
+  ];
 
   const commitViewport = (nextViewport: TimelineEditorViewport) => {
     setInternalViewport(nextViewport);
@@ -636,28 +652,6 @@ export function TimelineWorkbench<
             >
               Marker
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={readOnly}
-              onClick={() => {
-                addTimeline();
-              }}
-            >
-              Add Timeline
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="destructive"
-              disabled={readOnly || document.tracks.length === 0}
-              onClick={() => {
-                removeTimeline();
-              }}
-            >
-              Remove Timeline
-            </Button>
             <Badge variant="outline">{document.tracks.length} tracks</Badge>
             {document.groups?.length ? (
               <Badge variant="outline">{document.groups.length} groups</Badge>
@@ -677,8 +671,8 @@ export function TimelineWorkbench<
             <span className="text-xs text-muted-foreground">Zoom</span>
             <Slider
               value={[internalViewport.pixelsPerSecond]}
-              min={32}
-              max={180}
+              min={timelineEditorMinPixelsPerSecond}
+              max={timelineEditorMaxPixelsPerSecond}
               step={4}
               onValueChange={(value) => {
                 commitViewport({
@@ -715,7 +709,21 @@ export function TimelineWorkbench<
           onViewportChange={commitViewport}
           renderItem={renderTimelineItem}
           getItemContextMenuItems={getWorkbenchItemContextMenuItems}
+          getTrackContextMenuItems={getWorkbenchTrackContextMenuItems}
         />
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={readOnly}
+            onClick={() => {
+              addTimeline();
+            }}
+          >
+            Add Timeline
+          </Button>
+        </div>
       </WorkbenchCanvas>
     </WorkbenchLayout>
   );
