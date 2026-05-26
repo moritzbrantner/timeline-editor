@@ -60,6 +60,23 @@ describe("@moritzbrantner/timeline-editor core", () => {
     expect(formatTimelineEditorTimeMs(65_430)).toBe("1:05.4");
     expect(clampTimelineEditorTime(Number.POSITIVE_INFINITY, 0, 5_000)).toBe(5_000);
     expect(clampTimelineEditorTime(Number.NaN, 0, 5_000)).toBe(0);
+    expect(
+      normalizeTimelineEditorTracks([
+        {
+          id: "invalid",
+          label: "Invalid",
+          items: [
+            {
+              id: "bad-time",
+              trackId: "wrong-track",
+              label: "Bad time",
+              startMs: Number.NaN,
+              durationMs: -10,
+            },
+          ],
+        },
+      ])[0]?.items[0],
+    ).toEqual(expect.objectContaining({ durationMs: 100, startMs: 0, trackId: "invalid" }));
 
     const moved = moveTimelineEditorItem(
       tracks,
@@ -68,6 +85,12 @@ describe("@moritzbrantner/timeline-editor core", () => {
     );
 
     expect(moved[0]?.items[0]?.trackId).toBe("planning");
+    expect(
+      moveTimelineEditorItem([{ ...tracks[0]!, locked: true }], {
+        itemId: "brief",
+        startMs: 2_000,
+      }),
+    ).toEqual([{ ...tracks[0]!, locked: true }]);
 
     const reviewItemTracks = [
       {

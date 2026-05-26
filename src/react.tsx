@@ -2,7 +2,6 @@
 
 import { type ReactNode, useMemo } from "react";
 
-import { formatKeyboardShortcut } from "@moritzbrantner/keyboard";
 import {
   Badge,
   Button,
@@ -37,6 +36,7 @@ import {
   type TimelineEditorItemKind,
   type TimelineEditorTrack,
 } from "./core";
+import { formatShortcutLabel } from "./shortcut-label";
 
 export type TimelineWorkbenchAsset<TData = Record<string, unknown>> = {
   id: string;
@@ -285,7 +285,7 @@ export function TimelineWorkbench<
             </Badge>
             <Badge variant="outline">{formatTimelineEditorTimeMs(durationMs)}</Badge>
             <span className="text-xs text-muted-foreground">
-              Nudge {formatKeyboardShortcut(defaultTimelineWorkbenchHotkeys.nudgeRight)}
+              Nudge {formatShortcutLabel(defaultTimelineWorkbenchHotkeys.nudgeRight)}
             </span>
           </div>
           <div className="flex min-w-52 items-center gap-3">
