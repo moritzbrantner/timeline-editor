@@ -46,7 +46,8 @@
     }
   },
   "peerDependencies": {
-    "react": "^19.0.0"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "dependencies": {
     "@moritzbrantner/ui": "^0.8.0"
@@ -82,8 +83,10 @@
     "lint": "oxlint --format=github",
     "prepack": "bun run build",
     "check-types": "tsc --noEmit",
+    "check-examples": "tsc --ignoreConfig --noEmit --jsx react-jsx --module ESNext --moduleResolution Bundler --target ES2022 --strict --skipLibCheck tests/examples/*.tsx",
     "test": "vitest run",
+    "test:package": "bun run build && node ./tests/package/smoke.mjs",
     "test:playwright": "playwright test",
-    "verify": "bun run format:check && bun run lint && bun run check-types && bun run test && bun run build"
+    "verify": "bun run format:check && bun run lint && bun run check-types && bun run test && bun run build && bun run check-examples && bun run test:package"
   }
 }

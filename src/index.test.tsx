@@ -19,6 +19,7 @@ import {
   getTimelineEditorItemTransformValuesAt,
   getTimelineEditorTicks,
   getTimelineEditorTransformValuesAt,
+  insertTimelineEditorItem,
   migrateTimelineEditorDocument,
   moveTimelineEditorItem,
   normalizeTimelineEditorTracks,
@@ -155,6 +156,80 @@ describe("@moritzbrantner/timeline-editor core", () => {
     expect(findTimelineEditorItem(removed, "brief-part-2-2")).toBeUndefined();
   });
 
+  test("enforces prevent and push overlap policies", () => {
+    const overlappingTracks: TimelineEditorTrack[] = [
+      {
+        id: "planning",
+        label: "Planning",
+        items: [
+          { id: "brief", trackId: "planning", label: "Brief", startMs: 0, durationMs: 1_000 },
+          { id: "draft", trackId: "planning", label: "Draft", startMs: 1_500, durationMs: 1_000 },
+          {
+            id: "review",
+            trackId: "planning",
+            label: "Review",
+            startMs: 2_400,
+            durationMs: 1_000,
+          },
+        ],
+      },
+    ];
+
+    const prevented = moveTimelineEditorItem(
+      overlappingTracks,
+      { itemId: "brief", startMs: 1_000 },
+      { durationMs: 5_000, editPolicy: { overlap: "prevent", ripple: false } },
+    );
+    expect(prevented).toBe(overlappingTracks);
+
+    const pushed = moveTimelineEditorItem(
+      overlappingTracks,
+      { itemId: "brief", startMs: 1_000 },
+      { durationMs: 5_000, editPolicy: { overlap: "push", ripple: false } },
+    );
+
+    expect(pushed[0]?.items).toEqual([
+      expect.objectContaining({ id: "brief", startMs: 1_000 }),
+      expect.objectContaining({ id: "draft", startMs: 2_000 }),
+      expect.objectContaining({ id: "review", startMs: 3_000 }),
+    ]);
+    expect(detectTimelineEditorOverlaps(pushed)).toHaveLength(0);
+
+    const lockedBlock = moveTimelineEditorItem(
+      [
+        {
+          ...overlappingTracks[0]!,
+          items: [
+            overlappingTracks[0]!.items[0]!,
+            { ...overlappingTracks[0]!.items[1]!, locked: true },
+          ],
+        },
+      ],
+      { itemId: "brief", startMs: 1_000 },
+      { durationMs: 5_000, editPolicy: { overlap: "push", ripple: false } },
+    );
+    expect(lockedBlock[0]?.items[0]?.startMs).toBe(0);
+
+    const inserted = insertTimelineEditorItem(
+      overlappingTracks,
+      {
+        id: "inserted",
+        trackId: "planning",
+        label: "Inserted",
+        startMs: 1_000,
+        durationMs: 1_000,
+      },
+      { durationMs: 5_000, editPolicy: { overlap: "push", ripple: false } },
+    );
+
+    expect(inserted[0]?.items).toEqual([
+      expect.objectContaining({ id: "brief", startMs: 0 }),
+      expect.objectContaining({ id: "inserted", startMs: 1_000 }),
+      expect.objectContaining({ id: "draft", startMs: 2_000 }),
+      expect.objectContaining({ id: "review", startMs: 3_000 }),
+    ]);
+  });
+
   test("validates, serializes, migrates, and creates timeline ticks", () => {
     const document: TimelineEditorDocument = { tracks, durationMs: 8_000 };
     const serialized = serializeTimelineEditorDocument(document);
@@ -168,6 +243,50 @@ describe("@moritzbrantner/timeline-editor core", () => {
       { timeMs: 1_000, label: "0:01.0", major: false },
       { timeMs: 2_000, label: "0:02.0", major: false },
     ]);
+  });
+
+  test("reports document, marker, group, and transform validation issues", () => {
+    const issues = validateTimelineEditorDocument({
+      durationMs: 1_000,
+      currentTimeMs: 1_500,
+      markers: [{ id: "late", timeMs: 1_500 }],
+      groups: [{ id: "group", label: "Group", trackIds: ["planning", "planning"] }],
+      itemGroups: [{ id: "pair", label: "Pair", itemIds: ["brief", "brief"] }],
+      tracks: [
+        {
+          id: "planning",
+          label: "Planning",
+          height: 0,
+          items: [
+            {
+              id: "brief",
+              trackId: "planning",
+              label: "Brief",
+              startMs: 0,
+              durationMs: 1_000,
+              itemGroupId: "pair",
+              transform: {
+                points: [
+                  { offsetMs: 0, values: { x: 0 } },
+                  { offsetMs: 0, values: { x: 1 } },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(issues.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining([
+        "current_time_exceeds_duration",
+        "invalid_track_height",
+        "duplicate_transform_offset",
+        "duplicate_group_track",
+        "duplicate_item_group_item",
+        "marker_exceeds_duration",
+      ]),
+    );
   });
 
   test("attaches, samples, serializes, and splits item transforms", () => {
@@ -289,6 +408,16 @@ describe("@moritzbrantner/timeline-editor core", () => {
     );
 
     expect(moved.document.tracks[0]?.items[0]?.startMs).toBe(1_500);
+
+    const rippleDeleted = applyTimelineEditorCommand(
+      document,
+      selection,
+      { type: "delete-selection" },
+      { editPolicy: { overlap: "allow", ripple: true } },
+    );
+    expect(rippleDeleted.document.tracks[0]?.items[0]).toEqual(
+      expect.objectContaining({ id: "draft", startMs: 2_000 }),
+    );
 
     const withHistory = applyTimelineEditorCommandWithHistory(
       document,
@@ -550,6 +679,83 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
           }),
           expect.objectContaining({ id: "audio" }),
         ],
+      }),
+    );
+  });
+
+  test("supports controlled workbench viewport changes", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks,
+    };
+    const handleViewportChange = vi.fn();
+    const { container, rerender } = render(
+      <TimelineWorkbench
+        document={document}
+        viewport={{ pixelsPerSecond: 80 }}
+        onViewportChange={handleViewportChange}
+      />,
+    );
+    const getEditorContentWidth = () =>
+      container.querySelector<HTMLElement>("[data-slot='timeline-editor'] > div")?.style.width;
+
+    expect(getEditorContentWidth()).toBe("784px");
+
+    rerender(
+      <TimelineWorkbench
+        document={document}
+        viewport={{ pixelsPerSecond: 160 }}
+        onViewportChange={handleViewportChange}
+      />,
+    );
+
+    expect(getEditorContentWidth()).toBe("1424px");
+
+    fireEvent.wheel(container.querySelector("[data-slot='timeline-editor']")!, {
+      clientX: 100,
+      ctrlKey: true,
+      deltaY: -120,
+    });
+    expect(handleViewportChange).toHaveBeenCalledWith(
+      expect.objectContaining({ pixelsPerSecond: 176 }),
+    );
+  });
+
+  test("uses deterministic workbench item and marker ids when provided", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+      tracks,
+    };
+    const handleDocumentChange = vi.fn();
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        assets={[{ id: "asset", label: "Review note", kind: "review", durationMs: 1_000 }]}
+        createItemId={() => "review-note-fixed"}
+        createMarkerId={() => "marker-fixed"}
+        renderAsset={(asset) => asset.label}
+        onDocumentChange={handleDocumentChange}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Review note" })[0]!);
+    expect(handleDocumentChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tracks: [
+          expect.objectContaining({
+            items: expect.arrayContaining([expect.objectContaining({ id: "review-note-fixed" })]),
+          }),
+          expect.anything(),
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Marker" }));
+    expect(handleDocumentChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        markers: [expect.objectContaining({ id: "marker-fixed", timeMs: 1_000 })],
       }),
     );
   });

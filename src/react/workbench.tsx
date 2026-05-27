@@ -13,12 +13,7 @@ import {
   WorkbenchToolbar,
   cn,
 } from "@moritzbrantner/ui";
-import {
-  AssetBrowser,
-  InspectorPanel,
-  type AssetBrowserItem,
-  type InspectorFieldValue,
-} from "@moritzbrantner/ui/labs";
+import { AssetBrowser, type AssetBrowserItem } from "@moritzbrantner/ui/labs";
 
 import {
   addTimelineEditorMarker,
@@ -29,14 +24,12 @@ import {
   getTimelineEditorDurationMs,
   getTimelineEditorFrameDurationMs,
   getTimelineEditorGroupedItemIds,
-  getTimelineEditorItemEndMs,
   groupTimelineEditorItems,
   insertTimelineEditorItem,
   normalizeTimelineEditorDocument,
   normalizeTimelineEditorTracks,
   removeTimelineEditorItems,
   removeTimelineEditorTrack,
-  snapTimelineEditorTime,
   splitTimelineEditorItems,
   type TimelineEditorDocument,
   type TimelineEditorItem,
@@ -61,6 +54,7 @@ import {
   timelineEditorMinPixelsPerSecond,
   type TimelineEditorTrackContextMenuContext,
 } from "./timeline-editor";
+import { DefaultTimelineInspector } from "./workbench/inspector";
 
 export type TimelineWorkbenchAsset<TData = Record<string, unknown>> = {
   id: string;
@@ -121,10 +115,13 @@ export type TimelineWorkbenchProps<
   selection?: TimelineEditorSelection;
   readOnly?: boolean;
   pixelsPerSecond?: number;
+  viewport?: TimelineEditorViewport;
   frameRate?: number;
   snapMs?: number;
   assets?: Array<TimelineWorkbenchAsset<TAssetData>>;
   className?: string;
+  createItemId?: (asset: TimelineWorkbenchAsset<TAssetData>) => string;
+  createMarkerId?: (timeMs: number) => string;
   onDocumentChange?: (document: TimelineEditorDocument<TTrackData, TItemData>) => void;
   onCurrentTimeChange?: (timeMs: number) => void;
   onSelectionChange?: (selection: TimelineEditorSelection) => void;
@@ -217,10 +214,13 @@ export function TimelineWorkbench<
   selection,
   readOnly = false,
   pixelsPerSecond = 80,
+  viewport,
   frameRate,
   snapMs = 100,
   assets = [],
   className,
+  createItemId,
+  createMarkerId,
   onDocumentChange,
   onCurrentTimeChange,
   onSelectionChange,
@@ -239,6 +239,7 @@ export function TimelineWorkbench<
   const [history, setHistory] = useState<TimelineEditorHistory<TTrackData, TItemData>>(
     () => createTimelineEditorHistory() as TimelineEditorHistory<TTrackData, TItemData>,
   );
+  const resolvedViewport = viewport ?? internalViewport;
   const durationMs = document.durationMs ?? getTimelineEditorDurationMs(document.tracks, 30_000);
   const frameDurationMs = getTimelineEditorFrameDurationMs(frameRate);
   const resolvedSnapMs = frameDurationMs ?? snapMs;
@@ -473,7 +474,7 @@ export function TimelineWorkbench<
     }
 
     const item = {
-      id: `${asset.id}-${Date.now()}`,
+      id: createItemId?.(asset) ?? `${asset.id}-${Date.now()}`,
       trackId: targetTrack.id,
       label: asset.label,
       startMs: currentTimeMs,
@@ -550,7 +551,10 @@ export function TimelineWorkbench<
   ];
 
   const commitViewport = (nextViewport: TimelineEditorViewport) => {
-    setInternalViewport(nextViewport);
+    if (!viewport) {
+      setInternalViewport(nextViewport);
+    }
+
     onViewportChange?.(nextViewport);
   };
 
@@ -710,7 +714,7 @@ export function TimelineWorkbench<
               disabled={readOnly}
               onClick={() => {
                 const marker = {
-                  id: `marker-${Date.now()}`,
+                  id: createMarkerId?.(currentTimeMs) ?? `marker-${Date.now()}`,
                   timeMs: currentTimeMs,
                   label: formatTimelineEditorTimeMs(currentTimeMs),
                 };
@@ -737,13 +741,13 @@ export function TimelineWorkbench<
           <div className="flex min-w-52 items-center gap-3">
             <span className="text-xs text-muted-foreground">Zoom</span>
             <Slider
-              value={[internalViewport.pixelsPerSecond]}
+              value={[resolvedViewport.pixelsPerSecond]}
               min={timelineEditorMinPixelsPerSecond}
               max={timelineEditorMaxPixelsPerSecond}
               step={4}
               onValueChange={(value) => {
                 commitViewport({
-                  ...internalViewport,
+                  ...resolvedViewport,
                   pixelsPerSecond: value[0] ?? pixelsPerSecond,
                 });
               }}
@@ -757,7 +761,7 @@ export function TimelineWorkbench<
         <TimelineEditor
           document={document}
           selection={resolvedSelection}
-          viewport={internalViewport}
+          viewport={resolvedViewport}
           snap={{
             enabled: resolvedSnapMs > 0,
             thresholdPx: 8,
@@ -828,88 +832,4 @@ function createTimelineWorkbenchTrack<TTrackData, TItemData>(
     label: `Timeline ${index}`,
     items: [],
   } satisfies TimelineEditorTrack<TTrackData, TItemData>;
-}
-
-function DefaultTimelineInspector<TData>({
-  context,
-  timingStepMs,
-}: {
-  context: TimelineWorkbenchInspectorContext<TData>;
-  timingStepMs?: number;
-}) {
-  const item = context.selectedItem;
-  const inputStepMs = timingStepMs ?? 100;
-
-  if (context.selectedItems.length > 1) {
-    return (
-      <div className="grid gap-3 p-4 text-sm">
-        <div className="font-medium">{context.selectedItems.length} timeline items</div>
-        <div className="text-muted-foreground">
-          Shared actions are available from the toolbar. Select one item to edit timing fields.
-        </div>
-      </div>
-    );
-  }
-
-  if (!item) {
-    return (
-      <div className="p-4 text-sm text-muted-foreground">
-        Select a timeline item to inspect its timing and metadata.
-      </div>
-    );
-  }
-
-  return (
-    <InspectorPanel
-      title="Timeline item"
-      description={context.selectedTrack?.label}
-      readOnly={context.readOnly}
-      values={{
-        label: item.label,
-        startMs: item.startMs,
-        durationMs: item.durationMs,
-        endMs: getTimelineEditorItemEndMs(item),
-        kind: item.kind ?? "",
-        locked: item.locked ?? false,
-      }}
-      sections={[
-        {
-          id: "timing",
-          title: "Timing",
-          fields: [
-            { id: "label", label: "Label", type: "text" },
-            { id: "startMs", label: "Start", type: "number", min: 0, step: inputStepMs },
-            { id: "durationMs", label: "Duration", type: "number", min: 100, step: inputStepMs },
-            { id: "endMs", label: "End", type: "number", readOnly: true },
-            { id: "kind", label: "Kind", type: "text" },
-            { id: "locked", label: "Locked", type: "boolean" },
-          ],
-        },
-      ]}
-      onApply={(values) => {
-        context.updateSelectedItem({
-          label: String(values.label ?? item.label),
-          startMs: snapTimelineWorkbenchInspectorTime(
-            toNumber(values.startMs, item.startMs),
-            timingStepMs,
-          ),
-          durationMs: snapTimelineWorkbenchInspectorTime(
-            toNumber(values.durationMs, item.durationMs),
-            timingStepMs,
-          ),
-          kind: String(values.kind ?? "") || undefined,
-          locked: Boolean(values.locked),
-        });
-      }}
-    />
-  );
-}
-
-function toNumber(value: InspectorFieldValue, fallback: number) {
-  const nextValue = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(nextValue) ? nextValue : fallback;
-}
-
-function snapTimelineWorkbenchInspectorTime(timeMs: number, snapMs?: number) {
-  return snapMs && snapMs > 0 ? snapTimelineEditorTime(timeMs, snapMs) : timeMs;
 }

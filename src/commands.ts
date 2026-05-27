@@ -63,6 +63,7 @@ export function applyTimelineEditorCommand<
     const tracks = removeTimelineEditorItems(
       document.tracks,
       getTimelineEditorGroupedItemIds(document, selection.itemIds),
+      options,
     );
     return result(document, tracks, { itemIds: [] }, "Delete selection");
   }

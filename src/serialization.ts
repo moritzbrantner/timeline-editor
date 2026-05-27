@@ -8,12 +8,18 @@ import {
   type TimelineEditorTrack,
   type TimelineEditorTransform,
   type TimelineEditorTransformPoint,
+  type TimelineEditorTransformValues,
 } from "./types";
 import { getTimelineEditorValidationErrors } from "./validation";
 
-export type SerializedTimelineEditorDocument = {
+export type SerializedTimelineEditorDocument<
+  TTrackData = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+  TGroupData = Record<string, unknown>,
+  TTransformValues extends TimelineEditorTransformValues = TimelineEditorTransformValues,
+> = {
   schemaVersion: 1;
-  document: TimelineEditorDocument;
+  document: TimelineEditorDocument<TTrackData, TItemData, TGroupData, TTransformValues>;
 };
 
 export class TimelineEditorParseError extends Error {
@@ -26,12 +32,22 @@ export class TimelineEditorParseError extends Error {
   }
 }
 
-export function serializeTimelineEditorDocument(
-  document: TimelineEditorDocument,
-): SerializedTimelineEditorDocument {
+export function serializeTimelineEditorDocument<
+  TTrackData = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+  TGroupData = Record<string, unknown>,
+  TTransformValues extends TimelineEditorTransformValues = TimelineEditorTransformValues,
+>(
+  document: TimelineEditorDocument<TTrackData, TItemData, TGroupData, TTransformValues>,
+): SerializedTimelineEditorDocument<TTrackData, TItemData, TGroupData, TTransformValues> {
   return {
     schemaVersion: 1,
-    document: normalizeTimelineEditorDocument(document),
+    document: normalizeTimelineEditorDocument(document) as TimelineEditorDocument<
+      TTrackData,
+      TItemData,
+      TGroupData,
+      TTransformValues
+    >,
   };
 }
 

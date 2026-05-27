@@ -3,6 +3,7 @@ import {
   getTimelineEditorItemEndMs,
   snapTimelineEditorTime,
 } from "./time";
+import { pushTimelineEditorOverlaps } from "./operations/overlap-policy";
 import { normalizeTimelineEditorTransform, sliceTimelineEditorTransform } from "./transform";
 import {
   defaultTimelineEditorEditPolicy,
@@ -545,12 +546,14 @@ export function duplicateTimelineEditorItem<
     startMs: input.startMs ?? getTimelineEditorItemEndMs(found.item),
   };
 
-  return normalizeTimelineEditorTracks(
+  const nextTracks = normalizeTimelineEditorTracks(
     tracks.map((track) =>
       track.id === targetTrack.id ? { ...track, items: [...track.items, duplicate] } : track,
     ),
     options,
   );
+
+  return enforceOverlapPolicy(nextTracks, tracks, options);
 }
 
 export function insertTimelineEditorItem<
@@ -571,12 +574,14 @@ export function insertTimelineEditorItem<
     return tracks;
   }
 
-  return normalizeTimelineEditorTracks(
+  const nextTracks = normalizeTimelineEditorTracks(
     tracks.map((track) =>
       track.id === targetTrack.id ? { ...track, items: [...track.items, item] } : track,
     ),
     options,
   );
+
+  return enforceOverlapPolicy(nextTracks, tracks, options);
 }
 
 export function removeTimelineEditorItem<
@@ -599,7 +604,15 @@ export function removeTimelineEditorItem<
 export function removeTimelineEditorItems<
   TTrackData = Record<string, unknown>,
   TItemData = Record<string, unknown>,
->(tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>, itemIds: readonly string[]) {
+>(
+  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
+  itemIds: readonly string[],
+  options: TimelineEditorOperationOptions = {},
+) {
+  if (options.editPolicy?.ripple) {
+    return rippleDeleteTimelineEditorItems(tracks, itemIds, options);
+  }
+
   let nextTracks = tracks;
 
   for (const itemId of itemIds) {
@@ -961,7 +974,11 @@ export function rippleMoveTimelineEditorItems<
 export function rippleDeleteTimelineEditorItems<
   TTrackData = Record<string, unknown>,
   TItemData = Record<string, unknown>,
->(tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>, itemIds: readonly string[]) {
+>(
+  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
+  itemIds: readonly string[],
+  options: TimelineEditorOperationOptions = {},
+) {
   const deletingIds = new Set(itemIds);
 
   return normalizeTimelineEditorTracks(
@@ -989,6 +1006,7 @@ export function rippleDeleteTimelineEditorItems<
           ),
       };
     }),
+    options,
   );
 }
 
@@ -1107,12 +1125,26 @@ function enforceOverlapPolicy<TTrackData, TItemData>(
   options: TimelineEditorOperationOptions,
 ) {
   const policy = { ...defaultTimelineEditorEditPolicy, ...options.editPolicy };
+  const overlaps = detectTimelineEditorOverlaps(nextTracks);
 
-  if (policy.overlap === "allow" || detectTimelineEditorOverlaps(nextTracks).length === 0) {
+  if (policy.overlap === "allow" || overlaps.length === 0) {
     return nextTracks;
   }
 
-  return previousTracks;
+  if (policy.overlap === "prevent") {
+    return previousTracks;
+  }
+
+  const pushedTracks = pushTimelineEditorOverlaps(nextTracks, options);
+  const normalizedPushedTracks = pushedTracks
+    ? normalizeTimelineEditorTracks(pushedTracks, options)
+    : undefined;
+
+  if (!normalizedPushedTracks || detectTimelineEditorOverlaps(normalizedPushedTracks).length > 0) {
+    return previousTracks;
+  }
+
+  return normalizedPushedTracks;
 }
 
 function updateMarker(marker: TimelineEditorMarker, patch: Partial<TimelineEditorMarker>) {

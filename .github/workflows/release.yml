@@ -28,6 +28,9 @@ jobs:
       - name: Verify
         run: bun run verify
 
+      - name: Test package exports
+        run: bun run test:package
+
       - name: Create release PR or publish
         uses: changesets/action@v1
         with:

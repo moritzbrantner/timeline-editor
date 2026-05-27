@@ -8,7 +8,7 @@ Generic timeline document utilities and React components for editing time-aligne
 bun add @moritzbrantner/timeline-editor
 ```
 
-The React components expect `react` as a peer dependency and use
+The React components expect `react` and `react-dom` as peer dependencies and use
 `@moritzbrantner/ui@^0.8.0` for workbench chrome. Timeline rendering is owned by
 this package.
 
@@ -84,6 +84,25 @@ bun dev
 The example lives in `examples/dev` and imports the local `src` entrypoints through
 Vite aliases.
 
+## Core-only Usage
+
+Non-React consumers should import the pure document utilities from the core
+subpath:
+
+```ts
+import {
+  moveTimelineEditorItem,
+  normalizeTimelineEditorDocument,
+} from "@moritzbrantner/timeline-editor/core";
+
+const nextTracks = moveTimelineEditorItem(document.tracks, {
+  itemId: "brief",
+  startMs: 1_500,
+});
+
+const nextDocument = normalizeTimelineEditorDocument({ ...document, tracks: nextTracks });
+```
+
 ## Core Command Example
 
 ```ts
@@ -94,6 +113,61 @@ const result = applyTimelineEditorCommand(
   { itemIds: ["brief"] },
   { type: "move-items", itemIds: ["brief"], deltaMs: 500 },
 );
+```
+
+## Edit Policies
+
+Operations allow overlaps by default. Set `editPolicy.overlap` to reject or
+resolve overlaps:
+
+```ts
+const prevented = moveTimelineEditorItem(
+  document.tracks,
+  { itemId: "brief", startMs: 1_500 },
+  { editPolicy: { overlap: "prevent", ripple: false } },
+);
+
+const pushed = moveTimelineEditorItem(
+  document.tracks,
+  { itemId: "brief", startMs: 1_500 },
+  { editPolicy: { overlap: "push", ripple: false } },
+);
+```
+
+`"prevent"` returns the previous tracks when the edit would overlap. `"push"`
+keeps the edit and shifts later unlocked items right; if a locked item or the
+document duration blocks the push, the previous tracks are returned. Set
+`editPolicy.ripple` on command options to shift later items left during
+delete-selection commands.
+
+## Controlled Workbench Example
+
+```tsx
+import { useState } from "react";
+import {
+  TimelineWorkbench,
+  type TimelineEditorDocument,
+  type TimelineEditorSelection,
+  type TimelineEditorViewport,
+} from "@moritzbrantner/timeline-editor";
+
+export function WorkbenchExample({ initialDocument }: { initialDocument: TimelineEditorDocument }) {
+  const [document, setDocument] = useState(initialDocument);
+  const [selection, setSelection] = useState<TimelineEditorSelection>({ itemIds: [] });
+  const [viewport, setViewport] = useState<TimelineEditorViewport>({ pixelsPerSecond: 80 });
+
+  return (
+    <TimelineWorkbench
+      document={document}
+      selection={selection}
+      viewport={viewport}
+      assets={[{ id: "scene", label: "Scene", kind: "video", durationMs: 2_000 }]}
+      onDocumentChange={setDocument}
+      onSelectionChange={setSelection}
+      onViewportChange={setViewport}
+    />
+  );
+}
 ```
 
 ## Transform Example

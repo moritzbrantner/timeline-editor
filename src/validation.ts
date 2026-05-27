@@ -16,6 +16,26 @@ export function validateTimelineEditorDocument(document: TimelineEditorDocument)
   const markerIds = new Set<string>();
   const durationMs = document.durationMs ?? getTimelineEditorDurationMs(document.tracks, 1);
 
+  if (document.durationMs !== undefined) {
+    if (!Number.isFinite(document.durationMs) || document.durationMs <= 0) {
+      issues.push(error("durationMs", "invalid_duration", "Document duration must be > 0."));
+    }
+  }
+
+  if (document.currentTimeMs !== undefined) {
+    if (!Number.isFinite(document.currentTimeMs) || document.currentTimeMs < 0) {
+      issues.push(error("currentTimeMs", "invalid_current_time", "Current time must be >= 0."));
+    } else if (document.durationMs !== undefined && document.currentTimeMs > document.durationMs) {
+      issues.push(
+        warning(
+          "currentTimeMs",
+          "current_time_exceeds_duration",
+          "Current time exceeds document duration.",
+        ),
+      );
+    }
+  }
+
   document.tracks.forEach((track, trackIndex) => {
     const trackPath = `tracks[${trackIndex}]`;
 
@@ -28,6 +48,12 @@ export function validateTimelineEditorDocument(document: TimelineEditorDocument)
     }
 
     trackIds.add(track.id);
+
+    if (track.height !== undefined && (!Number.isFinite(track.height) || track.height <= 0)) {
+      issues.push(
+        error(`${trackPath}.height`, "invalid_track_height", "Track height must be > 0."),
+      );
+    }
 
     track.items.forEach((item, itemIndex) => {
       const itemPath = `${trackPath}.items[${itemIndex}]`;
@@ -66,6 +92,8 @@ export function validateTimelineEditorDocument(document: TimelineEditorDocument)
         );
       }
 
+      const transformPointOffsets = new Set<number>();
+
       item.transform?.points.forEach((point, pointIndex) => {
         const pointPath = `${itemPath}.transform.points[${pointIndex}]`;
 
@@ -85,6 +113,20 @@ export function validateTimelineEditorDocument(document: TimelineEditorDocument)
               "Transform point is outside the item duration.",
             ),
           );
+        }
+
+        if (Number.isFinite(point.offsetMs)) {
+          if (transformPointOffsets.has(point.offsetMs)) {
+            issues.push(
+              warning(
+                `${pointPath}.offsetMs`,
+                "duplicate_transform_offset",
+                `Transform offset ${point.offsetMs} repeats.`,
+              ),
+            );
+          }
+
+          transformPointOffsets.add(point.offsetMs);
         }
 
         if (point.easing !== undefined && !isTimelineEditorTransformEasing(point.easing)) {
@@ -119,6 +161,7 @@ export function validateTimelineEditorDocument(document: TimelineEditorDocument)
 
   document.groups?.forEach((group, groupIndex) => {
     const groupPath = `groups[${groupIndex}]`;
+    const seenTrackIds = new Set<string>();
 
     if (!group.id) {
       issues.push(error(`${groupPath}.id`, "missing_group_id", "Group id is required."));
@@ -131,6 +174,18 @@ export function validateTimelineEditorDocument(document: TimelineEditorDocument)
     groupIds.add(group.id);
 
     group.trackIds.forEach((trackId, trackIdIndex) => {
+      if (seenTrackIds.has(trackId)) {
+        issues.push(
+          warning(
+            `${groupPath}.trackIds[${trackIdIndex}]`,
+            "duplicate_group_track",
+            `Track "${trackId}" repeats in group "${group.id}".`,
+          ),
+        );
+      }
+
+      seenTrackIds.add(trackId);
+
       if (!trackIds.has(trackId)) {
         issues.push(
           error(
@@ -145,6 +200,7 @@ export function validateTimelineEditorDocument(document: TimelineEditorDocument)
 
   document.itemGroups?.forEach((group, groupIndex) => {
     const groupPath = `itemGroups[${groupIndex}]`;
+    const seenItemIds = new Set<string>();
 
     if (!group.id) {
       issues.push(error(`${groupPath}.id`, "missing_item_group_id", "Item group id is required."));
@@ -157,6 +213,18 @@ export function validateTimelineEditorDocument(document: TimelineEditorDocument)
     itemGroupIds.add(group.id);
 
     group.itemIds.forEach((itemId, itemIdIndex) => {
+      if (seenItemIds.has(itemId)) {
+        issues.push(
+          warning(
+            `${groupPath}.itemIds[${itemIdIndex}]`,
+            "duplicate_item_group_item",
+            `Item "${itemId}" repeats in item group "${group.id}".`,
+          ),
+        );
+      }
+
+      seenItemIds.add(itemId);
+
       if (!itemIds.has(itemId)) {
         issues.push(
           error(
@@ -218,6 +286,14 @@ export function validateTimelineEditorDocument(document: TimelineEditorDocument)
     if (!Number.isFinite(marker.timeMs) || marker.timeMs < 0) {
       issues.push(
         error(`${markerPath}.timeMs`, "invalid_marker_time", "Marker time must be >= 0."),
+      );
+    } else if (document.durationMs !== undefined && marker.timeMs > document.durationMs) {
+      issues.push(
+        warning(
+          `${markerPath}.timeMs`,
+          "marker_exceeds_duration",
+          "Marker time exceeds document duration.",
+        ),
       );
     }
   });
