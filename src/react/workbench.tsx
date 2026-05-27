@@ -1,19 +1,8 @@
 "use client";
 
-import { type ReactNode, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
-import {
-  Badge,
-  Button,
-  type MenuActionItem,
-  Slider,
-  WorkbenchCanvas,
-  WorkbenchLayout,
-  WorkbenchPanel,
-  WorkbenchToolbar,
-  cn,
-} from "@moritzbrantner/ui";
-import { AssetBrowser, type AssetBrowserItem } from "@moritzbrantner/ui/labs";
+import { type MenuActionItem, WorkbenchLayout, WorkbenchPanel, cn } from "@moritzbrantner/ui";
 
 import {
   addTimelineEditorMarker,
@@ -33,7 +22,6 @@ import {
   splitTimelineEditorItems,
   type TimelineEditorDocument,
   type TimelineEditorItem,
-  type TimelineEditorItemKind,
   type TimelineEditorSelection,
   type TimelineEditorTrack,
   type TimelineEditorViewport,
@@ -45,164 +33,42 @@ import {
   undoTimelineEditorHistory,
   type TimelineEditorHistory,
 } from "../history";
-import { formatShortcutLabel } from "../shortcut-label";
-import {
-  TimelineEditor,
-  type TimelineEditorItemRenderContext,
-  type TimelineEditorItemContextMenuContext,
-  timelineEditorMaxPixelsPerSecond,
-  timelineEditorMinPixelsPerSecond,
-  type TimelineEditorTrackContextMenuContext,
+import type {
+  TimelineEditorItemContextMenuContext,
+  TimelineEditorTrackContextMenuContext,
 } from "./timeline-editor";
+import {
+  canPlaceTimelineWorkbenchAssetOnTrack,
+  TimelineWorkbenchAssetsPanel,
+} from "./workbench/assets";
+import { TimelineWorkbenchCanvas } from "./workbench/canvas";
+import { getTimelineWorkbenchContextMenuItems } from "./workbench/context-menu";
+import {
+  createTimelineWorkbenchItemId,
+  createTimelineWorkbenchMarkerId,
+  createTimelineWorkbenchTrack,
+} from "./workbench/ids";
 import { DefaultTimelineInspector } from "./workbench/inspector";
+import {
+  createTimelineWorkbenchItemLookup,
+  getTimelineWorkbenchSelectedItems,
+  getTimelineWorkbenchSelectionPayload,
+} from "./workbench/selection";
+import { TimelineWorkbenchToolbar } from "./workbench/toolbar";
+import type {
+  TimelineWorkbenchAsset,
+  TimelineWorkbenchInspectorContext,
+  TimelineWorkbenchProps,
+} from "./workbench/types";
 
-export type TimelineWorkbenchAsset<TData = Record<string, unknown>> = {
-  id: string;
-  label: string;
-  kind?: TimelineEditorItemKind;
-  durationMs: number;
-  color?: string;
-  description?: string;
-  data?: TData;
-};
-
-export type TimelineWorkbenchSelection<TData = Record<string, unknown>> = {
-  item?: TimelineEditorItem<TData>;
-  itemId?: string;
-  itemIds: string[];
-  track?: TimelineEditorTrack<Record<string, unknown>, TData>;
-};
-
-export type TimelineWorkbenchInspectorContext<TData = Record<string, unknown>> = {
-  document: TimelineEditorDocument<Record<string, unknown>, TData>;
-  durationMs: number;
-  readOnly: boolean;
-  selection: TimelineEditorSelection;
-  selectedItem?: TimelineEditorItem<TData>;
-  selectedItems: Array<TimelineEditorItem<TData>>;
-  selectedTrack?: TimelineEditorTrack<Record<string, unknown>, TData>;
-  updateSelectedItem: (patch: Partial<TimelineEditorItem<TData>>) => void;
-};
-
-export type TimelineWorkbenchItemContextMenuContext<
-  TTrackData extends Record<string, unknown> = Record<string, unknown>,
-  TItemData = Record<string, unknown>,
-> = {
-  document: TimelineEditorDocument<TTrackData, TItemData>;
-  durationMs: number;
-  item: TimelineEditorItem<TItemData>;
-  itemIds: string[];
-  mediaType?: TimelineEditorItemKind;
-  readOnly: boolean;
-  selection: TimelineEditorSelection;
-  selectedItems: Array<TimelineEditorItem<TItemData>>;
-  track: TimelineEditorTrack<TTrackData, TItemData>;
-  deleteItems: (itemIds?: string[]) => void;
-  duplicateItems: (itemIds?: string[]) => void;
-  groupItems: (itemIds?: string[]) => void;
-  splitItems: (itemIds?: string[]) => void;
-  ungroupItems: (itemIds?: string[]) => void;
-  updateItem: (itemId: string, patch: Partial<TimelineEditorItem<TItemData>>) => void;
-};
-
-export type TimelineWorkbenchProps<
-  TTrackData extends Record<string, unknown> = Record<string, unknown>,
-  TItemData = Record<string, unknown>,
-  TAssetData = Record<string, unknown>,
-> = {
-  document: TimelineEditorDocument<TTrackData, TItemData>;
-  selectedItemId?: string | null;
-  selection?: TimelineEditorSelection;
-  readOnly?: boolean;
-  pixelsPerSecond?: number;
-  viewport?: TimelineEditorViewport;
-  frameRate?: number;
-  snapMs?: number;
-  assets?: Array<TimelineWorkbenchAsset<TAssetData>>;
-  className?: string;
-  createItemId?: (asset: TimelineWorkbenchAsset<TAssetData>) => string;
-  createMarkerId?: (timeMs: number) => string;
-  onDocumentChange?: (document: TimelineEditorDocument<TTrackData, TItemData>) => void;
-  onCurrentTimeChange?: (timeMs: number) => void;
-  onSelectionChange?: (selection: TimelineEditorSelection) => void;
-  onSelectedItemChange?: (selection: TimelineWorkbenchSelection<TItemData>) => void;
-  onViewportChange?: (viewport: TimelineEditorViewport) => void;
-  onAssetInsert?: (
-    asset: TimelineWorkbenchAsset<TAssetData>,
-    placement: { trackId: string; timeMs: number },
-  ) => void;
-  renderAsset?: (asset: TimelineWorkbenchAsset<TAssetData>) => ReactNode;
-  renderInspector?: (context: TimelineWorkbenchInspectorContext<TItemData>) => ReactNode;
-  renderTimelineItem?: (context: TimelineEditorItemRenderContext<TItemData>) => ReactNode;
-  renderToolbarActions?: (context: TimelineWorkbenchInspectorContext<TItemData>) => ReactNode;
-  getItemContextMenuItems?: (
-    context: TimelineWorkbenchItemContextMenuContext<TTrackData, TItemData>,
-  ) => MenuActionItem[];
-};
-
-type TimelineWorkbenchItemCommandMenuInput = {
-  canUngroup: boolean;
-  itemIds: string[];
-  readOnly: boolean;
-  deleteItems: (itemIds?: string[]) => void;
-  duplicateItems: (itemIds?: string[]) => void;
-  groupItems: (itemIds?: string[]) => void;
-  splitItems: (itemIds?: string[]) => void;
-  ungroupItems: (itemIds?: string[]) => void;
-};
-
-function getTimelineWorkbenchItemCommandMenuItems({
-  canUngroup,
-  itemIds,
-  readOnly,
-  deleteItems,
-  duplicateItems,
-  groupItems,
-  splitItems,
-  ungroupItems,
-}: TimelineWorkbenchItemCommandMenuInput): MenuActionItem[] {
-  return [
-    {
-      id: "split",
-      label: "Split at playhead",
-      disabled: readOnly || itemIds.length === 0,
-      onSelect: () => splitItems(itemIds),
-    },
-    {
-      id: "duplicate",
-      label: "Duplicate",
-      disabled: readOnly || itemIds.length === 0,
-      onSelect: () => duplicateItems(itemIds),
-    },
-    {
-      id: "group",
-      label: "Group",
-      disabled: readOnly || itemIds.length < 2,
-      onSelect: () => groupItems(itemIds),
-    },
-    {
-      id: "ungroup",
-      label: "Ungroup",
-      disabled: readOnly || !canUngroup,
-      onSelect: () => ungroupItems(itemIds),
-    },
-    { id: "item-command-separator", type: "separator" },
-    {
-      id: "delete",
-      label: "Delete",
-      destructive: true,
-      disabled: readOnly || itemIds.length === 0,
-      onSelect: () => deleteItems(itemIds),
-    },
-  ];
-}
-
-export const defaultTimelineWorkbenchHotkeys = {
-  delete: "Delete",
-  nudgeLeft: "ArrowLeft",
-  nudgeRight: "ArrowRight",
-  selectAll: "Mod+A",
-};
+export { defaultTimelineWorkbenchHotkeys } from "./workbench/toolbar";
+export type {
+  TimelineWorkbenchAsset,
+  TimelineWorkbenchInspectorContext,
+  TimelineWorkbenchItemContextMenuContext,
+  TimelineWorkbenchProps,
+  TimelineWorkbenchSelection,
+} from "./workbench/types";
 
 export function TimelineWorkbench<
   TTrackData extends Record<string, unknown> = Record<string, unknown>,
@@ -248,26 +114,8 @@ export function TimelineWorkbench<
     itemIds: selectedItemId ? [selectedItemId] : [],
     anchorItemId: selectedItemId ?? undefined,
   };
-  const itemLookup = useMemo(() => {
-    const lookup = new Map<
-      string,
-      {
-        item: TimelineEditorItem<TItemData>;
-        track: TimelineEditorTrack<TTrackData, TItemData>;
-      }
-    >();
-
-    for (const track of document.tracks) {
-      for (const item of track.items) {
-        lookup.set(item.id, { item, track });
-      }
-    }
-
-    return lookup;
-  }, [document.tracks]);
-  const selectedItems = resolvedSelection.itemIds
-    .map((itemId) => itemLookup.get(itemId)?.item)
-    .filter((item): item is TimelineEditorItem<TItemData> => Boolean(item));
+  const itemLookup = useMemo(() => createTimelineWorkbenchItemLookup(document), [document]);
+  const selectedItems = getTimelineWorkbenchSelectedItems(resolvedSelection, itemLookup);
   const selected = resolvedSelection.itemIds[0]
     ? itemLookup.get(resolvedSelection.itemIds[0])
     : undefined;
@@ -277,22 +125,6 @@ export function TimelineWorkbench<
     itemIds.some((itemId) => Boolean(itemLookup.get(itemId)?.item.itemGroupId));
   const hasSelectedItemGroup = hasItemGroup(resolvedSelection.itemIds);
   const overlaps = useMemo(() => detectTimelineEditorOverlaps(document.tracks), [document.tracks]);
-  const assetBrowserItems = useMemo(
-    () =>
-      assets.map(
-        (asset): AssetBrowserItem => ({
-          id: asset.id,
-          name: asset.label,
-          type: "file",
-          description: asset.description ?? asset.kind,
-          metadata: {
-            Duration: formatTimelineEditorTimeMs(asset.durationMs),
-            Kind: asset.kind ?? "item",
-          },
-        }),
-      ),
-    [assets],
-  );
 
   const commitDocument = (nextDocument: TimelineEditorDocument<TTrackData, TItemData>) => {
     if (nextDocument !== document) {
@@ -321,15 +153,7 @@ export function TimelineWorkbench<
 
   const commitSelection = (nextSelection: TimelineEditorSelection) => {
     onSelectionChange?.(nextSelection);
-    const nextSelected = nextSelection.itemIds[0]
-      ? itemLookup.get(nextSelection.itemIds[0])
-      : undefined;
-    onSelectedItemChange?.({
-      item: nextSelected?.item,
-      itemId: nextSelection.itemIds[0],
-      itemIds: nextSelection.itemIds,
-      track: nextSelected?.track as TimelineTrackForSelection<TItemData>,
-    });
+    onSelectedItemChange?.(getTimelineWorkbenchSelectionPayload(nextSelection, itemLookup));
   };
 
   const updateItem = (itemId: string, patch: Partial<TimelineEditorItem<TItemData>>) => {
@@ -474,7 +298,7 @@ export function TimelineWorkbench<
     }
 
     const item = {
-      id: createItemId?.(asset) ?? `${asset.id}-${Date.now()}`,
+      id: createTimelineWorkbenchItemId(asset, createItemId),
       trackId: targetTrack.id,
       label: asset.label,
       startMs: currentTimeMs,
@@ -493,48 +317,21 @@ export function TimelineWorkbench<
   const getWorkbenchItemContextMenuItems = (
     context: TimelineEditorItemContextMenuContext<TTrackData, TItemData>,
   ): MenuActionItem[] => {
-    const itemIds = resolvedSelection.itemIds.includes(context.item.id)
-      ? resolvedSelection.itemIds
-      : [context.item.id];
-    const menuSelection = resolvedSelection.itemIds.includes(context.item.id)
-      ? resolvedSelection
-      : { itemIds, anchorItemId: context.item.id };
-    const contextSelectedItems = itemIds
-      .map((itemId) => itemLookup.get(itemId)?.item)
-      .filter((item): item is TimelineEditorItem<TItemData> => Boolean(item));
-    const readOnlyContext = readOnly || context.readOnly;
-    const menuContext = {
+    return getTimelineWorkbenchContextMenuItems(context, {
       document,
       durationMs,
-      item: context.item,
-      itemIds,
-      mediaType: context.item.kind,
-      readOnly: readOnlyContext,
-      selection: menuSelection,
-      selectedItems: contextSelectedItems,
-      track: context.track,
+      itemLookup,
+      readOnly,
+      resolvedSelection,
       deleteItems,
       duplicateItems,
+      getItemContextMenuItems,
       groupItems,
+      hasItemGroup,
       splitItems,
       ungroupItems,
       updateItem,
-    } satisfies TimelineWorkbenchItemContextMenuContext<TTrackData, TItemData>;
-    const extensionItems = getItemContextMenuItems?.(menuContext) ?? [];
-    const defaultItems = getTimelineWorkbenchItemCommandMenuItems({
-      canUngroup: hasItemGroup(itemIds),
-      itemIds,
-      readOnly: readOnlyContext,
-      deleteItems,
-      duplicateItems,
-      groupItems,
-      splitItems,
-      ungroupItems,
     });
-
-    return extensionItems.length > 0
-      ? [...defaultItems, { id: "media-actions", type: "separator" }, ...extensionItems]
-      : defaultItems;
   };
 
   const getWorkbenchTrackContextMenuItems = (
@@ -562,44 +359,12 @@ export function TimelineWorkbench<
     <WorkbenchLayout
       className={cn("min-h-[34rem] overflow-hidden border border-border bg-background", className)}
       leftPanel={
-        <WorkbenchPanel side="left" className="min-w-64">
-          <div className="grid gap-3 p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-sm font-medium">Assets</div>
-              <Badge variant="secondary">{assets.length}</Badge>
-            </div>
-            {renderAsset ? (
-              <div className="grid gap-2">
-                {assets.map((asset) => (
-                  <Button
-                    key={asset.id}
-                    type="button"
-                    variant="ghost"
-                    className="h-auto justify-start border border-border bg-background px-3 py-2 text-left"
-                    disabled={readOnly}
-                    onClick={() => insertAsset(asset)}
-                  >
-                    {renderAsset(asset)}
-                  </Button>
-                ))}
-              </div>
-            ) : (
-              <AssetBrowser
-                items={assetBrowserItems}
-                selectionMode="single"
-                showPreview={false}
-                emptyMessage="No timeline assets"
-                onOpenItem={(item) => {
-                  const asset = assets.find((candidate) => candidate.id === item.id);
-
-                  if (asset) {
-                    insertAsset(asset);
-                  }
-                }}
-              />
-            )}
-          </div>
-        </WorkbenchPanel>
+        <TimelineWorkbenchAssetsPanel
+          assets={assets}
+          readOnly={readOnly}
+          renderAsset={renderAsset}
+          onInsertAsset={insertAsset}
+        />
       }
       rightPanel={
         <WorkbenchPanel side="right" className="min-w-72">
@@ -614,222 +379,71 @@ export function TimelineWorkbench<
         </WorkbenchPanel>
       }
       toolbar={
-        <WorkbenchToolbar className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-3 py-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={readOnly || history.undoStack.length === 0}
-              onClick={() => {
-                const undo = undoTimelineEditorHistory(history);
-                setHistory(undo.history);
-                if (undo.document) {
-                  onDocumentChange?.(undo.document);
-                  if (undo.selection) {
-                    commitSelection(undo.selection);
-                  }
-                }
-              }}
-            >
-              Undo
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={readOnly || history.redoStack.length === 0}
-              onClick={() => {
-                const redo = redoTimelineEditorHistory(history);
-                setHistory(redo.history);
-                if (redo.document) {
-                  onDocumentChange?.(redo.document);
-                  if (redo.selection) {
-                    commitSelection(redo.selection);
-                  }
-                }
-              }}
-            >
-              Redo
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={readOnly || resolvedSelection.itemIds.length === 0}
-              onClick={() => {
-                splitItems();
-              }}
-            >
-              Split
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={readOnly || resolvedSelection.itemIds.length === 0}
-              onClick={() => {
-                duplicateItems();
-              }}
-            >
-              Duplicate
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={readOnly || resolvedSelection.itemIds.length < 2}
-              onClick={() => {
-                groupItems();
-              }}
-            >
-              Group
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={readOnly || !hasSelectedItemGroup}
-              onClick={() => {
-                ungroupItems();
-              }}
-            >
-              Ungroup
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="destructive"
-              disabled={readOnly || resolvedSelection.itemIds.length === 0}
-              onClick={() => {
-                deleteItems();
-              }}
-            >
-              Delete
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={readOnly}
-              onClick={() => {
-                const marker = {
-                  id: createMarkerId?.(currentTimeMs) ?? `marker-${Date.now()}`,
-                  timeMs: currentTimeMs,
-                  label: formatTimelineEditorTimeMs(currentTimeMs),
-                };
-                commitDocument(addTimelineEditorMarker(document, marker, { durationMs }));
-              }}
-            >
-              Marker
-            </Button>
-            <Badge variant="outline">{document.tracks.length} tracks</Badge>
-            {document.groups?.length ? (
-              <Badge variant="outline">{document.groups.length} groups</Badge>
-            ) : null}
-            {document.itemGroups?.length ? (
-              <Badge variant="outline">{document.itemGroups.length} item groups</Badge>
-            ) : null}
-            <Badge variant={overlaps.length > 0 ? "destructive" : "secondary"}>
-              {overlaps.length} overlaps
-            </Badge>
-            <Badge variant="outline">{formatTimelineEditorTimeMs(durationMs)}</Badge>
-            <span className="text-xs text-muted-foreground">
-              Nudge {formatShortcutLabel(defaultTimelineWorkbenchHotkeys.nudgeRight)}
-            </span>
-          </div>
-          <div className="flex min-w-52 items-center gap-3">
-            <span className="text-xs text-muted-foreground">Zoom</span>
-            <Slider
-              value={[resolvedViewport.pixelsPerSecond]}
-              min={timelineEditorMinPixelsPerSecond}
-              max={timelineEditorMaxPixelsPerSecond}
-              step={4}
-              onValueChange={(value) => {
-                commitViewport({
-                  ...resolvedViewport,
-                  pixelsPerSecond: value[0] ?? pixelsPerSecond,
-                });
-              }}
-            />
-          </div>
-          {renderToolbarActions?.(inspectorContext)}
-        </WorkbenchToolbar>
+        <TimelineWorkbenchToolbar
+          document={document}
+          durationMs={durationMs}
+          hasSelectedItemGroup={hasSelectedItemGroup}
+          history={history}
+          inspectorContext={inspectorContext}
+          overlaps={overlaps}
+          pixelsPerSecond={pixelsPerSecond}
+          readOnly={readOnly}
+          renderToolbarActions={renderToolbarActions}
+          resolvedSelection={resolvedSelection}
+          resolvedViewport={resolvedViewport}
+          onAddMarker={() => {
+            const marker = {
+              id: createTimelineWorkbenchMarkerId(currentTimeMs, createMarkerId),
+              timeMs: currentTimeMs,
+              label: formatTimelineEditorTimeMs(currentTimeMs),
+            };
+            commitDocument(addTimelineEditorMarker(document, marker, { durationMs }));
+          }}
+          onDelete={() => deleteItems()}
+          onDuplicate={() => duplicateItems()}
+          onGroup={() => groupItems()}
+          onRedo={() => {
+            const redo = redoTimelineEditorHistory(history);
+            setHistory(redo.history);
+            if (redo.document) {
+              onDocumentChange?.(redo.document);
+              if (redo.selection) {
+                commitSelection(redo.selection);
+              }
+            }
+          }}
+          onSplit={() => splitItems()}
+          onUndo={() => {
+            const undo = undoTimelineEditorHistory(history);
+            setHistory(undo.history);
+            if (undo.document) {
+              onDocumentChange?.(undo.document);
+              if (undo.selection) {
+                commitSelection(undo.selection);
+              }
+            }
+          }}
+          onUngroup={() => ungroupItems()}
+          onViewportChange={commitViewport}
+        />
       }
     >
-      <WorkbenchCanvas className="overflow-auto p-3">
-        <TimelineEditor
-          document={document}
-          selection={resolvedSelection}
-          viewport={resolvedViewport}
-          snap={{
-            enabled: resolvedSnapMs > 0,
-            thresholdPx: 8,
-            targets: [
-              { type: "interval", intervalMs: resolvedSnapMs },
-              { type: "marker" },
-              { type: "item-edge" },
-              { type: "playhead" },
-            ],
-          }}
-          frameRate={frameRate}
-          readOnly={readOnly}
-          hotkeys={defaultTimelineWorkbenchHotkeys}
-          onCurrentTimeChange={onCurrentTimeChange}
-          onDocumentChange={commitDocument}
-          onSelectionChange={commitSelection}
-          onViewportChange={commitViewport}
-          renderItem={renderTimelineItem}
-          getItemContextMenuItems={getWorkbenchItemContextMenuItems}
-          getTrackContextMenuItems={getWorkbenchTrackContextMenuItems}
-        />
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={readOnly}
-            onClick={() => {
-              addTimeline();
-            }}
-          >
-            Add Timeline
-          </Button>
-        </div>
-      </WorkbenchCanvas>
+      <TimelineWorkbenchCanvas
+        document={document}
+        frameRate={frameRate}
+        getItemContextMenuItems={getWorkbenchItemContextMenuItems}
+        getTrackContextMenuItems={getWorkbenchTrackContextMenuItems}
+        readOnly={readOnly}
+        renderTimelineItem={renderTimelineItem}
+        resolvedSelection={resolvedSelection}
+        resolvedSnapMs={resolvedSnapMs}
+        resolvedViewport={resolvedViewport}
+        onAddTimeline={addTimeline}
+        onCurrentTimeChange={onCurrentTimeChange}
+        onDocumentChange={commitDocument}
+        onSelectionChange={commitSelection}
+        onViewportChange={commitViewport}
+      />
     </WorkbenchLayout>
   );
-}
-
-type TimelineTrackForSelection<TItemData> =
-  | TimelineEditorTrack<Record<string, unknown>, TItemData>
-  | undefined;
-
-function canPlaceTimelineWorkbenchAssetOnTrack<TTrackData, TItemData, TAssetData>(
-  asset: TimelineWorkbenchAsset<TAssetData>,
-  track: TimelineEditorTrack<TTrackData, TItemData>,
-) {
-  return (
-    !track.locked &&
-    (!track.acceptsItemKinds || !asset.kind || track.acceptsItemKinds.includes(asset.kind))
-  );
-}
-
-function createTimelineWorkbenchTrack<TTrackData, TItemData>(
-  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
-) {
-  const existingIds = new Set(tracks.map((track) => track.id));
-  let index = tracks.length + 1;
-  let id = `timeline-${index}`;
-
-  while (existingIds.has(id)) {
-    index += 1;
-    id = `timeline-${index}`;
-  }
-
-  return {
-    id,
-    label: `Timeline ${index}`,
-    items: [],
-  } satisfies TimelineEditorTrack<TTrackData, TItemData>;
 }

@@ -1,9 +1,12 @@
 import { getTimelineEditorItemEndMs } from "../time";
 import {
+  defaultTimelineEditorEditPolicy,
   type TimelineEditorItem,
   type TimelineEditorOperationOptions,
   type TimelineEditorTrack,
 } from "../types";
+import { normalizeTimelineEditorTracks } from "./normalize";
+import { detectTimelineEditorOverlaps } from "./overlaps";
 
 export function pushTimelineEditorOverlaps<TTrackData, TItemData>(
   tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
@@ -67,4 +70,32 @@ function trackHasOverlap<TTrackData, TItemData>(track: TimelineEditorTrack<TTrac
   }
 
   return false;
+}
+
+export function enforceOverlapPolicy<TTrackData, TItemData>(
+  nextTracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
+  previousTracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
+  options: TimelineEditorOperationOptions,
+) {
+  const policy = { ...defaultTimelineEditorEditPolicy, ...options.editPolicy };
+  const overlaps = detectTimelineEditorOverlaps(nextTracks);
+
+  if (policy.overlap === "allow" || overlaps.length === 0) {
+    return nextTracks;
+  }
+
+  if (policy.overlap === "prevent") {
+    return previousTracks;
+  }
+
+  const pushedTracks = pushTimelineEditorOverlaps(nextTracks, options);
+  const normalizedPushedTracks = pushedTracks
+    ? normalizeTimelineEditorTracks(pushedTracks, options)
+    : undefined;
+
+  if (!normalizedPushedTracks || detectTimelineEditorOverlaps(normalizedPushedTracks).length > 0) {
+    return previousTracks;
+  }
+
+  return normalizedPushedTracks;
 }
