@@ -241,22 +241,26 @@ test("drags an asset from the asset panel onto the timeline", async ({ page }) =
     );
 });
 
-test("adds and removes whole timelines", async ({ page }) => {
+test("adds and removes whole tracks", async ({ page }) => {
   await page.goto("/");
 
   const initialEditorHeight = (await getTimelineEditor(page).boundingBox())?.height ?? 0;
 
-  await page.getByRole("button", { name: "Add Timeline" }).click();
+  await page.getByRole("button", { name: "Add Track" }).click();
+  await page.getByText("Review Track", { exact: true }).click();
 
   await expect(
-    page.locator("[data-slot='timeline-editor-track']").filter({ hasText: "Timeline 3" }).last(),
+    page
+      .locator("[data-slot='timeline-editor-track']")
+      .filter({ hasText: "Review Track 3" })
+      .last(),
   ).toBeVisible();
   await expect
     .poll(async () => (await getTimelineEditor(page).boundingBox())?.height ?? 0)
     .toBeGreaterThan(initialEditorHeight);
   await expect
     .poll(async () => (await getHarnessState(page)).document.tracks.map((track) => track.id))
-    .toEqual(["planning", "review", "timeline-3"]);
+    .toEqual(["planning", "review", "review-track-3"]);
 
   const planningTrack = page
     .locator("[data-slot='timeline-editor-track']")
@@ -272,12 +276,12 @@ test("adds and removes whole timelines", async ({ page }) => {
       y: planningTrackBox!.height / 2,
     },
   });
-  await page.getByText("Remove Timeline", { exact: true }).click();
+  await page.getByText("Remove Track", { exact: true }).click();
 
   await expect.poll(async () => await getItem(page, "brief")).toBeUndefined();
   await expect
     .poll(async () => (await getHarnessState(page)).document.tracks.map((track) => track.id))
-    .toEqual(["review", "timeline-3"]);
+    .toEqual(["review", "review-track-3"]);
   await expect.poll(async () => (await getHarnessState(page)).selectedItemIds).toEqual([]);
 });
 

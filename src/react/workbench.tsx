@@ -15,6 +15,7 @@ import {
   type TimelineEditorDocument,
   type TimelineEditorClipboard,
   type TimelineEditorItem,
+  type TimelineEditorItemKind,
   type TimelineEditorSelection,
   type TimelineEditorTool,
   type TimelineEditorTrack,
@@ -44,6 +45,7 @@ import {
   createTimelineWorkbenchItemId,
   createTimelineWorkbenchMarkerId,
   createTimelineWorkbenchTrack,
+  formatTimelineWorkbenchTrackKind,
 } from "./workbench/ids";
 import { DefaultTimelineInspector } from "./workbench/inspector";
 import {
@@ -54,6 +56,7 @@ import {
 import { TimelineWorkbenchToolbar, defaultTimelineWorkbenchHotkeys } from "./workbench/toolbar";
 import { TimelineWorkbenchPreview } from "./workbench/preview";
 import type {
+  TimelineEditorExtension,
   TimelineWorkbenchAsset,
   TimelineWorkbenchInspectorContext,
   TimelineWorkbenchProps,
@@ -149,6 +152,10 @@ export function TimelineWorkbench<
   const extensionItems = useMemo(
     () => extensions.filter((extension) => extension.itemKinds && extension.itemKinds.length > 0),
     [extensions],
+  );
+  const trackKinds = useMemo(
+    () => getTimelineWorkbenchTrackKinds(document.tracks, assets, extensions),
+    [assets, document.tracks, extensions],
   );
 
   const commitSelection = (nextSelection: TimelineEditorSelection) => {
@@ -312,12 +319,12 @@ export function TimelineWorkbench<
     runCommand({ type: "split-items", itemIds, timeMs: currentTimeMs });
   };
 
-  const addTimeline = () => {
+  const addTrack = (kind?: TimelineEditorItemKind) => {
     if (readOnly) {
       return;
     }
 
-    const track = createTimelineWorkbenchTrack(document.tracks);
+    const track = createTimelineWorkbenchTrack(document.tracks, kind);
     runCommand({ type: "add-track", track });
   };
 
@@ -456,7 +463,7 @@ export function TimelineWorkbench<
     return [
       {
         id: "lock-timeline",
-        label: context.track.locked ? "Unlock Timeline" : "Lock Timeline",
+        label: context.track.locked ? "Unlock Track" : "Lock Track",
         description: context.track.label,
         disabled: readOnly,
         onSelect: () =>
@@ -468,21 +475,21 @@ export function TimelineWorkbench<
       },
       {
         id: "move-timeline-up",
-        label: "Move Timeline Up",
+        label: "Move Track Up",
         disabled: readOnly || trackIndex <= 0,
         onSelect: () =>
           runCommand({ type: "move-track", trackId: context.track.id, toIndex: trackIndex - 1 }),
       },
       {
         id: "move-timeline-down",
-        label: "Move Timeline Down",
+        label: "Move Track Down",
         disabled: readOnly || trackIndex === -1 || trackIndex >= document.tracks.length - 1,
         onSelect: () =>
           runCommand({ type: "move-track", trackId: context.track.id, toIndex: trackIndex + 1 }),
       },
       {
         id: "duplicate-empty-timeline",
-        label: "Duplicate Empty Timeline",
+        label: "Duplicate Empty Track",
         disabled: readOnly,
         onSelect: () => {
           const track = createTimelineWorkbenchTrack(document.tracks);
@@ -491,6 +498,7 @@ export function TimelineWorkbench<
             track: {
               ...track,
               label: `${context.track.label} Copy`,
+              kind: context.track.kind,
               acceptsItemKinds: context.track.acceptsItemKinds,
               height: context.track.height,
               data: context.track.data,
@@ -501,7 +509,7 @@ export function TimelineWorkbench<
       { id: "track-separator", type: "separator" },
       {
         id: "remove-timeline",
-        label: "Remove Timeline",
+        label: "Remove Track",
         description: context.track.label,
         destructive: true,
         disabled: readOnly,
@@ -792,7 +800,9 @@ export function TimelineWorkbench<
         resolvedSnapMs={resolvedSnapMs}
         resolvedViewport={resolvedViewport}
         virtualization={virtualization}
-        onAddTimeline={addTimeline}
+        trackKinds={trackKinds}
+        formatTrackKind={formatTimelineWorkbenchTrackKind}
+        onAddTrack={addTrack}
         onCurrentTimeChange={onCurrentTimeChange}
         onDocumentChange={commitDocument}
         onDropAsset={insertAssetAt}
@@ -826,5 +836,43 @@ function areTimelineWorkbenchSelectionsEqual(
     left.itemIds.every((itemId, index) => itemId === right.itemIds[index]) &&
     (left.trackIds ?? []).every((trackId, index) => trackId === right.trackIds?.[index]) &&
     (left.markerIds ?? []).every((markerId, index) => markerId === right.markerIds?.[index])
+  );
+}
+
+function getTimelineWorkbenchTrackKinds<
+  TTrackData extends Record<string, unknown>,
+  TItemData,
+  TAssetData,
+>(
+  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
+  assets: Array<TimelineWorkbenchAsset<TAssetData>>,
+  extensions: Array<TimelineEditorExtension<TItemData, TTrackData>>,
+) {
+  const kinds = new Set<TimelineEditorItemKind>();
+
+  for (const track of tracks) {
+    if (track.kind) {
+      kinds.add(track.kind);
+    }
+
+    for (const kind of track.acceptsItemKinds ?? []) {
+      kinds.add(kind);
+    }
+  }
+
+  for (const asset of assets) {
+    if (asset.kind) {
+      kinds.add(asset.kind);
+    }
+  }
+
+  for (const extension of extensions) {
+    for (const kind of extension.trackKinds ?? extension.itemKinds ?? []) {
+      kinds.add(kind);
+    }
+  }
+
+  return [...kinds].sort((left, right) =>
+    formatTimelineWorkbenchTrackKind(left).localeCompare(formatTimelineWorkbenchTrackKind(right)),
   );
 }

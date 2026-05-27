@@ -72,6 +72,7 @@ export type TimelineEditorTrack<
 > = {
   id: string;
   label: string;
+  kind?: TimelineEditorItemKind;
   items: Array<TimelineEditorItem<TItemData, TTransformValues>>;
   acceptsItemKinds?: TimelineEditorItemKind[];
   height?: number;

@@ -13,10 +13,15 @@ export function canPlaceTimelineWorkbenchAssetOnTrack<TTrackData, TItemData, TAs
   asset: TimelineWorkbenchAsset<TAssetData>,
   track: TimelineEditorTrack<TTrackData, TItemData>,
 ) {
-  return (
-    !track.locked &&
-    (!track.acceptsItemKinds || !asset.kind || track.acceptsItemKinds.includes(asset.kind))
-  );
+  if (track.locked) {
+    return false;
+  }
+
+  if (track.kind) {
+    return asset.kind === track.kind;
+  }
+
+  return !track.acceptsItemKinds || !asset.kind || track.acceptsItemKinds.includes(asset.kind);
 }
 
 export function getTimelineWorkbenchAssetBrowserItems<TAssetData>(

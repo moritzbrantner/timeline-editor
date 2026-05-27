@@ -439,7 +439,8 @@ const restored = parseTimelineEditorDocument(stored);
 
 ## Media Kinds
 
-Timeline items and workbench assets can declare a `kind`, and tracks can limit
+Timeline items, workbench assets, and tracks can declare a `kind`. A typed track
+only accepts items and assets with the same kind. Untyped tracks can still limit
 placement with `acceptsItemKinds`. Workbench asset insertion respects those
 limits, including when the currently selected track rejects the asset kind.
 
@@ -447,8 +448,8 @@ limits, including when the currently selected track rejects the asset kind.
 <TimelineWorkbench
   document={{
     tracks: [
-      { id: "video", label: "Video", acceptsItemKinds: ["video"], items: [] },
-      { id: "audio", label: "Audio", acceptsItemKinds: ["audio"], items: [] },
+      { id: "video", label: "Video", kind: "video", items: [] },
+      { id: "audio", label: "Audio", kind: "audio", items: [] },
     ],
   }}
   frameRate={24}

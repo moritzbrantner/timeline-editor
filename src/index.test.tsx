@@ -174,6 +174,98 @@ describe("@moritzbrantner/timeline-editor core", () => {
     );
   });
 
+  test("enforces typed track placement", () => {
+    const typedTracks: TimelineEditorTrack[] = [
+      {
+        id: "video",
+        label: "Video",
+        kind: "video",
+        items: [],
+      },
+      {
+        id: "audio",
+        label: "Audio",
+        kind: "audio",
+        items: [],
+      },
+    ];
+    const videoItem = {
+      id: "scene",
+      trackId: "video",
+      label: "Scene",
+      kind: "video",
+      startMs: 0,
+      durationMs: 1_000,
+    };
+
+    expect(
+      insertTimelineEditorItem(typedTracks, { ...videoItem, id: "voice", kind: "audio" }),
+    ).toBe(typedTracks);
+
+    const withVideo = insertTimelineEditorItem(typedTracks, videoItem);
+    expect(withVideo[0]?.items[0]).toEqual(expect.objectContaining({ id: "scene" }));
+    expect(
+      moveTimelineEditorItem(withVideo, {
+        itemId: "scene",
+        trackId: "audio",
+      }),
+    ).toBe(withVideo);
+
+    const changedKind = applyTimelineEditorCommand(
+      { tracks: withVideo },
+      { itemIds: ["scene"] },
+      { type: "update-item", itemId: "scene", patch: { kind: "audio" } },
+    );
+    expect(changedKind.changed).toBe(false);
+    expect(changedKind.document.tracks[0]?.items[0]?.kind).toBe("video");
+
+    const changedTrackKind = applyTimelineEditorCommand(
+      { tracks: withVideo },
+      { itemIds: [] },
+      { type: "update-track", trackId: "video", patch: { kind: "audio" } },
+    );
+    expect(changedTrackKind.changed).toBe(false);
+    expect(changedTrackKind.document.tracks[0]?.kind).toBe("video");
+
+    const addedIncompatibleTrack = applyTimelineEditorCommand(
+      { tracks: [] },
+      { itemIds: [] },
+      {
+        type: "add-track",
+        track: {
+          id: "video",
+          label: "Video",
+          kind: "video",
+          items: [{ ...videoItem, kind: "audio" }],
+        },
+      },
+    );
+    expect(addedIncompatibleTrack.changed).toBe(false);
+    expect(addedIncompatibleTrack.document.tracks).toEqual([]);
+
+    expect(
+      validateTimelineEditorDocument({ tracks: [{ ...withVideo[0]!, locked: true }] }),
+    ).toEqual([]);
+
+    expect(
+      validateTimelineEditorDocument({
+        tracks: [
+          {
+            ...typedTracks[0]!,
+            items: [{ ...videoItem, kind: "audio" }],
+          },
+        ],
+      }),
+    ).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: "incompatible_track_kind" })]),
+    );
+
+    const restored = parseTimelineEditorDocument(
+      serializeTimelineEditorDocument({ tracks: withVideo }),
+    );
+    expect(restored.tracks[0]?.kind).toBe("video");
+  });
+
   test("resizes, splits, duplicates, removes, and detects overlaps", () => {
     const resized = resizeTimelineEditorItem(tracks, {
       itemId: "brief",
@@ -992,6 +1084,40 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
             items: [expect.objectContaining({ label: "Camera", kind: "video", trackId: "video" })],
           }),
           expect.objectContaining({ id: "audio" }),
+        ],
+      }),
+    );
+  });
+
+  test("adds typed tracks from the workbench add track menu", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks,
+    };
+    const handleDocumentChange = vi.fn();
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        assets={[{ id: "asset", label: "Review note", kind: "review", durationMs: 1_000 }]}
+        onDocumentChange={handleDocumentChange}
+      />,
+    );
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Add Track" }), { key: "ArrowDown" });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Review Track" }));
+
+    expect(handleDocumentChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tracks: [
+          expect.anything(),
+          expect.anything(),
+          expect.objectContaining({
+            id: "review-track-3",
+            label: "Review Track 3",
+            kind: "review",
+            acceptsItemKinds: ["review"],
+          }),
         ],
       }),
     );

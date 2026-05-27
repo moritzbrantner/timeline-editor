@@ -2,6 +2,7 @@ import {
   addTimelineEditorTrackGroup,
   addTimelineEditorMarker,
   addTimelineEditorTrack,
+  canPlaceTimelineEditorItemOnTrack,
   closeTimelineEditorGap,
   createTimelineEditorClipboard,
   duplicateTimelineEditorItems,
@@ -377,7 +378,7 @@ export function applyTimelineEditorCommand<
 
   if (command.type === "add-track") {
     const nextDocument = addTimelineEditorTrack(document, command.track, options);
-    return documentResult(document, nextDocument, selection, "Add timeline");
+    return documentResult(document, nextDocument, selection, "Add track");
   }
 
   if (command.type === "update-track") {
@@ -387,7 +388,7 @@ export function applyTimelineEditorCommand<
       command.patch,
       options,
     );
-    return documentResult(document, nextDocument, selection, "Update timeline");
+    return documentResult(document, nextDocument, selection, "Update track");
   }
 
   if (command.type === "move-track") {
@@ -397,12 +398,12 @@ export function applyTimelineEditorCommand<
       command.toIndex,
       options,
     );
-    return documentResult(document, nextDocument, selection, "Move timeline");
+    return documentResult(document, nextDocument, selection, "Move track");
   }
 
   if (command.type === "remove-track") {
     const nextDocument = removeTimelineEditorTrack(document, command.trackId, options);
-    return documentResult(document, nextDocument, { itemIds: [] }, "Remove timeline");
+    return documentResult(document, nextDocument, { itemIds: [] }, "Remove track");
   }
 
   if (command.type === "add-marker") {
@@ -466,14 +467,23 @@ export function applyTimelineEditorCommand<
       return { document, selection, label: "Update item", changed: false };
     }
 
+    const nextItem = {
+      ...found.item,
+      ...command.patch,
+      id: found.item.id,
+      trackId: found.track.id,
+    };
+
+    if (!canPlaceTimelineEditorItemOnTrack(nextItem, found.track)) {
+      return { document, selection, label: "Update item", changed: false };
+    }
+
     const tracks = normalizeTimelineEditorTracks(
       document.tracks.map((track) =>
         track.id === found.track.id
           ? {
               ...track,
-              items: track.items.map((item) =>
-                item.id === found.item.id ? { ...item, ...command.patch } : item,
-              ),
+              items: track.items.map((item) => (item.id === found.item.id ? nextItem : item)),
             }
           : track,
       ),

@@ -136,6 +136,7 @@ function readTrack(input: unknown, path: string): TimelineEditorTrack {
   return {
     id: requiredString(input.id, withPath(path, "id")),
     label: requiredString(input.label, withPath(path, "label")),
+    kind: optionalString(input.kind, withPath(path, "kind")),
     items: requiredArray(input.items, withPath(path, "items")).map((item, index) =>
       readItem(item, withPath(path, `items[${index}]`)),
     ),

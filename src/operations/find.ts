@@ -36,6 +36,21 @@ export function canPlaceTimelineEditorItemOnTrack<
     return false;
   }
 
+  return doesTimelineEditorTrackAcceptItem(item, track);
+}
+
+export function doesTimelineEditorTrackAcceptItem<
+  TTrackData,
+  TItemData,
+  TTransformValues extends TimelineEditorTransformValues = TimelineEditorTransformValues,
+>(
+  item: TimelineEditorItem<TItemData, TTransformValues>,
+  track: TimelineEditorTrack<TTrackData, TItemData, TTransformValues>,
+) {
+  if (track.kind) {
+    return item.kind === track.kind;
+  }
+
   if (!track.acceptsItemKinds || !item.kind) {
     return true;
   }

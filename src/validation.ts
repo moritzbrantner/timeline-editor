@@ -1,4 +1,5 @@
 import { getTimelineEditorDurationMs, getTimelineEditorItemEndMs } from "./time";
+import { doesTimelineEditorTrackAcceptItem } from "./operations/find";
 import {
   isTimelineEditorTransformEasing,
   timelineEditorTransformEasings,
@@ -55,6 +56,10 @@ export function validateTimelineEditorDocument(document: TimelineEditorDocument)
       );
     }
 
+    if (track.kind !== undefined && track.kind.length === 0) {
+      issues.push(error(`${trackPath}.kind`, "invalid_track_kind", "Track kind cannot be empty."));
+    }
+
     track.items.forEach((item, itemIndex) => {
       const itemPath = `${trackPath}.items[${itemIndex}]`;
 
@@ -72,6 +77,18 @@ export function validateTimelineEditorDocument(document: TimelineEditorDocument)
             `${itemPath}.trackId`,
             "mismatched_track_id",
             `Item references "${item.trackId}" but is inside "${track.id}".`,
+          ),
+        );
+      }
+
+      if (!doesTimelineEditorTrackAcceptItem(item, track)) {
+        issues.push(
+          error(
+            `${itemPath}.kind`,
+            "incompatible_track_kind",
+            track.kind
+              ? `Item kind "${item.kind ?? "untyped"}" is not accepted by track kind "${track.kind}".`
+              : `Item kind "${item.kind ?? "untyped"}" is not accepted by this track.`,
           ),
         );
       }

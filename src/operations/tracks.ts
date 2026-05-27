@@ -3,6 +3,7 @@ import type {
   TimelineEditorOperationOptions,
   TimelineEditorTrack,
 } from "../types";
+import { doesTimelineEditorTrackAcceptItem } from "./find";
 import { normalizeTimelineEditorDocument } from "./normalize";
 
 export function addTimelineEditorTrack<
@@ -19,10 +20,16 @@ export function addTimelineEditorTrack<
     return document;
   }
 
+  const nextTrack = { ...track, items: track.items ?? [] };
+
+  if (nextTrack.items.some((item) => !doesTimelineEditorTrackAcceptItem(item, nextTrack))) {
+    return document;
+  }
+
   return normalizeTimelineEditorDocument(
     {
       ...document,
-      tracks: [...document.tracks, { ...track, items: track.items ?? [] }],
+      tracks: [...document.tracks, nextTrack],
     },
     options,
   );
@@ -80,11 +87,20 @@ export function updateTimelineEditorTrack<
     return document;
   }
 
+  const currentTrack = document.tracks.find((track) => track.id === trackId);
+  const nextTrack = currentTrack
+    ? { ...currentTrack, ...patch, id: currentTrack.id, items: currentTrack.items }
+    : undefined;
+
+  if (nextTrack?.items.some((item) => !doesTimelineEditorTrackAcceptItem(item, nextTrack))) {
+    return document;
+  }
+
   return normalizeTimelineEditorDocument(
     {
       ...document,
       tracks: document.tracks.map((track) =>
-        track.id === trackId ? { ...track, ...patch, id: track.id, items: track.items } : track,
+        track.id === trackId && nextTrack ? nextTrack : track,
       ),
     },
     options,

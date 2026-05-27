@@ -1,10 +1,11 @@
 "use client";
 
-import { Button, WorkbenchCanvas } from "@moritzbrantner/ui";
+import { ActionMenu, Button, type MenuActionItem, WorkbenchCanvas } from "@moritzbrantner/ui";
 
 import type {
   TimelineEditorDocument,
   TimelineEditorEditPolicy,
+  TimelineEditorItemKind,
   TimelineEditorSelection,
   TimelineEditorSnapOptions,
   TimelineEditorTool,
@@ -53,7 +54,9 @@ type TimelineWorkbenchCanvasProps<
   renderTimelineItem?: (context: TimelineEditorItemRenderContext<TItemData>) => React.ReactNode;
   getItemContextMenuItems: TimelineEditorItemContextMenuItems<TTrackData, TItemData>;
   getTrackContextMenuItems: TimelineEditorTrackContextMenuItems<TTrackData, TItemData>;
-  onAddTimeline: () => void;
+  trackKinds: TimelineEditorItemKind[];
+  formatTrackKind: (kind: TimelineEditorItemKind) => string;
+  onAddTrack: (kind?: TimelineEditorItemKind) => void;
   onCurrentTimeChange?: (timeMs: number) => void;
   onDocumentChange: (document: TimelineEditorDocument<TTrackData, TItemData>) => void;
   onDropAsset: (
@@ -85,7 +88,9 @@ export function TimelineWorkbenchCanvas<
   renderTimelineItem,
   getItemContextMenuItems,
   getTrackContextMenuItems,
-  onAddTimeline,
+  trackKinds,
+  formatTrackKind,
+  onAddTrack,
   onCurrentTimeChange,
   onDocumentChange,
   onDropAsset,
@@ -139,6 +144,21 @@ export function TimelineWorkbenchCanvas<
 
     return assets.find((asset) => asset.id === assetId);
   };
+
+  const addTrackMenuItems: MenuActionItem[] =
+    trackKinds.length > 0
+      ? trackKinds.map((kind) => ({
+          id: `add-track-${kind}`,
+          label: `${formatTrackKind(kind)} Track`,
+          onSelect: () => onAddTrack(kind),
+        }))
+      : [
+          {
+            id: "add-track",
+            label: "Track",
+            onSelect: () => onAddTrack(),
+          },
+        ];
 
   return (
     <WorkbenchCanvas
@@ -213,15 +233,17 @@ export function TimelineWorkbenchCanvas<
         }}
       />
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={readOnly}
-          onClick={onAddTimeline}
-        >
-          Add Timeline
-        </Button>
+        <ActionMenu
+          label="Add track"
+          align="start"
+          items={addTrackMenuItems}
+          contentProps={{ "data-slot": "timeline-workbench-add-track-menu" }}
+          trigger={
+            <Button type="button" size="sm" variant="outline" disabled={readOnly}>
+              Add Track
+            </Button>
+          }
+        />
       </div>
     </WorkbenchCanvas>
   );
