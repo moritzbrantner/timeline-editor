@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import {
+  TimelineEditor,
   TimelineWorkbench,
   type TimelineEditorDocument,
   type TimelineEditorSelection,
@@ -55,6 +56,23 @@ const createDocument = (): TimelineEditorDocument => ({
   markers: [{ id: "handoff", timeMs: 4_000, label: "Handoff" }],
 });
 
+const createLargeDocument = (): TimelineEditorDocument => ({
+  durationMs: 10 * 60_000,
+  currentTimeMs: 0,
+  tracks: Array.from({ length: 200 }, (_, trackIndex) => ({
+    id: `track-${trackIndex + 1}`,
+    label: `Track ${trackIndex + 1}`,
+    items: Array.from({ length: 100 }, (_, itemIndex) => ({
+      id: `track-${trackIndex + 1}-item-${itemIndex + 1}`,
+      trackId: `track-${trackIndex + 1}`,
+      label: `Item ${trackIndex + 1}-${itemIndex + 1}`,
+      startMs: itemIndex * 5_000,
+      durationMs: 1_000,
+      color: itemIndex % 2 === 0 ? "#2563eb" : "#16a34a",
+    })),
+  })),
+});
+
 const timelineAssets = [
   {
     id: "prototype",
@@ -77,9 +95,12 @@ const timelineAssets = [
 function App() {
   const searchParams = new URLSearchParams(window.location.search);
   const readOnly = searchParams.get("readOnly") === "true";
+  const largeFixture = searchParams.get("fixture") === "large";
   const frameRateParam = searchParams.get("frameRate");
   const frameRate = frameRateParam ? Number(frameRateParam) : undefined;
-  const [document, setDocument] = useState(createDocument);
+  const [document, setDocument] = useState(() =>
+    largeFixture ? createLargeDocument() : createDocument(),
+  );
   const [selection, setSelection] = useState<TimelineEditorSelection>({ itemIds: [] });
   const changes = useRef<string[]>([]);
 
@@ -113,6 +134,23 @@ function App() {
   const handleSelectedItemChange = (selection: TimelineWorkbenchSelection) => {
     recordChange(`selected:${selection.itemId ?? ""}`);
   };
+
+  if (largeFixture) {
+    return (
+      <div className="p-4">
+        <TimelineEditor
+          className="h-[360px]"
+          document={document}
+          selection={selection}
+          readOnly={readOnly}
+          viewport={{ pixelsPerSecond: 80 }}
+          virtualization={{ rows: true, rowOverscanPx: 80 }}
+          onDocumentChange={handleDocumentChange}
+          onSelectionChange={handleSelectionChange}
+        />
+      </div>
+    );
+  }
 
   return (
     <TimelineWorkbench

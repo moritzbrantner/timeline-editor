@@ -7,6 +7,11 @@ import {
   type TimelineEditorTransformValues,
 } from "./types";
 
+const normalizedTransformCache = new WeakMap<
+  TimelineEditorTransform<TimelineEditorTransformValues>,
+  Map<number, TimelineEditorTransform<TimelineEditorTransformValues>>
+>();
+
 export function normalizeTimelineEditorTransform<
   TValues extends TimelineEditorTransformValues = TimelineEditorTransformValues,
 >(
@@ -34,7 +39,7 @@ export function getTimelineEditorTransformValuesAt<
     return {};
   }
 
-  const points = normalizeTimelineEditorTransform(transform, durationMs).points;
+  const points = getCachedNormalizedTimelineEditorTransform(transform, durationMs).points;
   const safeOffsetMs = clampTimelineEditorTime(offsetMs, 0, durationMs);
   const firstPoint = points[0]!;
   const lastPoint = points[points.length - 1]!;
@@ -64,6 +69,36 @@ export function getTimelineEditorTransformValuesAt<
   }
 
   return { ...lastPoint.values };
+}
+
+function getCachedNormalizedTimelineEditorTransform<
+  TValues extends TimelineEditorTransformValues = TimelineEditorTransformValues,
+>(
+  transform: TimelineEditorTransform<TValues>,
+  durationMs: number,
+): TimelineEditorTransform<TValues> {
+  const cacheKey = Number.isFinite(durationMs) ? durationMs : Number.POSITIVE_INFINITY;
+  const typedTransform = transform as TimelineEditorTransform<TimelineEditorTransformValues>;
+  let cachedByDuration = normalizedTransformCache.get(typedTransform);
+
+  if (!cachedByDuration) {
+    cachedByDuration = new Map();
+    normalizedTransformCache.set(typedTransform, cachedByDuration);
+  }
+
+  const cached = cachedByDuration.get(cacheKey);
+
+  if (cached) {
+    return cached as TimelineEditorTransform<TValues>;
+  }
+
+  const normalized = normalizeTimelineEditorTransform(transform, durationMs);
+  cachedByDuration.set(
+    cacheKey,
+    normalized as TimelineEditorTransform<TimelineEditorTransformValues>,
+  );
+
+  return normalized;
 }
 
 export function applyTimelineEditorTransformEasing(

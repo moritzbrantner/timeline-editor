@@ -212,6 +212,20 @@ test("zooms the timeline with ctrl mousewheel", async ({ page }) => {
     .toBeGreaterThan(initialBox!.width);
 });
 
+test("virtualizes large timeline rows", async ({ page }) => {
+  await page.goto("/?fixture=large");
+
+  await expect(getTimelineEditor(page)).toHaveAttribute("data-slot", "timeline-editor");
+  await expect.poll(async () => (await getHarnessState(page)).document.tracks.length).toBe(200);
+  await expect(page.locator("[data-slot='timeline-editor-tracks']").last()).toHaveAttribute(
+    "data-virtualized",
+    "true",
+  );
+  await expect
+    .poll(async () => page.locator("[data-slot='timeline-editor-track']").count())
+    .toBeLessThan(20);
+});
+
 test("groups and ungroups timeline items", async ({ page }) => {
   await page.goto("/");
 

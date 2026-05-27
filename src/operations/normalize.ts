@@ -118,15 +118,20 @@ export function normalizeTimelineEditorItemGroups<TTrackData, TItemData>(
 ) {
   const itemIdsByGroupId = new Map<string, string[]>();
 
-  for (const item of tracks.flatMap((track) => track.items)) {
-    if (!item.itemGroupId) {
-      continue;
-    }
+  for (const track of tracks) {
+    for (const item of track.items) {
+      if (!item.itemGroupId) {
+        continue;
+      }
 
-    itemIdsByGroupId.set(item.itemGroupId, [
-      ...(itemIdsByGroupId.get(item.itemGroupId) ?? []),
-      item.id,
-    ]);
+      const itemIds = itemIdsByGroupId.get(item.itemGroupId);
+
+      if (itemIds) {
+        itemIds.push(item.id);
+      } else {
+        itemIdsByGroupId.set(item.itemGroupId, [item.id]);
+      }
+    }
   }
 
   const knownGroupsById = new Map(itemGroups.map((group) => [group.id, group]));

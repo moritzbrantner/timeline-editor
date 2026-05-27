@@ -3,6 +3,10 @@ import type {
   TimelineEditorItemGroup,
   TimelineEditorOperationOptions,
 } from "../types";
+import {
+  createTimelineEditorDocumentIndex,
+  getTimelineEditorGroupedItemIdsFromIndex,
+} from "../document-index";
 import { createTimelineEditorItemGroupId } from "./ids";
 import { normalizeTimelineEditorDocument } from "./normalize";
 
@@ -106,23 +110,8 @@ export function getTimelineEditorGroupedItemIds<
   TItemData = Record<string, unknown>,
   TGroupData = Record<string, unknown>,
 >(document: TimelineEditorDocument<TTrackData, TItemData, TGroupData>, itemIds: readonly string[]) {
-  const selectedIds = new Set(itemIds);
-  const itemGroupIds = new Set(
-    document.tracks
-      .flatMap((track) => track.items)
-      .filter((item) => selectedIds.has(item.id) && item.itemGroupId)
-      .map((item) => item.itemGroupId!),
+  return getTimelineEditorGroupedItemIdsFromIndex(
+    createTimelineEditorDocumentIndex(document),
+    itemIds,
   );
-
-  if (itemGroupIds.size === 0) {
-    return [...selectedIds];
-  }
-
-  for (const item of document.tracks.flatMap((track) => track.items)) {
-    if (item.itemGroupId && itemGroupIds.has(item.itemGroupId)) {
-      selectedIds.add(item.id);
-    }
-  }
-
-  return [...selectedIds];
 }

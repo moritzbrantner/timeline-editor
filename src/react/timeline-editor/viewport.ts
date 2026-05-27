@@ -14,6 +14,13 @@ export type TimelineEditorVisibleRange = {
   endMs: number;
 };
 
+export type TimelineEditorMeasuredViewport = {
+  scrollLeftPx: number;
+  scrollTopPx: number;
+  widthPx: number;
+  heightPx: number;
+};
+
 export function resolveTimelineEditorViewport(viewport?: TimelineEditorViewport) {
   return {
     pixelsPerSecond: viewport?.pixelsPerSecond ?? 80,
@@ -26,7 +33,7 @@ export function resolveTimelineEditorViewport(viewport?: TimelineEditorViewport)
 export function getTimelineEditorVisibleRange(
   durationMs: number,
   viewport: TimelineEditorViewport,
-  measuredViewport: { scrollLeftPx: number; widthPx: number },
+  measuredViewport: Pick<TimelineEditorMeasuredViewport, "scrollLeftPx" | "widthPx">,
   timelineOffsetPx = 0,
 ): TimelineEditorVisibleRange {
   const pixelsPerSecond = Math.max(1, viewport.pixelsPerSecond);
@@ -80,7 +87,9 @@ export function useTimelineEditorMeasuredViewport(
 ) {
   const [measuredViewport, setMeasuredViewport] = useState({
     scrollLeftPx: 0,
+    scrollTopPx: 0,
     widthPx: 1024,
+    heightPx: 0,
   });
 
   useEffect(() => {
@@ -93,7 +102,9 @@ export function useTimelineEditorMeasuredViewport(
     const updateMeasuredViewport = () => {
       setMeasuredViewport({
         scrollLeftPx: scroller.scrollLeft,
+        scrollTopPx: scroller.scrollTop,
         widthPx: scroller.clientWidth,
+        heightPx: scroller.clientHeight,
       });
     };
 
@@ -130,7 +141,9 @@ export function useTimelineEditorMeasuredViewport(
     scroller.scrollLeft = nextScrollLeft;
     setMeasuredViewport({
       scrollLeftPx: nextScrollLeft,
+      scrollTopPx: scroller.scrollTop,
       widthPx: scroller.clientWidth,
+      heightPx: scroller.clientHeight,
     });
   }, [pixelsPerSecond, pendingWheelZoomRef, scrollerRef]);
 

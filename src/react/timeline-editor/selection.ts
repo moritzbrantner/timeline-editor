@@ -1,9 +1,25 @@
-import type { TimelineEditorDocument, TimelineEditorTrack } from "../../types";
+import type { TimelineEditorDocument, TimelineEditorItem, TimelineEditorTrack } from "../../types";
+import type { TimelineEditorDocumentIndex } from "../../document-index";
 
 export function getSelectedTimelineEditorItems<TTrackData, TItemData>(
   document: TimelineEditorDocument<TTrackData, TItemData>,
   selectedIds: ReadonlySet<string>,
+  index?: TimelineEditorDocumentIndex<TTrackData, TItemData>,
 ) {
+  if (index) {
+    const items: Array<TimelineEditorItem<TItemData>> = [];
+
+    for (const itemId of selectedIds) {
+      const item = index.itemById.get(itemId);
+
+      if (item) {
+        items.push(item);
+      }
+    }
+
+    return items;
+  }
+
   return document.tracks.flatMap((track) => track.items.filter((item) => selectedIds.has(item.id)));
 }
 
@@ -30,6 +46,7 @@ export function getRangeSelectionIds<TTrackData, TItemData>(
 
 export function getVisibleTracks<TTrackData, TItemData>(
   document: TimelineEditorDocument<TTrackData, TItemData>,
+  index?: TimelineEditorDocumentIndex<TTrackData, TItemData>,
 ) {
   const groupedTrackIds = new Set(document.groups?.flatMap((group) => group.trackIds));
   const entries: Array<
@@ -49,7 +66,9 @@ export function getVisibleTracks<TTrackData, TItemData>(
     }
 
     for (const trackId of group.trackIds) {
-      const track = document.tracks.find((candidate) => candidate.id === trackId);
+      const track = index
+        ? index.trackById.get(trackId)
+        : document.tracks.find((candidate) => candidate.id === trackId);
       if (track) {
         entries.push({ type: "track", track, locked: Boolean(group.locked || track.locked) });
       }

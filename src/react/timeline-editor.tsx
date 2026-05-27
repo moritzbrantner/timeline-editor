@@ -1,16 +1,15 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@moritzbrantner/ui";
 
-import {
-  getTimelineEditorGroupedItemIds,
-  moveTimelineEditorItems,
-  resizeTimelineEditorItem,
-  setTimelineEditorCurrentTime,
-} from "../core";
+import { normalizeTimelineEditorDocument, setTimelineEditorCurrentTime } from "../core";
 import { applyTimelineEditorCommand } from "../commands";
+import {
+  createTimelineEditorDocumentIndex,
+  getTimelineEditorGroupedItemIdsFromIndex,
+} from "../document-index";
 import {
   createTimelineEditorSnapResolver,
   createTimelineEditorSnapOptions,
@@ -20,6 +19,7 @@ import {
 } from "../time";
 import {
   defaultTimelineEditorSelection,
+  defaultTimelineEditorMinItemDurationMs,
   defaultTimelineEditorSnapMs,
   type TimelineEditorItem,
   type TimelineEditorTrack,
@@ -28,7 +28,7 @@ import {
   getTimelineEditorDurationForDocument,
   getTimelineEditorTimeFromDelta,
   getTimelineEditorWidthPx,
-  getVisibleTimelineEditorTicks,
+  getVisibleTimelineEditorTicksForRange,
 } from "./timeline-rendering";
 import {
   defaultTimelineEditorHotkeys,
@@ -51,7 +51,6 @@ import type { TimelineEditorDragState, TimelineEditorProps } from "./timeline-ed
 import {
   getNextTimelineEditorPixelsPerSecond,
   getTimelineEditorVisibleRange,
-  isTimelineEditorTimeVisible,
   resolveTimelineEditorViewport,
   useTimelineEditorMeasuredViewport,
 } from "./timeline-editor/viewport";
@@ -65,6 +64,7 @@ export type {
   TimelineEditorTrackContextMenuContext,
   TimelineEditorTrackContextMenuItems,
   TimelineEditorTrackRenderContext,
+  TimelineEditorVirtualizationOptions,
 } from "./timeline-editor/types";
 export {
   defaultTimelineEditorHotkeys,
@@ -86,6 +86,7 @@ export function TimelineEditor<
   frameRate,
   snap,
   hotkeys,
+  virtualization,
   onDocumentChange,
   onSelectionChange,
   onViewportChange,
@@ -102,11 +103,23 @@ export function TimelineEditor<
   const durationMs = getTimelineEditorDurationForDocument(document);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const previewTracksRef = useRef<Array<TimelineEditorTrack<TTrackData, TItemData>> | null>(null);
+  const previewFrameRef = useRef<number | null>(null);
+  const pendingPreviewRef = useRef<{
+    snapGuideMs: number | null;
+    tracks: Array<TimelineEditorTrack<TTrackData, TItemData>> | null;
+  } | null>(null);
   const pendingWheelZoomRef = useRef<{ offsetX: number; timeMs: number } | null>(null);
   const [previewTracks, setPreviewTracks] = useState<Array<
     TimelineEditorTrack<TTrackData, TItemData>
   > | null>(null);
   const resolvedViewport = useMemo(() => resolveTimelineEditorViewport(viewport), [viewport]);
+  const resolvedVirtualization = useMemo(
+    () => ({
+      rows: virtualization?.rows ?? "auto",
+      rowOverscanPx: virtualization?.rowOverscanPx ?? 240,
+    }),
+    [virtualization],
+  );
   const timelineWidthPx = getTimelineEditorWidthPx(durationMs, resolvedViewport.pixelsPerSecond);
   const editorWidthPx = timelineEditorTrackHeaderWidthPx + timelineWidthPx;
   const frameDurationMs = useMemo(() => getTimelineEditorFrameDurationMs(frameRate), [frameRate]);
@@ -133,11 +146,19 @@ export function TimelineEditor<
   > | null>(null);
   const [snapGuideMs, setSnapGuideMs] = useState<number | null>(null);
   const selectedIds = useMemo(() => new Set(selection.itemIds), [selection.itemIds]);
+  const documentIndex = useMemo(() => createTimelineEditorDocumentIndex(document), [document]);
   const selectedItems = useMemo(
-    () => getSelectedTimelineEditorItems(document, selectedIds),
-    [document, selectedIds],
+    () => getSelectedTimelineEditorItems(document, selectedIds, documentIndex),
+    [document, selectedIds, documentIndex],
   );
-  const renderDocument = previewTracks ? { ...document, tracks: previewTracks } : document;
+  const renderDocument = useMemo(
+    () => (previewTracks ? { ...document, tracks: previewTracks } : document),
+    [document, previewTracks],
+  );
+  const renderDocumentIndex = useMemo(
+    () => createTimelineEditorDocumentIndex(renderDocument),
+    [renderDocument],
+  );
   const visibleRange = useMemo(
     () =>
       getTimelineEditorVisibleRange(
@@ -148,12 +169,12 @@ export function TimelineEditor<
       ),
     [durationMs, resolvedViewport, measuredViewport],
   );
-  const visibleTracks = useMemo(() => getVisibleTracks(renderDocument), [renderDocument]);
+  const visibleTracks = useMemo(
+    () => getVisibleTracks(renderDocument, renderDocumentIndex),
+    [renderDocument, renderDocumentIndex],
+  );
   const ticks = useMemo(
-    () =>
-      getVisibleTimelineEditorTicks(durationMs, resolvedViewport).filter((tick) =>
-        isTimelineEditorTimeVisible(tick.timeMs, visibleRange),
-      ),
+    () => getVisibleTimelineEditorTicksForRange(durationMs, resolvedViewport, visibleRange),
     [durationMs, resolvedViewport, visibleRange],
   );
 
@@ -167,12 +188,71 @@ export function TimelineEditor<
     setPreviewTracks(nextTracks);
   };
 
+  const cancelScheduledPreview = () => {
+    if (previewFrameRef.current !== null && typeof window !== "undefined") {
+      window.cancelAnimationFrame(previewFrameRef.current);
+    }
+
+    previewFrameRef.current = null;
+    pendingPreviewRef.current = null;
+  };
+
+  const flushScheduledPreview = () => {
+    const pendingPreview = pendingPreviewRef.current;
+
+    if (!pendingPreview) {
+      return previewTracksRef.current;
+    }
+
+    cancelScheduledPreview();
+    setSnapGuideMs(pendingPreview.snapGuideMs);
+    updatePreviewTracks(pendingPreview.tracks);
+
+    return pendingPreview.tracks;
+  };
+
+  const schedulePreviewUpdate = (
+    tracks: Array<TimelineEditorTrack<TTrackData, TItemData>> | null,
+    nextSnapGuideMs: number | null,
+  ) => {
+    pendingPreviewRef.current = { snapGuideMs: nextSnapGuideMs, tracks };
+
+    if (typeof window === "undefined") {
+      flushScheduledPreview();
+      return;
+    }
+
+    if (previewFrameRef.current !== null) {
+      return;
+    }
+
+    previewFrameRef.current = window.requestAnimationFrame(() => {
+      previewFrameRef.current = null;
+      const pendingPreview = pendingPreviewRef.current;
+      pendingPreviewRef.current = null;
+
+      if (!pendingPreview) {
+        return;
+      }
+
+      setSnapGuideMs(pendingPreview.snapGuideMs);
+      updatePreviewTracks(pendingPreview.tracks);
+    });
+  };
+
+  useEffect(
+    () => () => {
+      cancelScheduledPreview();
+    },
+    [],
+  );
+
   const selectItem = (
     item: TimelineEditorItem<TItemData>,
     track: TimelineEditorTrack<TTrackData, TItemData>,
     event: React.PointerEvent,
   ) => {
-    const groupedItemIds = getTimelineEditorGroupedItemIds(document, [item.id]);
+    const groupedItemIds = getTimelineEditorGroupedItemIdsFromIndex(documentIndex, [item.id]);
 
     if (event.metaKey || event.ctrlKey) {
       const groupedItemIdSet = new Set(groupedItemIds);
@@ -186,8 +266,8 @@ export function TimelineEditor<
 
     if (event.shiftKey && selection.anchorItemId) {
       commitSelection({
-        itemIds: getTimelineEditorGroupedItemIds(
-          document,
+        itemIds: getTimelineEditorGroupedItemIdsFromIndex(
+          documentIndex,
           getRangeSelectionIds(track, selection.anchorItemId, item.id),
         ),
         anchorItemId: selection.anchorItemId,
@@ -215,15 +295,17 @@ export function TimelineEditor<
         : { timeMs: 0, snapped: false };
       const resolvedDeltaMs =
         activeItem && snapResult.snapped ? snapResult.timeMs - activeItem.startMs : deltaMs;
-      const tracks = moveTimelineEditorItems(
+      const tracks = getTimelineEditorMovePreviewTracks(
         document.tracks,
-        dragState.originalItems.map((item) => item.id),
+        dragState.movingItemIds,
         resolvedDeltaMs,
-        { durationMs, snapMs: 0 },
+        durationMs,
       );
 
-      setSnapGuideMs(snapResult.snapped ? snapResult.timeMs : null);
-      updatePreviewTracks(tracks === document.tracks ? null : tracks);
+      schedulePreviewUpdate(
+        tracks === document.tracks ? null : tracks,
+        snapResult.snapped ? snapResult.timeMs : null,
+      );
       return;
     }
 
@@ -231,31 +313,26 @@ export function TimelineEditor<
     const nextTimeMs =
       edge === "start" ? dragState.originalStartMs + deltaMs : dragState.originalEndMs + deltaMs;
     const snapResult = dragState.snapResolver(nextTimeMs);
-    const tracks = resizeTimelineEditorItem(
+    const tracks = getTimelineEditorResizePreviewTracks(
       document.tracks,
-      edge === "start"
-        ? {
-            itemId: dragState.item.id,
-            edge,
-            startMs: snapResult.timeMs,
-          }
-        : {
-            itemId: dragState.item.id,
-            edge,
-            durationMs: snapResult.timeMs - dragState.item.startMs,
-          },
-      { durationMs, snapMs: 0 },
+      dragState.trackId,
+      dragState.item,
+      edge,
+      snapResult.timeMs,
+      durationMs,
     );
 
-    setSnapGuideMs(snapResult.snapped ? snapResult.timeMs : null);
-    updatePreviewTracks(tracks === document.tracks ? null : tracks);
+    schedulePreviewUpdate(
+      tracks === document.tracks ? null : tracks,
+      snapResult.snapped ? snapResult.timeMs : null,
+    );
   };
 
   const commitDrag = () => {
-    const tracks = previewTracksRef.current;
+    const tracks = flushScheduledPreview();
 
     if (tracks && tracks !== document.tracks) {
-      commitDocument({ ...document, tracks });
+      commitDocument(normalizeTimelineEditorDocument({ ...document, tracks }, { durationMs }));
     }
 
     setDragState(null);
@@ -264,6 +341,7 @@ export function TimelineEditor<
   };
 
   const cancelDrag = () => {
+    cancelScheduledPreview();
     setDragState(null);
     setSnapGuideMs(null);
     updatePreviewTracks(null);
@@ -272,7 +350,9 @@ export function TimelineEditor<
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     setMeasuredViewport({
       scrollLeftPx: event.currentTarget.scrollLeft,
+      scrollTopPx: event.currentTarget.scrollTop,
       widthPx: event.currentTarget.clientWidth,
+      heightPx: event.currentTarget.clientHeight,
     });
     onScroll?.(event);
   };
@@ -385,7 +465,7 @@ export function TimelineEditor<
       data-slot="timeline-editor"
       data-read-only={readOnly ? "true" : undefined}
       ref={scrollerRef}
-      className={cn("overflow-x-auto rounded-md border bg-card text-card-foreground", className)}
+      className={cn("overflow-auto rounded-md border bg-card text-card-foreground", className)}
       tabIndex={0}
       onPointerMove={handlePointerMove}
       onPointerUp={commitDrag}
@@ -420,8 +500,10 @@ export function TimelineEditor<
           selectedItems={selectedItems}
           selection={selection}
           timelineWidthPx={timelineWidthPx}
+          measuredViewport={measuredViewport}
           visibleRange={visibleRange}
           visibleTracks={visibleTracks}
+          virtualization={resolvedVirtualization}
           onClipContextMenu={(item) => {
             if (!selectedIds.has(item.id)) {
               commitSelection({ itemIds: [item.id], anchorItemId: item.id });
@@ -435,19 +517,21 @@ export function TimelineEditor<
             event.stopPropagation();
             captureTimelineEditorPointer(event.currentTarget, event.pointerId);
             selectItem(item, track, event);
-            const activeSelection = getTimelineEditorGroupedItemIds(
-              document,
+            const activeSelection = getTimelineEditorGroupedItemIdsFromIndex(
+              documentIndex,
               selectedIds.has(item.id) ? selection.itemIds : [item.id],
             );
             const activeSelectionIds = new Set(activeSelection);
-            const originalItems = document.tracks.flatMap((candidateTrack) =>
-              candidateTrack.items.filter((candidate) => activeSelectionIds.has(candidate.id)),
-            );
+            const originalItems = activeSelection.flatMap((itemId) => {
+              const selectedItem = documentIndex.itemById.get(itemId);
+              return selectedItem ? [selectedItem] : [];
+            });
             setDragState({
               type: "move",
               itemId: item.id,
               startX: getTimelineEditorPointerClientX(event),
               originalItems,
+              movingItemIds: activeSelectionIds,
               snapResolver: createTimelineEditorSnapResolver(
                 document,
                 resolvedSnap,
@@ -467,6 +551,7 @@ export function TimelineEditor<
             setDragState({
               type: edge === "start" ? "resize-start" : "resize-end",
               item,
+              trackId: documentIndex.trackByItemId.get(item.id)?.id ?? item.trackId,
               startX: getTimelineEditorPointerClientX(event),
               originalStartMs: item.startMs,
               originalEndMs: getTimelineEditorItemEndMs(item),
@@ -486,5 +571,86 @@ export function TimelineEditor<
         </span>
       </div>
     </div>
+  );
+}
+
+function getTimelineEditorMovePreviewTracks<TTrackData, TItemData>(
+  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
+  movingItemIds: ReadonlySet<string>,
+  deltaMs: number,
+  durationMs: number,
+) {
+  let changed = false;
+
+  const nextTracks = tracks.map((track) => {
+    if (track.locked) {
+      return track;
+    }
+
+    let trackChanged = false;
+    const nextItems = track.items.map((item) => {
+      if (!movingItemIds.has(item.id) || item.locked) {
+        return item;
+      }
+
+      const startMs = clampTimelineEditorTime(
+        item.startMs + deltaMs,
+        0,
+        Math.max(0, durationMs - item.durationMs),
+      );
+
+      if (startMs === item.startMs) {
+        return item;
+      }
+
+      changed = true;
+      trackChanged = true;
+      return { ...item, startMs };
+    });
+
+    return trackChanged ? { ...track, items: nextItems } : track;
+  });
+
+  return changed ? nextTracks : tracks;
+}
+
+function getTimelineEditorResizePreviewTracks<TTrackData, TItemData>(
+  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
+  trackId: string,
+  item: TimelineEditorItem<TItemData>,
+  edge: "start" | "end",
+  timeMs: number,
+  durationMs: number,
+) {
+  const originalEndMs = getTimelineEditorItemEndMs(item);
+  const nextStartMs =
+    edge === "start"
+      ? clampTimelineEditorTime(timeMs, 0, originalEndMs - defaultTimelineEditorMinItemDurationMs)
+      : item.startMs;
+  const nextEndMs =
+    edge === "end"
+      ? clampTimelineEditorTime(
+          timeMs,
+          item.startMs + defaultTimelineEditorMinItemDurationMs,
+          durationMs,
+        )
+      : originalEndMs;
+  const nextDurationMs = nextEndMs - nextStartMs;
+
+  if (nextStartMs === item.startMs && nextDurationMs === item.durationMs) {
+    return tracks;
+  }
+
+  return tracks.map((track) =>
+    track.id === trackId
+      ? {
+          ...track,
+          items: track.items.map((candidate) =>
+            candidate.id === item.id
+              ? { ...candidate, startMs: nextStartMs, durationMs: nextDurationMs }
+              : candidate,
+          ),
+        }
+      : track,
   );
 }

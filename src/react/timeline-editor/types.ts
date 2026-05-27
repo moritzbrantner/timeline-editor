@@ -66,6 +66,11 @@ export type TimelineEditorTrackContextMenuItems<
   TItemData = Record<string, unknown>,
 > = (context: TimelineEditorTrackContextMenuContext<TTrackData, TItemData>) => MenuActionItem[];
 
+export type TimelineEditorVirtualizationOptions = {
+  rows?: "auto" | boolean;
+  rowOverscanPx?: number;
+};
+
 export type TimelineEditorProps<
   TTrackData extends Record<string, unknown> = Record<string, unknown>,
   TItemData = Record<string, unknown>,
@@ -77,6 +82,7 @@ export type TimelineEditorProps<
   frameRate?: number;
   snap?: Partial<TimelineEditorSnapOptions>;
   hotkeys?: Partial<TimelineEditorHotkeys>;
+  virtualization?: TimelineEditorVirtualizationOptions;
   onDocumentChange?: (document: TimelineEditorDocument<TTrackData, TItemData>) => void;
   onSelectionChange?: (selection: TimelineEditorSelection) => void;
   onViewportChange?: (viewport: TimelineEditorViewport) => void;
@@ -93,11 +99,13 @@ export type TimelineEditorDragState<TItemData, TSnapResolver> =
       itemId: string;
       startX: number;
       originalItems: Array<TimelineEditorItem<TItemData>>;
+      movingItemIds: ReadonlySet<string>;
       snapResolver: TSnapResolver;
     }
   | {
       type: "resize-start" | "resize-end";
       item: TimelineEditorItem<TItemData>;
+      trackId: string;
       startX: number;
       originalStartMs: number;
       originalEndMs: number;

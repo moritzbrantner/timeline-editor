@@ -61,8 +61,15 @@ export function getTimelineEditorDurationMs<
   TTrackData = Record<string, unknown>,
   TItemData = Record<string, unknown>,
 >(tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>, fallbackMs = 60_000) {
-  const itemEndMs = tracks.flatMap((track) => track.items.map(getTimelineEditorItemEndMs));
-  return Math.max(fallbackMs, 1, ...itemEndMs);
+  let durationMs = Math.max(fallbackMs, 1);
+
+  for (const track of tracks) {
+    for (const item of track.items) {
+      durationMs = Math.max(durationMs, getTimelineEditorItemEndMs(item));
+    }
+  }
+
+  return durationMs;
 }
 
 export function getTimelineEditorTickIntervalMs(durationMs: number) {
@@ -132,9 +139,11 @@ export function getTimelineEditorSnapTimes<TTrackData, TItemData>(
     }
 
     if (target.type === "item-edge") {
-      for (const item of document.tracks.flatMap((track) => track.items)) {
-        timesMs.add(item.startMs);
-        timesMs.add(getTimelineEditorItemEndMs(item));
+      for (const track of document.tracks) {
+        for (const item of track.items) {
+          timesMs.add(item.startMs);
+          timesMs.add(getTimelineEditorItemEndMs(item));
+        }
       }
       continue;
     }

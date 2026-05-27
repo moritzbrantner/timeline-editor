@@ -19,6 +19,7 @@ import {
   getTimelineEditorItemTransformValuesAt,
   getTimelineEditorTicks,
   getTimelineEditorTransformValuesAt,
+  getVisibleTimelineEditorTicksForRange,
   insertTimelineEditorItem,
   migrateTimelineEditorDocument,
   moveTimelineEditorItem,
@@ -182,6 +183,14 @@ describe("@moritzbrantner/timeline-editor core", () => {
     );
     expect(prevented).toBe(overlappingTracks);
 
+    const allowed = moveTimelineEditorItem(
+      overlappingTracks,
+      { itemId: "brief", startMs: 1_000 },
+      { durationMs: 5_000, editPolicy: { overlap: "allow", ripple: false } },
+    );
+    expect(allowed).not.toBe(overlappingTracks);
+    expect(detectTimelineEditorOverlaps(allowed)).toHaveLength(2);
+
     const pushed = moveTimelineEditorItem(
       overlappingTracks,
       { itemId: "brief", startMs: 1_000 },
@@ -242,6 +251,18 @@ describe("@moritzbrantner/timeline-editor core", () => {
       { timeMs: 0, label: "0:00.0", major: true },
       { timeMs: 1_000, label: "0:01.0", major: false },
       { timeMs: 2_000, label: "0:02.0", major: false },
+    ]);
+    expect(
+      getVisibleTimelineEditorTicksForRange(
+        60_000,
+        { pixelsPerSecond: 80 },
+        { startMs: 12_250, endMs: 14_250 },
+      ),
+    ).toEqual([
+      { timeMs: 12_000, label: "0:12.0", major: false },
+      { timeMs: 13_000, label: "0:13.0", major: false },
+      { timeMs: 14_000, label: "0:14.0", major: false },
+      { timeMs: 15_000, label: "0:15.0", major: true },
     ]);
   });
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import type { ReactNode } from "react";
 
 import { ContextActionMenu, cn, type MenuActionItem } from "@moritzbrantner/ui";
@@ -22,7 +23,7 @@ type TimelineEditorClipProps<TItemData> = {
   onResizePointerDown: (edge: "start" | "end", event: React.PointerEvent<HTMLSpanElement>) => void;
 };
 
-export function TimelineEditorClip<TItemData>({
+function TimelineEditorClipComponent<TItemData>({
   contextMenuItems,
   durationMs,
   item,
@@ -78,7 +79,7 @@ export function TimelineEditorClip<TItemData>({
   );
 
   if (contextMenuItems.length === 0) {
-    return <div>{clip}</div>;
+    return clip;
   }
 
   return (
@@ -90,3 +91,7 @@ export function TimelineEditorClip<TItemData>({
     </ContextActionMenu>
   );
 }
+
+export const TimelineEditorClip = memo(
+  TimelineEditorClipComponent,
+) as typeof TimelineEditorClipComponent;

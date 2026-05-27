@@ -78,9 +78,14 @@ export function enforceOverlapPolicy<TTrackData, TItemData>(
   options: TimelineEditorOperationOptions,
 ) {
   const policy = { ...defaultTimelineEditorEditPolicy, ...options.editPolicy };
+
+  if (policy.overlap === "allow") {
+    return nextTracks;
+  }
+
   const overlaps = detectTimelineEditorOverlaps(nextTracks);
 
-  if (policy.overlap === "allow" || overlaps.length === 0) {
+  if (overlaps.length === 0) {
     return nextTracks;
   }
 

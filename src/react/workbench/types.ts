@@ -11,6 +11,7 @@ import type {
   TimelineEditorViewport,
 } from "../../core";
 import type { TimelineEditorItemRenderContext } from "../timeline-editor";
+import type { TimelineEditorVirtualizationOptions } from "../timeline-editor/types";
 
 export type TimelineWorkbenchAsset<TData = Record<string, unknown>> = {
   id: string;
@@ -74,6 +75,7 @@ export type TimelineWorkbenchProps<
   viewport?: TimelineEditorViewport;
   frameRate?: number;
   snapMs?: number;
+  virtualization?: TimelineEditorVirtualizationOptions;
   assets?: Array<TimelineWorkbenchAsset<TAssetData>>;
   className?: string;
   createItemId?: (asset: TimelineWorkbenchAsset<TAssetData>) => string;

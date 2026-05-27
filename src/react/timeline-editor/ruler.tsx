@@ -6,7 +6,7 @@ import {
   getTimelineEditorTimeFromPointer,
   getVisibleTimelineEditorTicks,
 } from "../timeline-rendering";
-import { timelineEditorTrackHeaderWidthPx } from "./constants";
+import { timelineEditorRulerHeightPx, timelineEditorTrackHeaderWidthPx } from "./constants";
 import type { TimelineEditorVisibleRange } from "./viewport";
 import { isTimelineEditorTimeVisible } from "./viewport";
 
@@ -43,9 +43,10 @@ export function TimelineEditorRuler<TTrackData, TItemData>({
     <>
       <div
         data-slot="timeline-editor-ruler"
-        className="grid h-10 border-b bg-muted/40"
+        className="grid border-b bg-muted/40"
         style={{
           gridTemplateColumns: `${timelineEditorTrackHeaderWidthPx}px ${timelineWidthPx}px`,
+          height: timelineEditorRulerHeightPx,
         }}
       >
         <div className="border-r bg-muted/20" />

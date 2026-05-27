@@ -12,6 +12,7 @@ import {
   type TimelineEditorItemContextMenuItems,
   type TimelineEditorItemRenderContext,
   type TimelineEditorTrackContextMenuItems,
+  type TimelineEditorVirtualizationOptions,
 } from "../timeline-editor";
 import { defaultTimelineWorkbenchHotkeys } from "./toolbar";
 
@@ -22,6 +23,7 @@ type TimelineWorkbenchCanvasProps<TTrackData extends Record<string, unknown>, TI
   resolvedSelection: TimelineEditorSelection;
   resolvedSnapMs: number;
   resolvedViewport: TimelineEditorViewport;
+  virtualization?: TimelineEditorVirtualizationOptions;
   renderTimelineItem?: (context: TimelineEditorItemRenderContext<TItemData>) => React.ReactNode;
   getItemContextMenuItems: TimelineEditorItemContextMenuItems<TTrackData, TItemData>;
   getTrackContextMenuItems: TimelineEditorTrackContextMenuItems<TTrackData, TItemData>;
@@ -39,6 +41,7 @@ export function TimelineWorkbenchCanvas<TTrackData extends Record<string, unknow
   resolvedSelection,
   resolvedSnapMs,
   resolvedViewport,
+  virtualization,
   renderTimelineItem,
   getItemContextMenuItems,
   getTrackContextMenuItems,
@@ -66,6 +69,7 @@ export function TimelineWorkbenchCanvas<TTrackData extends Record<string, unknow
         }}
         frameRate={frameRate}
         readOnly={readOnly}
+        virtualization={virtualization}
         hotkeys={defaultTimelineWorkbenchHotkeys}
         onCurrentTimeChange={onCurrentTimeChange}
         onDocumentChange={onDocumentChange}

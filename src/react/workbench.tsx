@@ -83,6 +83,7 @@ export function TimelineWorkbench<
   viewport,
   frameRate,
   snapMs = 100,
+  virtualization,
   assets = [],
   className,
   createItemId,
@@ -438,6 +439,7 @@ export function TimelineWorkbench<
         resolvedSelection={resolvedSelection}
         resolvedSnapMs={resolvedSnapMs}
         resolvedViewport={resolvedViewport}
+        virtualization={virtualization}
         onAddTimeline={addTimeline}
         onCurrentTimeChange={onCurrentTimeChange}
         onDocumentChange={commitDocument}
