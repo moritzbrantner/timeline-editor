@@ -20,8 +20,10 @@ import {
 import type { TimelineWorkbenchInspectorContext } from "./types";
 
 type TimelineWorkbenchToolbarProps<TTrackData, TItemData> = {
+  currentTimeMs: number;
   document: TimelineEditorDocument<TTrackData, TItemData>;
   durationMs: number;
+  frameStepMs: number;
   hasSelectedItemGroup: boolean;
   history: TimelineEditorHistory<TTrackData, TItemData>;
   inspectorContext: TimelineWorkbenchInspectorContext<TItemData>;
@@ -37,6 +39,7 @@ type TimelineWorkbenchToolbarProps<TTrackData, TItemData> = {
   onGroup: () => void;
   onRedo: () => void;
   onSplit: () => void;
+  onStepFrame: (direction: -1 | 1) => void;
   onUngroup: () => void;
   onUndo: () => void;
   onViewportChange: (viewport: TimelineEditorViewport) => void;
@@ -50,8 +53,10 @@ export const defaultTimelineWorkbenchHotkeys = {
 };
 
 export function TimelineWorkbenchToolbar<TTrackData, TItemData>({
+  currentTimeMs,
   document,
   durationMs,
+  frameStepMs,
   hasSelectedItemGroup,
   history,
   inspectorContext,
@@ -67,6 +72,7 @@ export function TimelineWorkbenchToolbar<TTrackData, TItemData>({
   onGroup,
   onRedo,
   onSplit,
+  onStepFrame,
   onUngroup,
   onUndo,
   onViewportChange,
@@ -140,6 +146,28 @@ export function TimelineWorkbenchToolbar<TTrackData, TItemData>({
         <Button type="button" size="sm" variant="outline" disabled={readOnly} onClick={onAddMarker}>
           Marker
         </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          aria-label="Previous frame"
+          title={`Previous frame (${formatTimelineWorkbenchFrameStep(frameStepMs)})`}
+          disabled={readOnly || frameStepMs <= 0 || currentTimeMs <= 0}
+          onClick={() => onStepFrame(-1)}
+        >
+          &lt;
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          aria-label="Next frame"
+          title={`Next frame (${formatTimelineWorkbenchFrameStep(frameStepMs)})`}
+          disabled={readOnly || frameStepMs <= 0 || currentTimeMs >= durationMs}
+          onClick={() => onStepFrame(1)}
+        >
+          &gt;
+        </Button>
         <Badge variant="outline">{document.tracks.length} tracks</Badge>
         {document.groups?.length ? (
           <Badge variant="outline">{document.groups.length} groups</Badge>
@@ -173,4 +201,12 @@ export function TimelineWorkbenchToolbar<TTrackData, TItemData>({
       {renderToolbarActions?.(inspectorContext)}
     </WorkbenchToolbar>
   );
+}
+
+function formatTimelineWorkbenchFrameStep(frameStepMs: number) {
+  if (frameStepMs < 1_000) {
+    return `${Math.round(frameStepMs * 100) / 100} ms`;
+  }
+
+  return formatTimelineEditorTimeMs(frameStepMs);
 }

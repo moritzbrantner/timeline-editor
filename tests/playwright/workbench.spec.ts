@@ -565,6 +565,24 @@ test("nudges selected clips by frame when a framerate is set", async ({ page }) 
   await expect.poll(async () => (await getItem(page, "brief"))?.startMs).toBe(1_040);
 });
 
+test("steps the playhead by frame controls when a framerate is set", async ({ page }) => {
+  await page.goto("/?frameRate=25");
+
+  await page.getByRole("button", { name: "Next frame" }).click();
+  await expect.poll(async () => (await getHarnessState(page)).document.currentTimeMs).toBe(1_040);
+
+  await page.getByRole("button", { name: "Previous frame" }).click();
+  await expect.poll(async () => (await getHarnessState(page)).document.currentTimeMs).toBe(1_000);
+});
+
+test("draws frame ticks across timeline tracks", async ({ page }) => {
+  await page.goto("/?frameRate=25");
+
+  await expect
+    .poll(async () => page.locator("[data-slot='timeline-editor-track-tick']").count())
+    .toBeGreaterThan(0);
+});
+
 test("drags a clip with real browser pointer events", async ({ page }) => {
   await page.goto("/");
 

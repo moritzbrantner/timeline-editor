@@ -187,8 +187,14 @@ export function TimelineEditor<
     [renderDocument, renderDocumentIndex],
   );
   const ticks = useMemo(
-    () => getVisibleTimelineEditorTicksForRange(durationMs, resolvedViewport, visibleRange),
-    [durationMs, resolvedViewport, visibleRange],
+    () =>
+      getVisibleTimelineEditorTicksForRange(
+        durationMs,
+        resolvedViewport,
+        visibleRange,
+        frameDurationMs,
+      ),
+    [durationMs, frameDurationMs, resolvedViewport, visibleRange],
   );
 
   const commitDocument = onDocumentChange ?? (() => undefined);
@@ -204,6 +210,7 @@ export function TimelineEditor<
     viewport: resolvedViewport,
     onDocumentChange: commitDocument,
     onSelectionChange: commitSelection,
+    onCurrentTimeChange,
     onViewportChange,
   });
 
@@ -474,6 +481,7 @@ export function TimelineEditor<
           selectedIds={selectedIds}
           selectedItems={selectedItems}
           selection={selection}
+          ticks={ticks}
           timelineWidthPx={timelineWidthPx}
           measuredViewport={measuredViewport}
           visibleRange={visibleRange}

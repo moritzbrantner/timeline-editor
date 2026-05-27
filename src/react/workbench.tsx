@@ -9,6 +9,7 @@ import {
   formatTimelineEditorTimeMs,
   getTimelineEditorDurationMs,
   getTimelineEditorFrameDurationMs,
+  setTimelineEditorCurrentTime,
   type TimelineEditorDocument,
   type TimelineEditorItem,
   type TimelineEditorSelection,
@@ -104,6 +105,7 @@ export function TimelineWorkbench<
   const frameDurationMs = getTimelineEditorFrameDurationMs(frameRate);
   const resolvedSnapMs = frameDurationMs ?? snapMs;
   const currentTimeMs = document.currentTimeMs ?? 0;
+  const frameStepMs = frameDurationMs ?? resolvedSnapMs;
   const resolvedSelection = selection ?? {
     itemIds: selectedItemId ? [selectedItemId] : [],
     anchorItemId: selectedItemId ?? undefined,
@@ -350,6 +352,21 @@ export function TimelineWorkbench<
     onViewportChange?.(nextViewport);
   };
 
+  const stepCurrentTimeByFrame = (direction: -1 | 1) => {
+    if (readOnly || frameStepMs <= 0) {
+      return;
+    }
+
+    const nextDocument = setTimelineEditorCurrentTime(
+      document,
+      currentTimeMs + direction * frameStepMs,
+      { durationMs, snapMs: frameStepMs },
+    );
+
+    onCurrentTimeChange?.(nextDocument.currentTimeMs ?? 0);
+    commitDocument(nextDocument);
+  };
+
   return (
     <div
       data-slot="timeline-workbench"
@@ -362,8 +379,10 @@ export function TimelineWorkbench<
       }}
     >
       <TimelineWorkbenchToolbar
+        currentTimeMs={currentTimeMs}
         document={document}
         durationMs={durationMs}
+        frameStepMs={frameStepMs}
         hasSelectedItemGroup={hasSelectedItemGroup}
         history={history}
         inspectorContext={inspectorContext}
@@ -395,6 +414,7 @@ export function TimelineWorkbench<
           }
         }}
         onSplit={() => splitItems()}
+        onStepFrame={stepCurrentTimeByFrame}
         onUndo={() => {
           const undo = undoTimelineEditorHistory(history);
           setHistory(undo.history);

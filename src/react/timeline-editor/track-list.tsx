@@ -9,6 +9,7 @@ import type {
   TimelineEditorDocument,
   TimelineEditorItem,
   TimelineEditorSelection,
+  TimelineEditorTick,
   TimelineEditorTrack,
 } from "../../types";
 import {
@@ -51,6 +52,7 @@ type TimelineEditorTrackListProps<TTrackData extends Record<string, unknown>, TI
   selection: TimelineEditorSelection;
   selectedIds: ReadonlySet<string>;
   selectedItems: Array<TimelineEditorItem<TItemData>>;
+  ticks: TimelineEditorTick[];
   timelineWidthPx: number;
   measuredViewport: TimelineEditorMeasuredViewport;
   visibleRange: TimelineEditorVisibleRange;
@@ -82,6 +84,7 @@ export function TimelineEditorTrackList<TTrackData extends Record<string, unknow
   selection,
   selectedIds,
   selectedItems,
+  ticks,
   timelineWidthPx,
   measuredViewport,
   visibleRange,
@@ -144,6 +147,7 @@ export function TimelineEditorTrackList<TTrackData extends Record<string, unknow
           selectedIds={selectedIds}
           selectedItems={selectedItems}
           selection={selection}
+          ticks={ticks}
           timelineWidthPx={timelineWidthPx}
           visibleRange={visibleRange}
           onClipContextMenu={onClipContextMenu}
@@ -210,6 +214,7 @@ function TimelineEditorTrackRowComponent<TTrackData extends Record<string, unkno
   selectedIds,
   selectedItems,
   selection,
+  ticks,
   timelineWidthPx,
   visibleRange,
   onClipContextMenu,
@@ -249,6 +254,11 @@ function TimelineEditorTrackRowComponent<TTrackData extends Record<string, unkno
         )}
       </div>
       <div data-slot="timeline-editor-track-lane" className="relative">
+        <TimelineEditorTrackGrid
+          durationMs={durationMs}
+          ticks={ticks}
+          timelineWidthPx={timelineWidthPx}
+        />
         {getVisibleTimelineEditorItems(entry.track.items, visibleRange, selectedIds).map((item) => {
           const selected = selectedIds.has(item.id);
           const locked = Boolean(readOnly || entry.locked || item.locked);
@@ -303,3 +313,28 @@ function TimelineEditorTrackRowComponent<TTrackData extends Record<string, unkno
 const TimelineEditorTrackRow = memo(
   TimelineEditorTrackRowComponent,
 ) as typeof TimelineEditorTrackRowComponent;
+
+function TimelineEditorTrackGrid({
+  durationMs,
+  ticks,
+  timelineWidthPx,
+}: {
+  durationMs: number;
+  ticks: TimelineEditorTick[];
+  timelineWidthPx: number;
+}) {
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+      {ticks.map((tick) => (
+        <span
+          key={tick.timeMs}
+          data-slot="timeline-editor-track-tick"
+          className={`absolute inset-y-0 border-l ${
+            tick.major ? "border-border/70" : "border-border/35"
+          }`}
+          style={{ left: `${(tick.timeMs / durationMs) * timelineWidthPx}px` }}
+        />
+      ))}
+    </div>
+  );
+}

@@ -282,6 +282,18 @@ describe("@moritzbrantner/timeline-editor core", () => {
       { timeMs: 14_000, label: "0:14.0", major: false },
       { timeMs: 15_000, label: "0:15.0", major: true },
     ]);
+    expect(
+      getVisibleTimelineEditorTicksForRange(
+        2_000,
+        { pixelsPerSecond: 80 },
+        { startMs: 0, endMs: 240 },
+        40,
+      ),
+    ).toEqual([
+      { timeMs: 0, label: "0:00.0", major: true },
+      { timeMs: 120, label: "0:00.1", major: false },
+      { timeMs: 240, label: "0:00.2", major: false },
+    ]);
   });
 
   test("reports document, marker, group, and transform validation issues", () => {
@@ -718,6 +730,53 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
         ],
       }),
     );
+  });
+
+  test("steps the playhead by frame duration when no timeline item is selected", () => {
+    const document: TimelineEditorDocument = {
+      currentTimeMs: 1_000,
+      durationMs: 8_000,
+      tracks,
+    };
+    const handleDocumentChange = vi.fn();
+    const handleCurrentTimeChange = vi.fn();
+    const { container } = render(
+      <TimelineEditor
+        document={document}
+        selection={{ itemIds: [] }}
+        viewport={{ pixelsPerSecond: 80 }}
+        frameRate={25}
+        onCurrentTimeChange={handleCurrentTimeChange}
+        onDocumentChange={handleDocumentChange}
+      />,
+    );
+    const editor = container.querySelector("[data-slot='timeline-editor']")!;
+
+    fireEvent.keyDown(editor, { key: "ArrowRight" });
+
+    expect(handleDocumentChange).toHaveBeenCalledWith(
+      expect.objectContaining({ currentTimeMs: 1_040 }),
+    );
+    expect(handleCurrentTimeChange).toHaveBeenCalledWith(1_040);
+  });
+
+  test("renders frame ticks through timeline tracks", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 2_000,
+      tracks,
+    };
+    const { container } = render(
+      <TimelineEditor
+        document={document}
+        selection={{ itemIds: [] }}
+        viewport={{ pixelsPerSecond: 80 }}
+        frameRate={25}
+      />,
+    );
+
+    expect(
+      container.querySelectorAll("[data-slot='timeline-editor-track-tick']").length,
+    ).toBeGreaterThan(0);
   });
 
   test("filters offscreen timeline items in a large document", () => {

@@ -57,31 +57,54 @@ export function getVisibleTimelineEditorTicksForRange(
   durationMs: number,
   viewport: TimelineEditorViewport,
   range: { startMs: number; endMs: number },
+  frameDurationMs?: number,
 ) {
   const safeDurationMs = Math.max(0, durationMs);
-  const intervalMs = viewport.pixelsPerSecond >= 120 ? 500 : undefined;
-  const stepMs = Math.max(
-    1,
-    intervalMs ??
-      (safeDurationMs <= 10_000
-        ? 500
-        : safeDurationMs <= 60_000
-          ? 1_000
-          : safeDurationMs <= 5 * 60_000
-            ? 5_000
-            : 30_000),
-  );
+  const stepMs = getVisibleTimelineEditorTickStepMs(safeDurationMs, viewport, frameDurationMs);
   const startMs = Math.max(0, Math.floor(range.startMs / stepMs) * stepMs);
   const endMs = Math.min(safeDurationMs, Math.ceil(range.endMs / stepMs) * stepMs);
   const ticks = [];
+  const majorEvery =
+    frameDurationMs && frameDurationMs > 0
+      ? Math.max(1, Math.ceil(64 / Math.max(1, (stepMs / 1_000) * viewport.pixelsPerSecond)))
+      : 5;
 
   for (let timeMs = startMs; timeMs <= endMs + 0.0001; timeMs += stepMs) {
+    const tickIndex = Math.round(timeMs / stepMs);
+
     ticks.push({
       timeMs,
       label: formatTimelineEditorTimeMs(timeMs),
-      major: Math.round(timeMs / stepMs) % 5 === 0,
+      major: tickIndex % majorEvery === 0,
     });
   }
 
   return ticks;
+}
+
+function getVisibleTimelineEditorTickStepMs(
+  durationMs: number,
+  viewport: TimelineEditorViewport,
+  frameDurationMs?: number,
+) {
+  if (Number.isFinite(frameDurationMs) && frameDurationMs !== undefined && frameDurationMs > 0) {
+    const frameWidthPx = (frameDurationMs / 1_000) * viewport.pixelsPerSecond;
+    const framesPerTick = Math.max(1, Math.ceil(8 / Math.max(frameWidthPx, 0.0001)));
+
+    return Math.max(1, frameDurationMs * framesPerTick);
+  }
+
+  const intervalMs = viewport.pixelsPerSecond >= 120 ? 500 : undefined;
+
+  return Math.max(
+    1,
+    intervalMs ??
+      (durationMs <= 10_000
+        ? 500
+        : durationMs <= 60_000
+          ? 1_000
+          : durationMs <= 5 * 60_000
+            ? 5_000
+            : 30_000),
+  );
 }

@@ -1,6 +1,7 @@
 import type { KeyboardEvent } from "react";
 
 import { applyTimelineEditorCommand } from "../../commands";
+import { setTimelineEditorCurrentTime } from "../../operations";
 import type {
   TimelineEditorDocument,
   TimelineEditorEditPolicy,
@@ -22,6 +23,7 @@ type TimelineEditorKeyboardOptions<TTrackData extends Record<string, unknown>, T
   selection: TimelineEditorSelection;
   viewport: TimelineEditorViewport;
   onDocumentChange: (document: TimelineEditorDocument<TTrackData, TItemData>) => void;
+  onCurrentTimeChange?: (timeMs: number) => void;
   onSelectionChange: (selection: TimelineEditorSelection) => void;
   onViewportChange?: (viewport: TimelineEditorViewport) => void;
 };
@@ -36,6 +38,7 @@ export function useTimelineEditorKeyboard<TTrackData extends Record<string, unkn
   selection,
   viewport,
   onDocumentChange,
+  onCurrentTimeChange,
   onSelectionChange,
   onViewportChange,
 }: TimelineEditorKeyboardOptions<TTrackData, TItemData>) {
@@ -70,6 +73,18 @@ export function useTimelineEditorKeyboard<TTrackData extends Record<string, unkn
     if (matchesHotkey(event, hotkeys.nudgeLeft) || matchesHotkey(event, hotkeys.nudgeRight)) {
       event.preventDefault();
       const direction = matchesHotkey(event, hotkeys.nudgeLeft) ? -1 : 1;
+
+      if (selection.itemIds.length === 0) {
+        const nextDocument = setTimelineEditorCurrentTime(
+          document,
+          (document.currentTimeMs ?? 0) + direction * nudgeMs,
+          { durationMs, snapMs: nudgeMs },
+        );
+        onDocumentChange(nextDocument);
+        onCurrentTimeChange?.(nextDocument.currentTimeMs ?? 0);
+        return;
+      }
+
       const result = applyTimelineEditorCommand(
         document,
         selection,
