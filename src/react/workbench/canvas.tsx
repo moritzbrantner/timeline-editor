@@ -30,7 +30,7 @@ import {
   canPlaceTimelineWorkbenchAssetOnTrack,
   timelineWorkbenchAssetDragDataType,
 } from "./assets";
-import { defaultTimelineWorkbenchHotkeys } from "./toolbar";
+import { defaultTimelineWorkbenchHotkeys } from "./hotkeys";
 import type { TimelineWorkbenchAsset } from "./types";
 
 type TimelineWorkbenchCanvasProps<

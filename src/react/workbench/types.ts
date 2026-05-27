@@ -144,6 +144,7 @@ export type TimelineWorkbenchProps<
   clipboard?: TimelineEditorClipboard<TItemData>;
   onClipboardChange?: (clipboard: TimelineEditorClipboard<TItemData> | undefined) => void;
   hotkeys?: Partial<TimelineEditorHotkeys>;
+  onHotkeysChange?: (hotkeys: Partial<TimelineEditorHotkeys>) => void;
   extensions?: Array<TimelineEditorExtension<TItemData, TTrackData>>;
   inspectorSchema?: TimelineWorkbenchInspectorSchema<TItemData>;
   assets?: Array<TimelineWorkbenchAsset<TAssetData>>;

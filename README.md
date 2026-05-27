@@ -52,13 +52,17 @@ undo/redo, copy/cut/paste, split, duplicate, group/ungroup, marker creation,
 track context actions, tool selection, configurable hotkeys, an inspector, and
 snap-aware asset insertion.
 
+The toolbar includes a Hotkeys menu for rebinding workbench shortcuts at runtime.
+Use `onHotkeysChange` when the host app should persist the user overrides.
+
 ```tsx
 <TimelineWorkbench
   document={document}
   selection={selection}
   clipboard={clipboard}
   onClipboardChange={setClipboard}
-  hotkeys={{ copy: "Mod+C", paste: "Mod+V" }}
+  hotkeys={hotkeys}
+  onHotkeysChange={setHotkeys}
   onDocumentChange={setDocument}
   onSelectionChange={setSelection}
 />

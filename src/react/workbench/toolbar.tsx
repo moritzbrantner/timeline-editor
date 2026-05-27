@@ -1,8 +1,20 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 
-import { Badge, Button, Slider, WorkbenchToolbar } from "@moritzbrantner/ui";
+import {
+  Badge,
+  Button,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+  Slider,
+  WorkbenchToolbar,
+  cn,
+} from "@moritzbrantner/ui";
 
 import type {
   TimelineEditorClipboard,
@@ -15,9 +27,13 @@ import type {
 import { formatTimelineEditorTimeMs } from "../../core";
 import type { TimelineEditorHistory } from "../../history";
 import { formatShortcutLabel } from "../../shortcut-label";
+import { getHotkeyFromKeyboardEvent } from "../timeline-editor/hotkeys";
+import { type TimelineWorkbenchHotkeyId, timelineWorkbenchHotkeyGroups } from "./hotkeys";
+
 import {
   timelineEditorMaxPixelsPerSecond,
   timelineEditorMinPixelsPerSecond,
+  type TimelineEditorHotkeys,
 } from "../timeline-editor";
 import type { TimelineWorkbenchInspectorContext } from "./types";
 
@@ -33,6 +49,7 @@ type TimelineWorkbenchToolbarProps<TTrackData, TItemData> = {
   overlaps: TimelineEditorOverlap[];
   pixelsPerSecond: number;
   readOnly: boolean;
+  resolvedHotkeys: TimelineEditorHotkeys;
   resolvedSelection: TimelineEditorSelection;
   resolvedTool: TimelineEditorTool;
   resolvedViewport: TimelineEditorViewport;
@@ -51,27 +68,11 @@ type TimelineWorkbenchToolbarProps<TTrackData, TItemData> = {
   onUndo: () => void;
   onViewportChange: (viewport: TimelineEditorViewport) => void;
   onToolChange: (tool: TimelineEditorTool) => void;
+  onHotkeyChange: (id: TimelineWorkbenchHotkeyId, hotkey: string) => void;
+  onHotkeysReset: () => void;
 };
 
-export const defaultTimelineWorkbenchHotkeys = {
-  delete: "Delete",
-  nudgeLeft: "ArrowLeft",
-  nudgeRight: "ArrowRight",
-  selectAll: "Mod+A",
-  clearSelection: "Escape",
-  copy: "Mod+C",
-  cut: "Mod+X",
-  paste: "Mod+V",
-  undo: "Mod+Z",
-  redo: "Shift+Mod+Z",
-  redoAlternate: "Mod+Y",
-  jumpStart: "Home",
-  jumpEnd: "End",
-  previousMarker: "Alt+ArrowLeft",
-  nextMarker: "Alt+ArrowRight",
-  previousEdge: "Shift+ArrowLeft",
-  nextEdge: "Shift+ArrowRight",
-};
+export { defaultTimelineWorkbenchHotkeys } from "./hotkeys";
 
 export function TimelineWorkbenchToolbar<TTrackData, TItemData>({
   clipboard,
@@ -85,6 +86,7 @@ export function TimelineWorkbenchToolbar<TTrackData, TItemData>({
   overlaps,
   pixelsPerSecond,
   readOnly,
+  resolvedHotkeys,
   resolvedSelection,
   resolvedTool,
   resolvedViewport,
@@ -103,6 +105,8 @@ export function TimelineWorkbenchToolbar<TTrackData, TItemData>({
   onUndo,
   onViewportChange,
   onToolChange,
+  onHotkeyChange,
+  onHotkeysReset,
 }: TimelineWorkbenchToolbarProps<TTrackData, TItemData>) {
   return (
     <WorkbenchToolbar className="min-h-9 justify-between gap-2 border-b border-border px-2 py-1">
@@ -249,10 +253,15 @@ export function TimelineWorkbenchToolbar<TTrackData, TItemData>({
         </Badge>
         <Badge variant="outline">{formatTimelineEditorTimeMs(durationMs)}</Badge>
         <span className="text-xs text-muted-foreground">
-          Nudge {formatShortcutLabel(defaultTimelineWorkbenchHotkeys.nudgeRight)}
+          Nudge {formatShortcutLabel(resolvedHotkeys.nudgeRight)}
         </span>
       </div>
       <div className="flex min-w-44 items-center gap-2">
+        <TimelineWorkbenchHotkeyMenu
+          hotkeys={resolvedHotkeys}
+          onHotkeyChange={onHotkeyChange}
+          onHotkeysReset={onHotkeysReset}
+        />
         <span className="text-xs text-muted-foreground">Zoom</span>
         <Slider
           value={[resolvedViewport.pixelsPerSecond]}
@@ -270,6 +279,145 @@ export function TimelineWorkbenchToolbar<TTrackData, TItemData>({
       {renderToolbarActions?.(inspectorContext)}
     </WorkbenchToolbar>
   );
+}
+
+type TimelineWorkbenchHotkeyMenuProps = {
+  hotkeys: TimelineEditorHotkeys;
+  onHotkeyChange: (id: TimelineWorkbenchHotkeyId, hotkey: string) => void;
+  onHotkeysReset: () => void;
+};
+
+function TimelineWorkbenchHotkeyMenu({
+  hotkeys,
+  onHotkeyChange,
+  onHotkeysReset,
+}: TimelineWorkbenchHotkeyMenuProps) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button type="button" size="sm" variant="outline">
+          Hotkeys
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        className="max-h-[min(32rem,var(--radix-popover-content-available-height))] w-[30rem] overflow-y-auto p-0"
+        data-slot="timeline-workbench-hotkeys-menu"
+      >
+        <PopoverHeader className="border-b border-border">
+          <div className="flex items-center justify-between gap-3">
+            <PopoverTitle>Hotkeys</PopoverTitle>
+            <Button type="button" size="xs" variant="outline" onClick={onHotkeysReset}>
+              Reset
+            </Button>
+          </div>
+        </PopoverHeader>
+        <div className="grid gap-4 p-3">
+          {timelineWorkbenchHotkeyGroups.map((group) => (
+            <div key={group.id} className="grid gap-2">
+              <div className="text-xs font-medium text-muted-foreground">{group.label}</div>
+              <div className="grid gap-1.5">
+                {group.hotkeys.map((definition) => {
+                  const hotkey = hotkeys[definition.id] ?? "";
+                  const conflictLabels = getTimelineWorkbenchHotkeyConflictLabels(
+                    definition.id,
+                    hotkey,
+                    hotkeys,
+                  );
+
+                  return (
+                    <div
+                      key={definition.id}
+                      className="grid grid-cols-[minmax(8rem,1fr)_minmax(8rem,11rem)_auto] items-center gap-2"
+                    >
+                      <label
+                        className="truncate text-xs text-foreground"
+                        htmlFor={`timeline-hotkey-${definition.id}`}
+                      >
+                        {definition.label}
+                      </label>
+                      <div className="grid gap-1">
+                        <Input
+                          id={`timeline-hotkey-${definition.id}`}
+                          aria-label={`${definition.label} hotkey`}
+                          className={cn(
+                            "h-7 text-xs",
+                            conflictLabels.length > 0 && "border-destructive",
+                          )}
+                          readOnly
+                          value={hotkey ? formatShortcutLabel(hotkey) : ""}
+                          onKeyDown={(event) => {
+                            handleTimelineWorkbenchHotkeyInputKeyDown(
+                              event,
+                              definition.id,
+                              onHotkeyChange,
+                            );
+                          }}
+                        />
+                        {conflictLabels.length > 0 ? (
+                          <div className="text-[0.6875rem] leading-tight text-destructive">
+                            Also {conflictLabels.join(", ")}
+                          </div>
+                        ) : null}
+                      </div>
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant="ghost"
+                        aria-label={`Clear ${definition.label} hotkey`}
+                        onClick={() => onHotkeyChange(definition.id, "")}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function handleTimelineWorkbenchHotkeyInputKeyDown(
+  event: KeyboardEvent<HTMLInputElement>,
+  id: TimelineWorkbenchHotkeyId,
+  onHotkeyChange: (id: TimelineWorkbenchHotkeyId, hotkey: string) => void,
+) {
+  if (event.key === "Tab") {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  const hotkey = getHotkeyFromKeyboardEvent(event);
+
+  if (hotkey) {
+    onHotkeyChange(id, hotkey);
+  }
+}
+
+function getTimelineWorkbenchHotkeyConflictLabels(
+  id: TimelineWorkbenchHotkeyId,
+  hotkey: string,
+  hotkeys: TimelineEditorHotkeys,
+) {
+  if (!hotkey) {
+    return [];
+  }
+
+  const normalizedHotkey = hotkey.toLowerCase();
+
+  return timelineWorkbenchHotkeyGroups
+    .flatMap((group) => group.hotkeys)
+    .filter(
+      (definition) =>
+        definition.id !== id && (hotkeys[definition.id] ?? "").toLowerCase() === normalizedHotkey,
+    )
+    .map((definition) => definition.label);
 }
 
 function formatTimelineWorkbenchFrameStep(frameStepMs: number) {

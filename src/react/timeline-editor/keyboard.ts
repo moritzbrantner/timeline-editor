@@ -9,7 +9,7 @@ import type {
   TimelineEditorViewport,
 } from "../../types";
 import { getNextTimelineEditorPixelsPerSecond } from "./viewport";
-import { matchesHotkey } from "./hotkeys";
+import { isKeyboardEventFromEditableTarget, matchesHotkey } from "./hotkeys";
 import { isTrackLockedByGroup } from "./selection";
 import type { TimelineEditorHotkeys } from "./types";
 
@@ -43,6 +43,10 @@ export function useTimelineEditorKeyboard<TTrackData extends Record<string, unkn
   onViewportChange,
 }: TimelineEditorKeyboardOptions<TTrackData, TItemData>) {
   return (event: KeyboardEvent<HTMLDivElement>) => {
+    if (isKeyboardEventFromEditableTarget(event)) {
+      return;
+    }
+
     if (readOnly) {
       return;
     }

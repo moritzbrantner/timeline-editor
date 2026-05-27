@@ -1123,6 +1123,50 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     );
   });
 
+  test("adjusts workbench hotkeys from the toolbar menu", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks,
+    };
+    const handleDocumentChange = vi.fn();
+    const handleHotkeysChange = vi.fn();
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        selectedItemId="brief"
+        onDocumentChange={handleDocumentChange}
+        onHotkeysChange={handleHotkeysChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Hotkeys" }));
+    fireEvent.keyDown(screen.getByLabelText("Duplicate hotkey"), {
+      key: "K",
+      ctrlKey: true,
+    });
+
+    expect(handleHotkeysChange).toHaveBeenCalledWith(
+      expect.objectContaining({ duplicate: "Mod+K" }),
+    );
+    expect(handleDocumentChange).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(container.querySelector("[data-slot='timeline-workbench']")!, {
+      key: "K",
+      ctrlKey: true,
+    });
+
+    expect(handleDocumentChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tracks: [
+          expect.objectContaining({
+            items: expect.arrayContaining([expect.objectContaining({ id: "brief-copy" })]),
+          }),
+          expect.anything(),
+        ],
+      }),
+    );
+  });
+
   test("applies workbench edit policy to asset insertion", () => {
     const document: TimelineEditorDocument = {
       durationMs: 8_000,

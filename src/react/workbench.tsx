@@ -29,12 +29,13 @@ import {
   undoTimelineEditorHistory,
   type TimelineEditorHistory,
 } from "../history";
-import { matchesHotkey } from "./timeline-editor/hotkeys";
+import { isKeyboardEventFromEditableTarget, matchesHotkey } from "./timeline-editor/hotkeys";
 import type {
   TimelineEditorItemContextMenuContext,
   TimelineEditorItemRenderContext,
   TimelineEditorTrackContextMenuContext,
 } from "./timeline-editor";
+import type { TimelineWorkbenchHotkeyId } from "./workbench/hotkeys";
 import {
   canPlaceTimelineWorkbenchAssetOnTrack,
   TimelineWorkbenchAssetsPanel,
@@ -96,6 +97,7 @@ export function TimelineWorkbench<
   clipboard,
   onClipboardChange,
   hotkeys,
+  onHotkeysChange,
   extensions = [],
   inspectorSchema,
   assets = [],
@@ -125,6 +127,9 @@ export function TimelineWorkbench<
     TimelineEditorClipboard<TItemData> | undefined
   >();
   const [internalTool, setInternalTool] = useState<TimelineEditorTool>(tool ?? "select");
+  const [customHotkeys, setCustomHotkeys] = useState<
+    Partial<typeof defaultTimelineWorkbenchHotkeys>
+  >({});
   const resolvedViewport = viewport ?? internalViewport;
   const durationMs = document.durationMs ?? getTimelineEditorDurationMs(document.tracks, 30_000);
   const frameDurationMs = getTimelineEditorFrameDurationMs(frameRate);
@@ -132,7 +137,7 @@ export function TimelineWorkbench<
   const currentTimeMs = document.currentTimeMs ?? 0;
   const frameStepMs = frameDurationMs ?? resolvedSnapMs;
   const resolvedTool = tool ?? internalTool;
-  const resolvedHotkeys = { ...defaultTimelineWorkbenchHotkeys, ...hotkeys };
+  const resolvedHotkeys = { ...defaultTimelineWorkbenchHotkeys, ...hotkeys, ...customHotkeys };
   const resolvedClipboard = clipboard ?? internalClipboard;
   const resolvedSelection = selection ?? {
     itemIds: selectedItemId ? [selectedItemId] : [],
@@ -317,6 +322,19 @@ export function TimelineWorkbench<
     }
 
     runCommand({ type: "split-items", itemIds, timeMs: currentTimeMs });
+  };
+
+  const addMarker = () => {
+    if (readOnly) {
+      return;
+    }
+
+    const marker = {
+      id: createTimelineWorkbenchMarkerId(currentTimeMs, createMarkerId),
+      timeMs: currentTimeMs,
+      label: formatTimelineEditorTimeMs(currentTimeMs),
+    };
+    runCommand({ type: "add-marker", marker });
   };
 
   const addTrack = (kind?: TimelineEditorItemKind) => {
@@ -534,6 +552,17 @@ export function TimelineWorkbench<
     onToolChange?.(nextTool);
   };
 
+  const commitHotkey = (id: TimelineWorkbenchHotkeyId, hotkey: string) => {
+    const nextHotkeys = { ...customHotkeys, [id]: hotkey };
+    setCustomHotkeys(nextHotkeys);
+    onHotkeysChange?.(nextHotkeys);
+  };
+
+  const resetHotkeys = () => {
+    setCustomHotkeys({});
+    onHotkeysChange?.({});
+  };
+
   const stepCurrentTimeByFrame = (direction: -1 | 1) => {
     if (readOnly || frameStepMs <= 0) {
       return;
@@ -589,6 +618,10 @@ export function TimelineWorkbench<
   };
 
   const handleWorkbenchKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (isKeyboardEventFromEditableTarget(event)) {
+      return;
+    }
+
     if (readOnly && !(resolvedHotkeys.copy && matchesHotkey(event, resolvedHotkeys.copy))) {
       return;
     }
@@ -640,9 +673,51 @@ export function TimelineWorkbench<
       return;
     }
 
+    if (resolvedHotkeys.split && matchesHotkey(event, resolvedHotkeys.split)) {
+      event.preventDefault();
+      splitItems();
+      return;
+    }
+
+    if (resolvedHotkeys.duplicate && matchesHotkey(event, resolvedHotkeys.duplicate)) {
+      event.preventDefault();
+      duplicateItems();
+      return;
+    }
+
+    if (resolvedHotkeys.group && matchesHotkey(event, resolvedHotkeys.group)) {
+      event.preventDefault();
+      groupItems();
+      return;
+    }
+
+    if (resolvedHotkeys.ungroup && matchesHotkey(event, resolvedHotkeys.ungroup)) {
+      event.preventDefault();
+      ungroupItems();
+      return;
+    }
+
+    if (resolvedHotkeys.addMarker && matchesHotkey(event, resolvedHotkeys.addMarker)) {
+      event.preventDefault();
+      addMarker();
+      return;
+    }
+
     if (resolvedHotkeys.clearSelection && matchesHotkey(event, resolvedHotkeys.clearSelection)) {
       event.preventDefault();
       runTransientCommand({ type: "clear-selection" });
+      return;
+    }
+
+    if (resolvedHotkeys.previousFrame && matchesHotkey(event, resolvedHotkeys.previousFrame)) {
+      event.preventDefault();
+      stepCurrentTimeByFrame(-1);
+      return;
+    }
+
+    if (resolvedHotkeys.nextFrame && matchesHotkey(event, resolvedHotkeys.nextFrame)) {
+      event.preventDefault();
+      stepCurrentTimeByFrame(1);
       return;
     }
 
@@ -679,6 +754,14 @@ export function TimelineWorkbench<
     if (resolvedHotkeys.nextEdge && matchesHotkey(event, resolvedHotkeys.nextEdge)) {
       event.preventDefault();
       jumpToAdjacentItemEdge(1);
+      return;
+    }
+
+    const nextTool = getTimelineWorkbenchToolHotkey(event, resolvedHotkeys);
+
+    if (nextTool) {
+      event.preventDefault();
+      commitTool(nextTool);
     }
   };
 
@@ -706,18 +789,12 @@ export function TimelineWorkbench<
         overlaps={overlaps}
         pixelsPerSecond={pixelsPerSecond}
         readOnly={readOnly}
+        resolvedHotkeys={resolvedHotkeys}
         resolvedTool={resolvedTool}
         renderToolbarActions={renderToolbarActions}
         resolvedSelection={resolvedSelection}
         resolvedViewport={resolvedViewport}
-        onAddMarker={() => {
-          const marker = {
-            id: createTimelineWorkbenchMarkerId(currentTimeMs, createMarkerId),
-            timeMs: currentTimeMs,
-            label: formatTimelineEditorTimeMs(currentTimeMs),
-          };
-          runCommand({ type: "add-marker", marker });
-        }}
+        onAddMarker={addMarker}
         onDelete={() => deleteItems()}
         onCopy={() => copyItems()}
         onCut={() => cutItems()}
@@ -749,6 +826,8 @@ export function TimelineWorkbench<
         onUngroup={() => ungroupItems()}
         onViewportChange={commitViewport}
         onToolChange={commitTool}
+        onHotkeyChange={commitHotkey}
+        onHotkeysReset={resetHotkeys}
       />
       <div
         className="grid min-h-0 gap-3 overflow-auto border-b border-border/60 p-3"
@@ -837,6 +916,24 @@ function areTimelineWorkbenchSelectionsEqual(
     (left.trackIds ?? []).every((trackId, index) => trackId === right.trackIds?.[index]) &&
     (left.markerIds ?? []).every((markerId, index) => markerId === right.markerIds?.[index])
   );
+}
+
+function getTimelineWorkbenchToolHotkey(
+  event: React.KeyboardEvent,
+  hotkeys: typeof defaultTimelineWorkbenchHotkeys,
+): TimelineEditorTool | undefined {
+  const entries: Array<[keyof typeof defaultTimelineWorkbenchHotkeys, TimelineEditorTool]> = [
+    ["toolSelect", "select"],
+    ["toolBlade", "blade"],
+    ["toolTrim", "trim"],
+    ["toolRippleTrim", "ripple-trim"],
+    ["toolPan", "pan"],
+  ];
+
+  return entries.find(([hotkeyId]) => {
+    const hotkey = hotkeys[hotkeyId];
+    return hotkey ? matchesHotkey(event, hotkey) : false;
+  })?.[1];
 }
 
 function getTimelineWorkbenchTrackKinds<
