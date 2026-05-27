@@ -4,6 +4,8 @@ import {
   type TimelineEditorItem,
   type TimelineEditorItemGroup,
   type TimelineEditorTrack,
+  type TimelineEditorTransform,
+  type TimelineEditorTransformPoint,
 } from "./types";
 import { getTimelineEditorValidationErrors } from "./validation";
 
@@ -145,7 +147,35 @@ function readItem(input: unknown, path: string): TimelineEditorItem {
     kind: optionalString(input.kind, withPath(path, "kind")),
     color: optionalString(input.color, withPath(path, "color")),
     locked: optionalBoolean(input.locked, withPath(path, "locked")),
+    transform: input.transform === undefined ? undefined : readTransform(input.transform, path),
     data: isRecord(input.data) ? input.data : undefined,
+  };
+}
+
+function readTransform(input: unknown, path: string): TimelineEditorTransform {
+  if (!isRecord(input)) {
+    throw new TimelineEditorParseError([
+      { path: withPath(path, "transform"), message: "Expected transform object." },
+    ]);
+  }
+
+  return {
+    points: requiredArray(input.points, withPath(path, "transform.points")).map((point, index) =>
+      readTransformPoint(point, withPath(path, `transform.points[${index}]`)),
+    ),
+    data: isRecord(input.data) ? input.data : undefined,
+  };
+}
+
+function readTransformPoint(input: unknown, path: string): TimelineEditorTransformPoint {
+  if (!isRecord(input)) {
+    throw new TimelineEditorParseError([{ path, message: "Expected transform point object." }]);
+  }
+
+  return {
+    offsetMs: requiredNumber(input.offsetMs, withPath(path, "offsetMs")),
+    values: requiredNumberRecord(input.values, withPath(path, "values")),
+    easing: optionalTransformEasing(input.easing, withPath(path, "easing")),
   };
 }
 
@@ -200,6 +230,16 @@ function requiredNumber(input: unknown, path: string) {
   return input;
 }
 
+function requiredNumberRecord(input: unknown, path: string) {
+  if (!isRecord(input)) {
+    throw new TimelineEditorParseError([{ path, message: "Expected number record." }]);
+  }
+
+  return Object.fromEntries(
+    Object.entries(input).map(([key, value]) => [key, requiredNumber(value, withPath(path, key))]),
+  );
+}
+
 function optionalNumber(input: unknown, path: string) {
   if (input === undefined) {
     return undefined;
@@ -215,6 +255,18 @@ function optionalBoolean(input: unknown, path: string) {
 
   if (typeof input !== "boolean") {
     throw new TimelineEditorParseError([{ path, message: "Expected boolean." }]);
+  }
+
+  return input;
+}
+
+function optionalTransformEasing(input: unknown, path: string) {
+  if (input === undefined) {
+    return undefined;
+  }
+
+  if (input !== "linear" && input !== "hold") {
+    throw new TimelineEditorParseError([{ path, message: 'Expected "linear" or "hold".' }]);
   }
 
   return input;

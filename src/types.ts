@@ -1,6 +1,28 @@
 export type TimelineEditorItemKind = string;
 
-export type TimelineEditorItem<TData = Record<string, unknown>> = {
+export type TimelineEditorTransformValues = Record<string, number>;
+
+export type TimelineEditorTransformEasing = "linear" | "hold";
+
+export type TimelineEditorTransformPoint<
+  TValues extends TimelineEditorTransformValues = TimelineEditorTransformValues,
+> = {
+  offsetMs: number;
+  values: Partial<TValues>;
+  easing?: TimelineEditorTransformEasing;
+};
+
+export type TimelineEditorTransform<
+  TValues extends TimelineEditorTransformValues = TimelineEditorTransformValues,
+> = {
+  points: Array<TimelineEditorTransformPoint<TValues>>;
+  data?: Record<string, unknown>;
+};
+
+export type TimelineEditorItem<
+  TData = Record<string, unknown>,
+  TTransformValues extends TimelineEditorTransformValues = TimelineEditorTransformValues,
+> = {
   id: string;
   trackId: string;
   label: string;
@@ -10,16 +32,18 @@ export type TimelineEditorItem<TData = Record<string, unknown>> = {
   kind?: TimelineEditorItemKind;
   color?: string;
   locked?: boolean;
+  transform?: TimelineEditorTransform<TTransformValues>;
   data?: TData;
 };
 
 export type TimelineEditorTrack<
   TTrackData = Record<string, unknown>,
   TItemData = Record<string, unknown>,
+  TTransformValues extends TimelineEditorTransformValues = TimelineEditorTransformValues,
 > = {
   id: string;
   label: string;
-  items: Array<TimelineEditorItem<TItemData>>;
+  items: Array<TimelineEditorItem<TItemData, TTransformValues>>;
   acceptsItemKinds?: TimelineEditorItemKind[];
   height?: number;
   locked?: boolean;
@@ -53,8 +77,9 @@ export type TimelineEditorDocument<
   TTrackData = Record<string, unknown>,
   TItemData = Record<string, unknown>,
   TGroupData = Record<string, unknown>,
+  TTransformValues extends TimelineEditorTransformValues = TimelineEditorTransformValues,
 > = {
-  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>;
+  tracks: Array<TimelineEditorTrack<TTrackData, TItemData, TTransformValues>>;
   groups?: Array<TimelineEditorTrackGroup<TGroupData>>;
   itemGroups?: TimelineEditorItemGroup[];
   durationMs?: number;
@@ -136,9 +161,10 @@ export type TimelineEditorOverlap = {
 export type FoundTimelineEditorItem<
   TTrackData = Record<string, unknown>,
   TItemData = Record<string, unknown>,
+  TTransformValues extends TimelineEditorTransformValues = TimelineEditorTransformValues,
 > = {
-  item: TimelineEditorItem<TItemData>;
-  track: TimelineEditorTrack<TTrackData, TItemData>;
+  item: TimelineEditorItem<TItemData, TTransformValues>;
+  track: TimelineEditorTrack<TTrackData, TItemData, TTransformValues>;
 };
 
 export type TimelineEditorTick = {

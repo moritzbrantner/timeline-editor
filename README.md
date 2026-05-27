@@ -18,6 +18,7 @@ this package.
 - `TimelineWorkbench` for a controlled workbench with assets, toolbar actions, inspector, markers, item context menus, and zoom.
 - `normalizeTimelineEditorTracks(...)`, `moveTimelineEditorItem(...)`, `resizeTimelineEditorItem(...)`, `splitTimelineEditorItem(...)`, and `duplicateTimelineEditorItem(...)`.
 - `insertTimelineEditorItem(...)`, `removeTimelineEditorItems(...)`, `moveTimelineEditorItems(...)`, `splitTimelineEditorItems(...)`, and `duplicateTimelineEditorItems(...)`.
+- `setTimelineEditorItemTransform(...)`, `getTimelineEditorTransformValuesAt(...)`, and `getTimelineEditorItemTransformValuesAt(...)` for item-relative animated transform values.
 - `applyTimelineEditorCommand(...)`, `createTimelineEditorHistory(...)`, `undoTimelineEditorHistory(...)`, and `redoTimelineEditorHistory(...)`.
 - `validateTimelineEditorDocument(...)`, `serializeTimelineEditorDocument(...)`, `parseTimelineEditorDocument(...)`, and `migrateTimelineEditorDocument(...)`.
 - `detectTimelineEditorOverlaps(...)`, `getTimelineEditorDurationMs(...)`, and timeline tick/snap helpers.
@@ -93,6 +94,30 @@ const result = applyTimelineEditorCommand(
   { itemIds: ["brief"] },
   { type: "move-items", itemIds: ["brief"], deltaMs: 500 },
 );
+```
+
+## Transform Example
+
+Timeline items can carry a generic transform made of item-relative points. Each
+point stores numeric values, and helpers sample interpolated values at any time
+inside the item.
+
+```ts
+import {
+  getTimelineEditorItemTransformValuesAt,
+  setTimelineEditorItemTransform,
+} from "@moritzbrantner/timeline-editor";
+
+const nextTracks = setTimelineEditorItemTransform(document.tracks, "brief", {
+  points: [
+    { offsetMs: 0, values: { x: 0, opacity: 1 } },
+    { offsetMs: 2_000, values: { x: 100, opacity: 0 } },
+  ],
+});
+
+const item = nextTracks[0].items[0];
+const values = getTimelineEditorItemTransformValuesAt(item, 2_000);
+// { x: 50, opacity: 0.5 } when the item starts at 1_000ms
 ```
 
 ## Serialization Example

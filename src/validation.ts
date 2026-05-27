@@ -61,6 +61,40 @@ export function validateTimelineEditorDocument(document: TimelineEditorDocument)
         );
       }
 
+      item.transform?.points.forEach((point, pointIndex) => {
+        const pointPath = `${itemPath}.transform.points[${pointIndex}]`;
+
+        if (!Number.isFinite(point.offsetMs) || point.offsetMs < 0) {
+          issues.push(
+            error(
+              `${pointPath}.offsetMs`,
+              "invalid_transform_offset",
+              "Transform point offset must be >= 0.",
+            ),
+          );
+        } else if (point.offsetMs > item.durationMs) {
+          issues.push(
+            warning(
+              `${pointPath}.offsetMs`,
+              "transform_offset_exceeds_duration",
+              "Transform point is outside the item duration.",
+            ),
+          );
+        }
+
+        for (const [key, value] of Object.entries(point.values)) {
+          if (!Number.isFinite(value)) {
+            issues.push(
+              error(
+                `${pointPath}.values.${key}`,
+                "invalid_transform_value",
+                "Transform values must be finite numbers.",
+              ),
+            );
+          }
+        }
+      });
+
       if (item.itemGroupId) {
         itemGroupRefs.set(item.itemGroupId, itemGroupRefs.get(item.itemGroupId) ?? new Set());
         itemGroupRefs.get(item.itemGroupId)?.add(item.id);

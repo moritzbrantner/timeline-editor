@@ -3,6 +3,7 @@ import {
   getTimelineEditorItemEndMs,
   snapTimelineEditorTime,
 } from "./time";
+import { normalizeTimelineEditorTransform, sliceTimelineEditorTransform } from "./transform";
 import {
   defaultTimelineEditorEditPolicy,
   defaultTimelineEditorMinItemDurationMs,
@@ -18,15 +19,18 @@ import {
   type TimelineEditorResizeItemInput,
   type TimelineEditorSplitItemInput,
   type TimelineEditorTrack,
+  type TimelineEditorTransform,
+  type TimelineEditorTransformValues,
 } from "./types";
 
 export function findTimelineEditorItem<
   TTrackData = Record<string, unknown>,
   TItemData = Record<string, unknown>,
+  TTransformValues extends TimelineEditorTransformValues = TimelineEditorTransformValues,
 >(
-  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
+  tracks: Array<TimelineEditorTrack<TTrackData, TItemData, TTransformValues>>,
   itemId: string,
-): FoundTimelineEditorItem<TTrackData, TItemData> | undefined {
+): FoundTimelineEditorItem<TTrackData, TItemData, TTransformValues> | undefined {
   for (const track of tracks) {
     const item = track.items.find((candidate) => candidate.id === itemId);
 
@@ -38,9 +42,13 @@ export function findTimelineEditorItem<
   return undefined;
 }
 
-export function canPlaceTimelineEditorItemOnTrack<TTrackData, TItemData>(
-  item: TimelineEditorItem<TItemData>,
-  track: TimelineEditorTrack<TTrackData, TItemData>,
+export function canPlaceTimelineEditorItemOnTrack<
+  TTrackData,
+  TItemData,
+  TTransformValues extends TimelineEditorTransformValues = TimelineEditorTransformValues,
+>(
+  item: TimelineEditorItem<TItemData, TTransformValues>,
+  track: TimelineEditorTrack<TTrackData, TItemData, TTransformValues>,
 ) {
   if (track.locked) {
     return false;
@@ -466,6 +474,8 @@ export function splitTimelineEditorItem<
   }
 
   const secondItemId = createTimelineEditorCopyId(tracks, `${found.item.id}-part-2`);
+  const firstDurationMs = splitTimeMs - found.item.startMs;
+  const secondDurationMs = itemEndMs - splitTimeMs;
 
   return normalizeTimelineEditorTracks(
     tracks.map((track) =>
@@ -475,12 +485,21 @@ export function splitTimelineEditorItem<
             items: track.items.flatMap((item) =>
               item.id === found.item.id
                 ? [
-                    { ...item, durationMs: splitTimeMs - item.startMs },
+                    {
+                      ...item,
+                      durationMs: firstDurationMs,
+                      transform: sliceTimelineEditorTransform(item.transform, 0, firstDurationMs),
+                    },
                     {
                       ...item,
                       id: secondItemId,
                       startMs: splitTimeMs,
-                      durationMs: itemEndMs - splitTimeMs,
+                      durationMs: secondDurationMs,
+                      transform: sliceTimelineEditorTransform(
+                        item.transform,
+                        firstDurationMs,
+                        item.durationMs,
+                      ),
                     },
                   ]
                 : [item],
@@ -588,6 +607,35 @@ export function removeTimelineEditorItems<
   }
 
   return nextTracks;
+}
+
+export function setTimelineEditorItemTransform<
+  TTrackData = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+  TTransformValues extends TimelineEditorTransformValues = TimelineEditorTransformValues,
+>(
+  tracks: Array<TimelineEditorTrack<TTrackData, TItemData, TTransformValues>>,
+  itemId: string,
+  transform: TimelineEditorTransform<TTransformValues> | undefined,
+  options: TimelineEditorOperationOptions = {},
+) {
+  const found = findTimelineEditorItem(tracks, itemId);
+
+  if (!found || found.item.locked || found.track.locked) {
+    return tracks;
+  }
+
+  return normalizeTimelineEditorTracks(
+    tracks.map((track) =>
+      track.id === found.track.id
+        ? {
+            ...track,
+            items: track.items.map((item) => (item.id === itemId ? { ...item, transform } : item)),
+          }
+        : track,
+    ),
+    options,
+  );
 }
 
 export function moveTimelineEditorItems<
@@ -706,6 +754,9 @@ function normalizeTimelineEditorTrack<TTrackData, TItemData>(
           trackId: track.id,
           startMs,
           durationMs: durationMsForItem,
+          ...(item.transform
+            ? { transform: normalizeTimelineEditorTransform(item.transform, durationMsForItem) }
+            : {}),
         };
       })
       .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id)),

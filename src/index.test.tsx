@@ -15,7 +15,9 @@ import {
   findTimelineEditorItem,
   formatTimelineEditorTimeMs,
   getTimelineEditorFrameDurationMs,
+  getTimelineEditorItemTransformValuesAt,
   getTimelineEditorTicks,
+  getTimelineEditorTransformValuesAt,
   migrateTimelineEditorDocument,
   moveTimelineEditorItem,
   normalizeTimelineEditorTracks,
@@ -24,6 +26,7 @@ import {
   resizeTimelineEditorItem,
   rippleDeleteTimelineEditorItems,
   serializeTimelineEditorDocument,
+  setTimelineEditorItemTransform,
   splitTimelineEditorItem,
   TimelineEditor,
   undoTimelineEditorHistory,
@@ -163,6 +166,42 @@ describe("@moritzbrantner/timeline-editor core", () => {
       { timeMs: 0, label: "0:00.0", major: true },
       { timeMs: 1_000, label: "0:01.0", major: false },
       { timeMs: 2_000, label: "0:02.0", major: false },
+    ]);
+  });
+
+  test("attaches, samples, serializes, and splits item transforms", () => {
+    const transformed = setTimelineEditorItemTransform(tracks, "brief", {
+      points: [
+        { offsetMs: 2_000, values: { x: 100, opacity: 0 } },
+        { offsetMs: 0, values: { x: 0, opacity: 1 } },
+      ],
+    });
+    const item = transformed[0]!.items[0]!;
+
+    expect(getTimelineEditorItemTransformValuesAt(item, 2_000)).toEqual({
+      x: 50,
+      opacity: 0.5,
+    });
+    expect(getTimelineEditorTransformValuesAt(item.transform, 3_000, item.durationMs)).toEqual({
+      x: 100,
+      opacity: 0,
+    });
+
+    const serialized = serializeTimelineEditorDocument({ tracks: transformed });
+    expect(parseTimelineEditorDocument(serialized).tracks[0]?.items[0]?.transform?.points).toEqual([
+      { offsetMs: 0, values: { x: 0, opacity: 1 }, easing: undefined },
+      { offsetMs: 2_000, values: { x: 100, opacity: 0 }, easing: undefined },
+    ]);
+
+    const split = splitTimelineEditorItem(transformed, { itemId: "brief", timeMs: 2_000 });
+
+    expect(split[0]?.items[0]?.transform?.points).toEqual([
+      { offsetMs: 0, values: { x: 0, opacity: 1 } },
+      { offsetMs: 1_000, values: { x: 50, opacity: 0.5 } },
+    ]);
+    expect(split[0]?.items[1]?.transform?.points).toEqual([
+      { offsetMs: 0, values: { x: 50, opacity: 0.5 } },
+      { offsetMs: 1_000, values: { x: 100, opacity: 0 } },
     ]);
   });
 
