@@ -36,8 +36,29 @@ import {
   undoTimelineEditorHistory,
   validateTimelineEditorDocument,
   type TimelineEditorDocument,
+  type TimelineEditorExtension,
   type TimelineEditorTrack,
 } from "@moritzbrantner/timeline-editor";
+import {
+  createTimelineAudioExtension,
+  type TimelineAudioItemData,
+} from "@moritzbrantner/timeline-editor/audio";
+import {
+  createTimelineNumericDataExtension,
+  type TimelineNumericDataItemData,
+} from "@moritzbrantner/timeline-editor/data";
+import {
+  createTimelineImageExtension,
+  type TimelineImageItemData,
+} from "@moritzbrantner/timeline-editor/image";
+import {
+  createTimelineTextExtension,
+  type TimelineTextItemData,
+} from "@moritzbrantner/timeline-editor/text";
+import {
+  createTimelineVideoExtension,
+  type TimelineVideoItemData,
+} from "@moritzbrantner/timeline-editor/video";
 
 const tracks: TimelineEditorTrack[] = normalizeTimelineEditorTracks([
   {
@@ -1175,6 +1196,198 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     expect(handleDocumentChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         markers: [expect.objectContaining({ id: "marker-fixed", timeMs: 1_000 })],
+      }),
+    );
+  });
+
+  test("renders display-only media extensions and preserves media data", () => {
+    type MediaItemData =
+      | TimelineAudioItemData
+      | TimelineVideoItemData
+      | TimelineImageItemData
+      | TimelineTextItemData
+      | TimelineNumericDataItemData;
+
+    const document: TimelineEditorDocument<Record<string, unknown>, MediaItemData> = {
+      durationMs: 8_000,
+      currentTimeMs: 2_500,
+      tracks: [
+        {
+          id: "text",
+          label: "Text",
+          acceptsItemKinds: ["text", "caption", "subtitle"],
+          items: [
+            {
+              id: "subtitle",
+              trackId: "text",
+              label: "Subtitle",
+              kind: "subtitle",
+              startMs: 1_000,
+              durationMs: 3_000,
+              data: {
+                mediaType: "text",
+                format: "ass-like",
+                language: "en",
+                cues: [
+                  { startMs: 0, endMs: 1_000, text: "Intro line", styleName: "Default" },
+                  { startMs: 1_001, endMs: 2_200, text: "Middle line", styleName: "Default" },
+                ],
+              },
+            },
+          ],
+        },
+        {
+          id: "audio",
+          label: "Audio",
+          acceptsItemKinds: ["audio"],
+          items: [
+            {
+              id: "voice",
+              trackId: "audio",
+              label: "Voiceover",
+              kind: "audio",
+              startMs: 0,
+              durationMs: 4_000,
+              data: {
+                mediaType: "audio",
+                muted: true,
+                source: { label: "voice.wav" },
+                waveform: [0.1, 0.5, 0.9, 0.3],
+              },
+            },
+          ],
+        },
+        {
+          id: "video",
+          label: "Video",
+          acceptsItemKinds: ["video"],
+          items: [
+            {
+              id: "scene",
+              trackId: "video",
+              label: "Scene",
+              kind: "video",
+              startMs: 0,
+              durationMs: 4_000,
+              data: {
+                mediaType: "video",
+                source: { label: "scene.mp4" },
+                thumbnails: ["thumb-1.png", "thumb-2.png"],
+              },
+            },
+          ],
+        },
+        {
+          id: "image",
+          label: "Image",
+          acceptsItemKinds: ["image"],
+          items: [
+            {
+              id: "poster",
+              trackId: "image",
+              label: "Poster",
+              kind: "image",
+              startMs: 1_000,
+              durationMs: 2_000,
+              data: {
+                mediaType: "image",
+                thumbnail: "poster-thumb.png",
+                width: 1920,
+                height: 1080,
+              },
+            },
+          ],
+        },
+        {
+          id: "data",
+          label: "Data",
+          acceptsItemKinds: ["data", "numeric-data"],
+          items: [
+            {
+              id: "telemetry",
+              trackId: "data",
+              label: "Telemetry",
+              kind: "numeric-data",
+              startMs: 0,
+              durationMs: 4_000,
+              data: {
+                mediaType: "numeric-data",
+                series: [
+                  {
+                    label: "Speed",
+                    unit: "km/h",
+                    points: [
+                      { timeMs: 0, value: 0 },
+                      { timeMs: 1_000, value: 25 },
+                      { timeMs: 2_000, value: 10 },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const handleDocumentChange = vi.fn();
+    const extensions = [
+      createTimelineTextExtension(),
+      createTimelineAudioExtension(),
+      createTimelineVideoExtension(),
+      createTimelineImageExtension(),
+      createTimelineNumericDataExtension(),
+    ] as Array<TimelineEditorExtension<MediaItemData>>;
+
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        selection={{ itemIds: ["subtitle"], anchorItemId: "subtitle" }}
+        assets={[
+          {
+            id: "music",
+            label: "Music",
+            kind: "audio",
+            durationMs: 2_000,
+            data: {
+              mediaType: "audio",
+              source: { label: "music.wav" },
+              waveform: [0.2, 0.8],
+            } satisfies TimelineAudioItemData,
+          },
+        ]}
+        extensions={extensions}
+        onDocumentChange={handleDocumentChange}
+      />,
+    );
+
+    expect(screen.getByText("Middle line")).toBeTruthy();
+    expect(container.querySelector("[data-slot='timeline-media-audio-waveform']")).toBeTruthy();
+    expect(container.querySelector("[data-slot='timeline-media-video-thumbnails']")).toBeTruthy();
+    expect(container.querySelector("[data-slot='timeline-media-image-thumbnail']")).toBeTruthy();
+    expect(container.querySelector("[data-slot='timeline-media-numeric-sparkline']")).toBeTruthy();
+
+    const parsed = parseTimelineEditorDocument(serializeTimelineEditorDocument(document));
+    expect(parsed.tracks[0]?.items[0]?.data).toEqual(document.tracks[0]?.items[0]?.data);
+    expect(parsed.tracks[4]?.items[0]?.data).toEqual(document.tracks[4]?.items[0]?.data);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Music/ })[0]!);
+
+    expect(handleDocumentChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tracks: expect.arrayContaining([
+          expect.objectContaining({
+            id: "audio",
+            items: expect.arrayContaining([
+              expect.objectContaining({
+                kind: "audio",
+                data: expect.objectContaining({
+                  mediaType: "audio",
+                  source: { label: "music.wav" },
+                }),
+              }),
+            ]),
+          }),
+        ]),
       }),
     );
   });

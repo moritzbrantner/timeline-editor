@@ -9,7 +9,12 @@
     "paths": {
       "@moritzbrantner/timeline-editor": ["./src/index.ts"],
       "@moritzbrantner/timeline-editor/core": ["./src/core.ts"],
-      "@moritzbrantner/timeline-editor/react": ["./src/react.tsx"]
+      "@moritzbrantner/timeline-editor/react": ["./src/react.tsx"],
+      "@moritzbrantner/timeline-editor/text": ["./src/text.ts"],
+      "@moritzbrantner/timeline-editor/audio": ["./src/audio.ts"],
+      "@moritzbrantner/timeline-editor/video": ["./src/video.ts"],
+      "@moritzbrantner/timeline-editor/image": ["./src/image.ts"],
+      "@moritzbrantner/timeline-editor/data": ["./src/data.ts"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"]

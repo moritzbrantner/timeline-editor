@@ -71,21 +71,180 @@ An extension can contribute item rendering, preview rendering, inspector
 sections, toolbar actions, context menu items, and pure operations.
 
 ```tsx
+import { createTimelineAudioExtension } from "@moritzbrantner/timeline-editor/audio";
+import { createTimelineTextExtension } from "@moritzbrantner/timeline-editor/text";
+import { createTimelineVideoExtension } from "@moritzbrantner/timeline-editor/video";
+
 <TimelineWorkbench
   document={document}
   extensions={[
     createTimelineAudioExtension(),
     createTimelineVideoExtension(),
-    createTimelineCaptionsExtension(),
+    createTimelineTextExtension(),
   ]}
-/>
+/>;
 ```
 
-This repository includes private skeleton packages under `packages/audio`,
-`packages/video`, and `packages/captions` to demonstrate the intended package
-shape. They define conventions and renderers only; decoding, waveform
-generation, playback, and export are intentionally left to dedicated media
-implementations.
+Built-in display-only media foundations are available from media-specific
+subpaths:
+
+- `@moritzbrantner/timeline-editor/text` for ASS-like timed text cues.
+- `@moritzbrantner/timeline-editor/audio` for source metadata, volume/mute state, and waveform display.
+- `@moritzbrantner/timeline-editor/video` for source metadata, poster, and thumbnail strips.
+- `@moritzbrantner/timeline-editor/image` for still image thumbnails and dimensions.
+- `@moritzbrantner/timeline-editor/data` for numeric data series and compact sparkline display.
+
+These interfaces describe item data for display. They do not decode media,
+generate waveforms or thumbnails, play audio/video, export renders, apply
+effects, or implement transitions.
+
+```tsx
+import { TimelineWorkbench, type TimelineEditorDocument } from "@moritzbrantner/timeline-editor";
+import {
+  createTimelineAudioExtension,
+  type TimelineAudioItemData,
+} from "@moritzbrantner/timeline-editor/audio";
+import {
+  createTimelineNumericDataExtension,
+  type TimelineNumericDataItemData,
+} from "@moritzbrantner/timeline-editor/data";
+import {
+  createTimelineImageExtension,
+  type TimelineImageItemData,
+} from "@moritzbrantner/timeline-editor/image";
+import {
+  createTimelineTextExtension,
+  type TimelineTextItemData,
+} from "@moritzbrantner/timeline-editor/text";
+import {
+  createTimelineVideoExtension,
+  type TimelineVideoItemData,
+} from "@moritzbrantner/timeline-editor/video";
+
+type MediaItemData =
+  | TimelineTextItemData
+  | TimelineAudioItemData
+  | TimelineVideoItemData
+  | TimelineImageItemData
+  | TimelineNumericDataItemData;
+
+const document: TimelineEditorDocument<Record<string, unknown>, MediaItemData> = {
+  durationMs: 8_000,
+  currentTimeMs: 1_500,
+  tracks: [
+    {
+      id: "subtitles",
+      label: "Subtitles",
+      acceptsItemKinds: ["text", "caption", "subtitle"],
+      items: [
+        {
+          id: "line-1",
+          trackId: "subtitles",
+          label: "Line 1",
+          kind: "subtitle",
+          startMs: 1_000,
+          durationMs: 3_000,
+          data: {
+            mediaType: "text",
+            format: "ass-like",
+            cues: [{ startMs: 0, endMs: 1_500, text: "Hello timeline" }],
+          },
+        },
+      ],
+    },
+    {
+      id: "audio",
+      label: "Audio",
+      acceptsItemKinds: ["audio"],
+      items: [
+        {
+          id: "voice",
+          trackId: "audio",
+          label: "Voiceover",
+          kind: "audio",
+          startMs: 0,
+          durationMs: 4_000,
+          data: {
+            mediaType: "audio",
+            source: { label: "voice.wav" },
+            waveform: [0.1, 0.4, 0.8, 0.5],
+          },
+        },
+      ],
+    },
+    {
+      id: "video",
+      label: "Video",
+      acceptsItemKinds: ["video", "image", "numeric-data"],
+      items: [
+        {
+          id: "scene",
+          trackId: "video",
+          label: "Scene",
+          kind: "video",
+          startMs: 0,
+          durationMs: 4_000,
+          data: {
+            mediaType: "video",
+            source: { label: "scene.mp4" },
+            thumbnails: ["/thumb-1.jpg", "/thumb-2.jpg"],
+          },
+        },
+        {
+          id: "poster",
+          trackId: "video",
+          label: "Poster",
+          kind: "image",
+          startMs: 4_000,
+          durationMs: 2_000,
+          data: {
+            mediaType: "image",
+            thumbnail: "/poster.jpg",
+            width: 1920,
+            height: 1080,
+          },
+        },
+        {
+          id: "speed",
+          trackId: "video",
+          label: "Speed",
+          kind: "numeric-data",
+          startMs: 0,
+          durationMs: 4_000,
+          data: {
+            mediaType: "numeric-data",
+            series: [
+              {
+                label: "Speed",
+                unit: "km/h",
+                points: [
+                  { timeMs: 0, value: 0 },
+                  { timeMs: 1_000, value: 32 },
+                  { timeMs: 2_000, value: 18 },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    },
+  ],
+};
+
+<TimelineWorkbench
+  document={document}
+  extensions={[
+    createTimelineTextExtension(),
+    createTimelineAudioExtension(),
+    createTimelineVideoExtension(),
+    createTimelineImageExtension(),
+    createTimelineNumericDataExtension(),
+  ]}
+/>;
+```
+
+The private packages under `packages/audio`, `packages/video`, and
+`packages/captions` re-export these public media entrypoints for compatibility.
 
 ## Controlled React Example
 

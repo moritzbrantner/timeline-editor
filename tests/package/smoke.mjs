@@ -19,6 +19,11 @@ const entryFiles = [
   "commands.js",
   "history.js",
   "serialization.js",
+  "text.js",
+  "audio.js",
+  "video.js",
+  "image.js",
+  "data.js",
 ];
 
 for (const entryFile of entryFiles) {

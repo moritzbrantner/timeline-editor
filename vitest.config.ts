@@ -7,11 +7,40 @@ const rootDir = fileURLToPath(new URL("./", import.meta.url));
 
 export default defineConfig({
   resolve: {
-    alias: {
-      "@moritzbrantner/timeline-editor": path.resolve(rootDir, "src/index.ts"),
-      "@moritzbrantner/timeline-editor/core": path.resolve(rootDir, "src/core.ts"),
-      "@moritzbrantner/timeline-editor/react": path.resolve(rootDir, "src/react.tsx"),
-    },
+    alias: [
+      {
+        find: "@moritzbrantner/timeline-editor/core",
+        replacement: path.resolve(rootDir, "src/core.ts"),
+      },
+      {
+        find: "@moritzbrantner/timeline-editor/react",
+        replacement: path.resolve(rootDir, "src/react.tsx"),
+      },
+      {
+        find: "@moritzbrantner/timeline-editor/text",
+        replacement: path.resolve(rootDir, "src/text.ts"),
+      },
+      {
+        find: "@moritzbrantner/timeline-editor/audio",
+        replacement: path.resolve(rootDir, "src/audio.ts"),
+      },
+      {
+        find: "@moritzbrantner/timeline-editor/video",
+        replacement: path.resolve(rootDir, "src/video.ts"),
+      },
+      {
+        find: "@moritzbrantner/timeline-editor/image",
+        replacement: path.resolve(rootDir, "src/image.ts"),
+      },
+      {
+        find: "@moritzbrantner/timeline-editor/data",
+        replacement: path.resolve(rootDir, "src/data.ts"),
+      },
+      {
+        find: /^@moritzbrantner\/timeline-editor$/,
+        replacement: path.resolve(rootDir, "src/index.ts"),
+      },
+    ],
   },
   test: {
     environment: "jsdom",

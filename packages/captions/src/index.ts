@@ -1,18 +1,8 @@
-import { createElement } from "react";
-
-import type { TimelineEditorExtension } from "@moritzbrantner/timeline-editor";
-
-export type TimelineCaptionItemData = {
-  text?: string;
-  align?: "left" | "center" | "right";
-  style?: Record<string, unknown>;
-};
-
-export function createTimelineCaptionsExtension(): TimelineEditorExtension<TimelineCaptionItemData> {
-  return {
-    id: "timeline-captions",
-    itemKinds: ["caption"],
-    renderItem: ({ item }) =>
-      createElement("span", { className: "truncate italic" }, item.data?.text ?? item.label),
-  };
-}
+export {
+  createTimelineTextExtension,
+  createTimelineTextExtension as createTimelineCaptionsExtension,
+  type TimelineTextAlignment as TimelineCaptionAlignment,
+  type TimelineTextCue as TimelineCaptionCue,
+  type TimelineTextItemData as TimelineCaptionItemData,
+  type TimelineTextStyle as TimelineCaptionStyle,
+} from "@moritzbrantner/timeline-editor/text";
