@@ -72,6 +72,7 @@ export function TimelineWorkbench<
   pixelsPerSecond = 80,
   viewport,
   frameRate,
+  editPolicy,
   snapMs = 100,
   virtualization,
   assets = [],
@@ -152,7 +153,7 @@ export function TimelineWorkbench<
       commandSelection,
       history,
       command,
-      { durationMs, snapMs: resolvedSnapMs },
+      { durationMs, editPolicy, snapMs: resolvedSnapMs },
     );
 
     setHistory(result.history);
@@ -409,6 +410,7 @@ export function TimelineWorkbench<
     >
       <TimelineWorkbenchCanvas
         document={document}
+        editPolicy={editPolicy}
         frameRate={frameRate}
         getItemContextMenuItems={getWorkbenchItemContextMenuItems}
         getTrackContextMenuItems={getWorkbenchTrackContextMenuItems}

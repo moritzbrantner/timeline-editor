@@ -138,7 +138,9 @@ const pushed = moveTimelineEditorItem(
 keeps the edit and shifts later unlocked items right; if a locked item or the
 document duration blocks the push, the previous tracks are returned. Set
 `editPolicy.ripple` on command options to shift later items left during
-delete-selection commands.
+delete-selection commands. `TimelineEditor` and `TimelineWorkbench` also accept
+an `editPolicy` prop so pointer, keyboard, toolbar, and asset-insert edits use
+the same policy.
 
 ## Controlled Workbench Example
 

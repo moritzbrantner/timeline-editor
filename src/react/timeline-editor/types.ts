@@ -4,6 +4,7 @@ import type { MenuActionItem } from "@moritzbrantner/ui";
 
 import type {
   TimelineEditorDocument,
+  TimelineEditorEditPolicy,
   TimelineEditorItem,
   TimelineEditorSelection,
   TimelineEditorSnapOptions,
@@ -80,6 +81,7 @@ export type TimelineEditorProps<
   viewport?: TimelineEditorViewport;
   readOnly?: boolean;
   frameRate?: number;
+  editPolicy?: Partial<TimelineEditorEditPolicy>;
   snap?: Partial<TimelineEditorSnapOptions>;
   hotkeys?: Partial<TimelineEditorHotkeys>;
   virtualization?: TimelineEditorVirtualizationOptions;
@@ -100,6 +102,7 @@ export type TimelineEditorDragState<TItemData, TSnapResolver> =
       startX: number;
       originalItems: Array<TimelineEditorItem<TItemData>>;
       movingItemIds: ReadonlySet<string>;
+      sourceTrackId: string;
       snapResolver: TSnapResolver;
     }
   | {

@@ -4,7 +4,14 @@ import { useMemo, useRef, useState } from "react";
 
 import { cn } from "@moritzbrantner/ui";
 
-import { normalizeTimelineEditorDocument, setTimelineEditorCurrentTime } from "../core";
+import {
+  canPlaceTimelineEditorItemOnTrack,
+  findTimelineEditorItem,
+  moveTimelineEditorItems,
+  normalizeTimelineEditorDocument,
+  resizeTimelineEditorItem,
+  setTimelineEditorCurrentTime,
+} from "../core";
 import {
   createTimelineEditorDocumentIndex,
   getTimelineEditorGroupedItemIdsFromIndex,
@@ -18,8 +25,9 @@ import {
 } from "../time";
 import {
   defaultTimelineEditorSelection,
-  defaultTimelineEditorMinItemDurationMs,
   defaultTimelineEditorSnapMs,
+  type TimelineEditorDocument,
+  type TimelineEditorEditPolicy,
   type TimelineEditorItem,
   type TimelineEditorTrack,
 } from "../types";
@@ -32,6 +40,9 @@ import {
 import {
   defaultTimelineEditorHotkeys,
   timelineEditorTrackHeaderWidthPx,
+  timelineEditorRulerHeightPx,
+  timelineEditorTrackGroupHeightPx,
+  timelineEditorDefaultTrackHeightPx,
 } from "./timeline-editor/constants";
 import { getTimelineEditorNudgeMs } from "./timeline-editor/hotkeys";
 import { useTimelineEditorKeyboard } from "./timeline-editor/keyboard";
@@ -84,6 +95,7 @@ export function TimelineEditor<
   viewport,
   readOnly = false,
   frameRate,
+  editPolicy,
   snap,
   hotkeys,
   virtualization,
@@ -106,7 +118,6 @@ export function TimelineEditor<
   const {
     cancelScheduledPreview,
     clearPreview,
-    flushScheduledPreview,
     previewTracks,
     schedulePreviewUpdate,
     snapGuideMs,
@@ -182,6 +193,7 @@ export function TimelineEditor<
     document,
     durationMs,
     hotkeys: resolvedHotkeys,
+    editPolicy,
     nudgeMs,
     readOnly,
     selection,
@@ -239,11 +251,15 @@ export function TimelineEditor<
         : { timeMs: 0, snapped: false };
       const resolvedDeltaMs =
         activeItem && snapResult.snapped ? snapResult.timeMs - activeItem.startMs : deltaMs;
-      const tracks = getTimelineEditorMovePreviewTracks(
-        document.tracks,
-        dragState.movingItemIds,
+      const tracks = getTimelineEditorMoveDragTracks(
+        document,
+        visibleTracks,
+        scrollerRef.current,
+        event.clientY,
+        dragState,
         resolvedDeltaMs,
         durationMs,
+        editPolicy,
       );
 
       schedulePreviewUpdate(
@@ -257,13 +273,13 @@ export function TimelineEditor<
     const nextTimeMs =
       edge === "start" ? dragState.originalStartMs + deltaMs : dragState.originalEndMs + deltaMs;
     const snapResult = dragState.snapResolver(nextTimeMs);
-    const tracks = getTimelineEditorResizePreviewTracks(
+    const tracks = getTimelineEditorResizeDragTracks(
       document.tracks,
-      dragState.trackId,
       dragState.item,
       edge,
       snapResult.timeMs,
       durationMs,
+      editPolicy,
     );
 
     schedulePreviewUpdate(
@@ -272,13 +288,25 @@ export function TimelineEditor<
     );
   };
 
-  const commitDrag = () => {
-    const tracks = flushScheduledPreview();
+  const commitDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (dragState && !readOnly) {
+      const tracks = getTimelineEditorDragCommitTracks(
+        document,
+        visibleTracks,
+        scrollerRef.current,
+        event,
+        dragState,
+        resolvedViewport.pixelsPerSecond,
+        durationMs,
+        editPolicy,
+      );
 
-    if (tracks && tracks !== document.tracks) {
-      commitDocument(normalizeTimelineEditorDocument({ ...document, tracks }, { durationMs }));
+      if (tracks !== document.tracks) {
+        commitDocument(normalizeTimelineEditorDocument({ ...document, tracks }, { durationMs }));
+      }
     }
 
+    cancelScheduledPreview();
     setDragState(null);
     clearPreview();
   };
@@ -410,6 +438,7 @@ export function TimelineEditor<
               startX: getTimelineEditorPointerClientX(event),
               originalItems,
               movingItemIds: activeSelectionIds,
+              sourceTrackId: documentIndex.trackByItemId.get(item.id)?.id ?? item.trackId,
               snapResolver: createTimelineEditorSnapResolver(
                 document,
                 resolvedSnap,
@@ -452,83 +481,195 @@ export function TimelineEditor<
   );
 }
 
-function getTimelineEditorMovePreviewTracks<TTrackData, TItemData>(
-  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
-  movingItemIds: ReadonlySet<string>,
-  deltaMs: number,
+function getTimelineEditorDragCommitTracks<TTrackData extends Record<string, unknown>, TItemData>(
+  document: TimelineEditorDocument<TTrackData, TItemData>,
+  visibleTracks: ReturnType<typeof getVisibleTracks<TTrackData, TItemData>>,
+  scroller: HTMLDivElement | null,
+  event: React.PointerEvent<HTMLDivElement>,
+  dragState: TimelineEditorDragState<TItemData, TimelineEditorSnapResolver>,
+  pixelsPerSecond: number,
   durationMs: number,
+  editPolicy: Partial<TimelineEditorEditPolicy> | undefined,
 ) {
-  let changed = false;
+  const deltaMs = getTimelineEditorTimeFromDelta(
+    getTimelineEditorPointerClientX(event) - dragState.startX,
+    pixelsPerSecond,
+  );
 
-  const nextTracks = tracks.map((track) => {
-    if (track.locked) {
-      return track;
-    }
+  if (dragState.type === "move") {
+    const activeItem = dragState.originalItems.find((item) => item.id === dragState.itemId);
+    const snapResult = activeItem
+      ? dragState.snapResolver(activeItem.startMs + deltaMs)
+      : { timeMs: 0, snapped: false };
+    const resolvedDeltaMs =
+      activeItem && snapResult.snapped ? snapResult.timeMs - activeItem.startMs : deltaMs;
 
-    let trackChanged = false;
-    const nextItems = track.items.map((item) => {
-      if (!movingItemIds.has(item.id) || item.locked) {
-        return item;
-      }
+    return getTimelineEditorMoveDragTracks(
+      document,
+      visibleTracks,
+      scroller,
+      event.clientY,
+      dragState,
+      resolvedDeltaMs,
+      durationMs,
+      editPolicy,
+    );
+  }
 
-      const startMs = clampTimelineEditorTime(
-        item.startMs + deltaMs,
-        0,
-        Math.max(0, durationMs - item.durationMs),
-      );
+  const edge = dragState.type === "resize-start" ? "start" : "end";
+  const nextTimeMs =
+    edge === "start" ? dragState.originalStartMs + deltaMs : dragState.originalEndMs + deltaMs;
+  const snapResult = dragState.snapResolver(nextTimeMs);
 
-      if (startMs === item.startMs) {
-        return item;
-      }
-
-      changed = true;
-      trackChanged = true;
-      return { ...item, startMs };
-    });
-
-    return trackChanged ? { ...track, items: nextItems } : track;
-  });
-
-  return changed ? nextTracks : tracks;
+  return getTimelineEditorResizeDragTracks(
+    document.tracks,
+    dragState.item,
+    edge,
+    snapResult.timeMs,
+    durationMs,
+    editPolicy,
+  );
 }
 
-function getTimelineEditorResizePreviewTracks<TTrackData, TItemData>(
+function getTimelineEditorMoveDragTracks<TTrackData extends Record<string, unknown>, TItemData>(
+  document: TimelineEditorDocument<TTrackData, TItemData>,
+  visibleTracks: ReturnType<typeof getVisibleTracks<TTrackData, TItemData>>,
+  scroller: HTMLDivElement | null,
+  clientY: number,
+  dragState: Extract<
+    TimelineEditorDragState<TItemData, TimelineEditorSnapResolver>,
+    { type: "move" }
+  >,
+  deltaMs: number,
+  durationMs: number,
+  editPolicy: Partial<TimelineEditorEditPolicy> | undefined,
+) {
+  const targetTrackId = getTimelineEditorTrackIdAtClientY(visibleTracks, scroller, clientY);
+  const sourceTrackIndex = document.tracks.findIndex(
+    (track) => track.id === dragState.sourceTrackId,
+  );
+  const targetTrackIndex =
+    targetTrackId === undefined
+      ? -1
+      : document.tracks.findIndex((track) => track.id === targetTrackId);
+  const trackDelta =
+    sourceTrackIndex === -1 || targetTrackIndex === -1
+      ? undefined
+      : targetTrackIndex - sourceTrackIndex;
+
+  if (
+    trackDelta !== undefined &&
+    trackDelta !== 0 &&
+    !canMoveTimelineEditorItemsByTrackDelta(
+      document.tracks,
+      dragState.movingItemIds,
+      trackDelta,
+      visibleTracks,
+    )
+  ) {
+    return document.tracks;
+  }
+
+  return moveTimelineEditorItems(document.tracks, [...dragState.movingItemIds], deltaMs, {
+    durationMs,
+    editPolicy,
+    ...(trackDelta !== undefined && trackDelta !== 0 ? { trackDelta } : {}),
+  });
+}
+
+function getTimelineEditorTrackIdAtClientY<TTrackData, TItemData>(
+  visibleTracks: ReturnType<typeof getVisibleTracks<TTrackData, TItemData>>,
+  scroller: HTMLDivElement | null,
+  clientY: number,
+) {
+  if (!scroller || !Number.isFinite(clientY)) {
+    return undefined;
+  }
+
+  const bounds = scroller.getBoundingClientRect();
+  const yPx = clientY - bounds.top + scroller.scrollTop - timelineEditorRulerHeightPx;
+  let topPx = 0;
+  let nearestTrackId: string | undefined;
+  let nearestDistancePx = Number.POSITIVE_INFINITY;
+
+  for (const entry of visibleTracks) {
+    const heightPx =
+      entry.type === "group"
+        ? timelineEditorTrackGroupHeightPx
+        : (entry.track.height ?? timelineEditorDefaultTrackHeightPx);
+    const bottomPx = topPx + heightPx;
+
+    if (yPx >= topPx && yPx <= bottomPx && (entry.type !== "track" || entry.locked)) {
+      return undefined;
+    }
+
+    if (entry.type === "track" && !entry.locked) {
+      if (yPx >= topPx && yPx <= bottomPx) {
+        return entry.track.id;
+      }
+
+      const distancePx = yPx < topPx ? topPx - yPx : yPx - bottomPx;
+
+      if (distancePx < nearestDistancePx) {
+        nearestDistancePx = distancePx;
+        nearestTrackId = entry.track.id;
+      }
+    }
+
+    topPx = bottomPx;
+  }
+
+  return nearestTrackId;
+}
+
+function canMoveTimelineEditorItemsByTrackDelta<TTrackData, TItemData>(
   tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
-  trackId: string,
+  movingItemIds: ReadonlySet<string>,
+  trackDelta: number,
+  visibleTracks: ReturnType<typeof getVisibleTracks<TTrackData, TItemData>>,
+) {
+  const lockedTrackIds = new Set(
+    visibleTracks
+      .filter((entry) => entry.type === "track" && entry.locked)
+      .map((entry) => (entry.type === "track" ? entry.track.id : "")),
+  );
+
+  for (const itemId of movingItemIds) {
+    const found = findTimelineEditorItem(tracks, itemId);
+
+    if (!found || found.item.locked || found.track.locked) {
+      return false;
+    }
+
+    const currentTrackIndex = tracks.findIndex((track) => track.id === found.track.id);
+    const targetTrack =
+      tracks[clampTimelineEditorTime(currentTrackIndex + trackDelta, 0, tracks.length - 1)];
+
+    if (
+      !targetTrack ||
+      lockedTrackIds.has(targetTrack.id) ||
+      !canPlaceTimelineEditorItemOnTrack(found.item, targetTrack)
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function getTimelineEditorResizeDragTracks<TTrackData, TItemData>(
+  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
   item: TimelineEditorItem<TItemData>,
   edge: "start" | "end",
   timeMs: number,
   durationMs: number,
+  editPolicy: Partial<TimelineEditorEditPolicy> | undefined,
 ) {
-  const originalEndMs = getTimelineEditorItemEndMs(item);
-  const nextStartMs =
+  return resizeTimelineEditorItem(
+    tracks,
     edge === "start"
-      ? clampTimelineEditorTime(timeMs, 0, originalEndMs - defaultTimelineEditorMinItemDurationMs)
-      : item.startMs;
-  const nextEndMs =
-    edge === "end"
-      ? clampTimelineEditorTime(
-          timeMs,
-          item.startMs + defaultTimelineEditorMinItemDurationMs,
-          durationMs,
-        )
-      : originalEndMs;
-  const nextDurationMs = nextEndMs - nextStartMs;
-
-  if (nextStartMs === item.startMs && nextDurationMs === item.durationMs) {
-    return tracks;
-  }
-
-  return tracks.map((track) =>
-    track.id === trackId
-      ? {
-          ...track,
-          items: track.items.map((candidate) =>
-            candidate.id === item.id
-              ? { ...candidate, startMs: nextStartMs, durationMs: nextDurationMs }
-              : candidate,
-          ),
-        }
-      : track,
+      ? { itemId: item.id, edge, startMs: timeMs }
+      : { itemId: item.id, edge, durationMs: timeMs - item.startMs },
+    { durationMs, editPolicy },
   );
 }

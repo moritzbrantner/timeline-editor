@@ -4,6 +4,7 @@ import { Button, WorkbenchCanvas } from "@moritzbrantner/ui";
 
 import type {
   TimelineEditorDocument,
+  TimelineEditorEditPolicy,
   TimelineEditorSelection,
   TimelineEditorViewport,
 } from "../../core";
@@ -18,6 +19,7 @@ import { defaultTimelineWorkbenchHotkeys } from "./toolbar";
 
 type TimelineWorkbenchCanvasProps<TTrackData extends Record<string, unknown>, TItemData> = {
   document: TimelineEditorDocument<TTrackData, TItemData>;
+  editPolicy?: Partial<TimelineEditorEditPolicy>;
   frameRate?: number;
   readOnly: boolean;
   resolvedSelection: TimelineEditorSelection;
@@ -36,6 +38,7 @@ type TimelineWorkbenchCanvasProps<TTrackData extends Record<string, unknown>, TI
 
 export function TimelineWorkbenchCanvas<TTrackData extends Record<string, unknown>, TItemData>({
   document,
+  editPolicy,
   frameRate,
   readOnly,
   resolvedSelection,
@@ -68,6 +71,7 @@ export function TimelineWorkbenchCanvas<TTrackData extends Record<string, unknow
           ],
         }}
         frameRate={frameRate}
+        editPolicy={editPolicy}
         readOnly={readOnly}
         virtualization={virtualization}
         hotkeys={defaultTimelineWorkbenchHotkeys}

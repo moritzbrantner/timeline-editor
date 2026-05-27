@@ -63,8 +63,8 @@ const tracks: TimelineEditorTrack[] = normalizeTimelineEditorTracks([
   },
 ]);
 
-function firePointerEvent(element: Element, type: string, clientX: number) {
-  fireEvent(element, new MouseEvent(type, { bubbles: true, clientX }));
+function firePointerEvent(element: Element, type: string, clientX: number, clientY = 0) {
+  fireEvent(element, new MouseEvent(type, { bubbles: true, clientX, clientY }));
 }
 
 beforeAll(() => {
@@ -595,6 +595,82 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     ]);
   });
 
+  test("moves timeline items across compatible tracks during drag", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks: [
+        {
+          id: "planning",
+          label: "Planning",
+          items: [
+            { id: "brief", trackId: "planning", label: "Brief", startMs: 1_000, durationMs: 500 },
+          ],
+        },
+        {
+          id: "review",
+          label: "Review",
+          items: [],
+        },
+      ],
+    };
+    const handleDocumentChange = vi.fn();
+    const { container } = render(
+      <TimelineEditor
+        document={document}
+        selection={{ itemIds: ["brief"], anchorItemId: "brief" }}
+        viewport={{ pixelsPerSecond: 80 }}
+        onDocumentChange={handleDocumentChange}
+      />,
+    );
+    const editor = container.querySelector("[data-slot='timeline-editor']")!;
+
+    firePointerEvent(screen.getByRole("button", { name: "Brief" }), "pointerdown", 0, 50);
+    firePointerEvent(editor, "pointermove", 0, 106);
+    firePointerEvent(editor, "pointerup", 0, 106);
+
+    expect(handleDocumentChange).toHaveBeenCalledTimes(1);
+    expect(handleDocumentChange.mock.calls[0]?.[0].tracks).toEqual([
+      expect.objectContaining({ id: "planning", items: [] }),
+      expect.objectContaining({
+        id: "review",
+        items: [expect.objectContaining({ id: "brief", trackId: "review", startMs: 1_000 })],
+      }),
+    ]);
+  });
+
+  test("applies edit policy to pointer drag commits", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks: [
+        {
+          id: "planning",
+          label: "Planning",
+          items: [
+            { id: "brief", trackId: "planning", label: "Brief", startMs: 1_000, durationMs: 2_000 },
+            { id: "draft", trackId: "planning", label: "Draft", startMs: 3_500, durationMs: 1_000 },
+          ],
+        },
+      ],
+    };
+    const handleDocumentChange = vi.fn();
+    const { container } = render(
+      <TimelineEditor
+        document={document}
+        editPolicy={{ overlap: "prevent", ripple: false }}
+        selection={{ itemIds: ["brief"], anchorItemId: "brief" }}
+        viewport={{ pixelsPerSecond: 80 }}
+        onDocumentChange={handleDocumentChange}
+      />,
+    );
+    const editor = container.querySelector("[data-slot='timeline-editor']")!;
+
+    firePointerEvent(screen.getByRole("button", { name: "Brief" }), "pointerdown", 0);
+    firePointerEvent(editor, "pointermove", 160);
+    firePointerEvent(editor, "pointerup", 160);
+
+    expect(handleDocumentChange).not.toHaveBeenCalled();
+  });
+
   test("nudges timeline items by frame duration when a framerate is set", () => {
     const document: TimelineEditorDocument = {
       durationMs: 8_000,
@@ -760,6 +836,37 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
         ],
       }),
     );
+  });
+
+  test("applies workbench edit policy to asset insertion", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 1_500,
+      tracks: [
+        {
+          id: "planning",
+          label: "Planning",
+          items: [
+            { id: "brief", trackId: "planning", label: "Brief", startMs: 1_000, durationMs: 2_000 },
+          ],
+        },
+      ],
+    };
+    const handleDocumentChange = vi.fn();
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        editPolicy={{ overlap: "prevent", ripple: false }}
+        assets={[{ id: "asset", label: "Review note", durationMs: 1_000 }]}
+        renderAsset={(asset) => asset.label}
+        onDocumentChange={handleDocumentChange}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Review note" })[0]!);
+
+    expect(handleDocumentChange).not.toHaveBeenCalled();
   });
 
   test("supports controlled workbench viewport changes", () => {

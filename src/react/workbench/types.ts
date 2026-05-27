@@ -4,6 +4,7 @@ import type { MenuActionItem } from "@moritzbrantner/ui";
 
 import type {
   TimelineEditorDocument,
+  TimelineEditorEditPolicy,
   TimelineEditorItem,
   TimelineEditorItemKind,
   TimelineEditorSelection,
@@ -74,6 +75,7 @@ export type TimelineWorkbenchProps<
   pixelsPerSecond?: number;
   viewport?: TimelineEditorViewport;
   frameRate?: number;
+  editPolicy?: Partial<TimelineEditorEditPolicy>;
   snapMs?: number;
   virtualization?: TimelineEditorVirtualizationOptions;
   assets?: Array<TimelineWorkbenchAsset<TAssetData>>;

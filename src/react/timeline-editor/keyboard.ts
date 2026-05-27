@@ -3,6 +3,7 @@ import type { KeyboardEvent } from "react";
 import { applyTimelineEditorCommand } from "../../commands";
 import type {
   TimelineEditorDocument,
+  TimelineEditorEditPolicy,
   TimelineEditorSelection,
   TimelineEditorViewport,
 } from "../../types";
@@ -14,6 +15,7 @@ import type { TimelineEditorHotkeys } from "./types";
 type TimelineEditorKeyboardOptions<TTrackData extends Record<string, unknown>, TItemData> = {
   document: TimelineEditorDocument<TTrackData, TItemData>;
   durationMs: number;
+  editPolicy?: Partial<TimelineEditorEditPolicy>;
   hotkeys: TimelineEditorHotkeys;
   nudgeMs: number;
   readOnly: boolean;
@@ -27,6 +29,7 @@ type TimelineEditorKeyboardOptions<TTrackData extends Record<string, unknown>, T
 export function useTimelineEditorKeyboard<TTrackData extends Record<string, unknown>, TItemData>({
   document,
   durationMs,
+  editPolicy,
   hotkeys,
   nudgeMs,
   readOnly,
@@ -57,7 +60,7 @@ export function useTimelineEditorKeyboard<TTrackData extends Record<string, unkn
         document,
         selection,
         { type: "delete-selection" },
-        { durationMs },
+        { durationMs, editPolicy },
       );
       onDocumentChange(result.document);
       onSelectionChange(result.selection);
@@ -75,7 +78,7 @@ export function useTimelineEditorKeyboard<TTrackData extends Record<string, unkn
           itemIds: selection.itemIds,
           deltaMs: direction * nudgeMs,
         },
-        { durationMs, snapMs: nudgeMs },
+        { durationMs, editPolicy, snapMs: nudgeMs },
       );
       onDocumentChange(result.document);
       return;
