@@ -67,6 +67,24 @@ function firePointerEvent(element: Element, type: string, clientX: number, clien
   fireEvent(element, new MouseEvent(type, { bubbles: true, clientX, clientY }));
 }
 
+function mockTimelineEditorScrollSize(options: { clientWidth: number; scrollWidth: number }) {
+  const clientWidth = vi
+    .spyOn(HTMLElement.prototype, "clientWidth", "get")
+    .mockImplementation(function getClientWidth(this: HTMLElement) {
+      return this.dataset["slot"] === "timeline-editor" ? options.clientWidth : 0;
+    });
+  const scrollWidth = vi
+    .spyOn(HTMLElement.prototype, "scrollWidth", "get")
+    .mockImplementation(function getScrollWidth(this: HTMLElement) {
+      return this.dataset["slot"] === "timeline-editor" ? options.scrollWidth : 0;
+    });
+
+  return () => {
+    clientWidth.mockRestore();
+    scrollWidth.mockRestore();
+  };
+}
+
 beforeAll(() => {
   vi.stubGlobal(
     "ResizeObserver",
@@ -905,6 +923,101 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     expect(handleViewportChange).toHaveBeenCalledWith(
       expect.objectContaining({ pixelsPerSecond: 176 }),
     );
+  });
+
+  test("applies controlled timeline scrollLeftMs to the scroller", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks,
+    };
+    const restoreScrollSize = mockTimelineEditorScrollSize({ clientWidth: 320, scrollWidth: 784 });
+
+    try {
+      const { container, rerender } = render(
+        <TimelineEditor
+          document={document}
+          viewport={{ pixelsPerSecond: 80, scrollLeftMs: 2_000 }}
+        />,
+      );
+      const editor = container.querySelector<HTMLElement>("[data-slot='timeline-editor']")!;
+
+      expect(editor.scrollLeft).toBe(304);
+
+      rerender(
+        <TimelineEditor
+          document={document}
+          viewport={{ pixelsPerSecond: 80, scrollLeftMs: 3_000 }}
+        />,
+      );
+
+      expect(editor.scrollLeft).toBe(384);
+    } finally {
+      restoreScrollSize();
+    }
+  });
+
+  test("reports timeline scrollLeftMs when the scroller moves", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks,
+    };
+    const handleViewportChange = vi.fn();
+    const restoreScrollSize = mockTimelineEditorScrollSize({ clientWidth: 320, scrollWidth: 784 });
+
+    try {
+      const { container } = render(
+        <TimelineEditor
+          document={document}
+          viewport={{ pixelsPerSecond: 80 }}
+          onViewportChange={handleViewportChange}
+        />,
+      );
+      const editor = container.querySelector<HTMLElement>("[data-slot='timeline-editor']")!;
+
+      editor.scrollLeft = 304;
+      fireEvent.scroll(editor);
+
+      expect(handleViewportChange).toHaveBeenCalledWith(
+        expect.objectContaining({ pixelsPerSecond: 80, scrollLeftMs: 2_000 }),
+      );
+    } finally {
+      restoreScrollSize();
+    }
+  });
+
+  test("prevents ctrl-wheel browser default and reports zoom changes", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks,
+    };
+    const handleViewportChange = vi.fn();
+    const restoreScrollSize = mockTimelineEditorScrollSize({ clientWidth: 320, scrollWidth: 784 });
+
+    try {
+      const { container } = render(
+        <TimelineEditor
+          document={document}
+          viewport={{ pixelsPerSecond: 80 }}
+          onViewportChange={handleViewportChange}
+        />,
+      );
+      const editor = container.querySelector<HTMLElement>("[data-slot='timeline-editor']")!;
+      const event = new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 100,
+        ctrlKey: true,
+        deltaY: -120,
+      });
+
+      expect(editor.dispatchEvent(event)).toBe(false);
+      expect(event.defaultPrevented).toBe(true);
+      expect(handleViewportChange).toHaveBeenCalledWith(
+        expect.objectContaining({ pixelsPerSecond: 96 }),
+      );
+    } finally {
+      restoreScrollSize();
+    }
   });
 
   test("uses deterministic workbench item and marker ids when provided", () => {

@@ -80,10 +80,41 @@ export function getNextTimelineEditorPixelsPerSecond(pixelsPerSecond: number, di
   );
 }
 
+export function getTimelineEditorScrollLeftMs(
+  scrollLeftPx: number,
+  pixelsPerSecond: number,
+  durationMs: number,
+) {
+  return clampTimelineEditorTime(
+    (Math.max(0, scrollLeftPx - timelineEditorTrackHeaderWidthPx) / Math.max(1, pixelsPerSecond)) *
+      1_000,
+    0,
+    durationMs,
+  );
+}
+
+export function getTimelineEditorScrollLeftPx(
+  scrollLeftMs: number,
+  pixelsPerSecond: number,
+  scroller: HTMLDivElement,
+) {
+  const targetPx =
+    scrollLeftMs <= 0
+      ? 0
+      : timelineEditorTrackHeaderWidthPx + (scrollLeftMs / 1_000) * pixelsPerSecond;
+
+  return clampTimelineEditorTime(
+    targetPx,
+    0,
+    Math.max(0, scroller.scrollWidth - scroller.clientWidth),
+  );
+}
+
 export function useTimelineEditorMeasuredViewport(
   scrollerRef: RefObject<HTMLDivElement | null>,
   pendingWheelZoomRef: RefObject<{ offsetX: number; timeMs: number } | null>,
   pixelsPerSecond: number,
+  scrollLeftMs?: number,
 ) {
   const [measuredViewport, setMeasuredViewport] = useState({
     scrollLeftPx: 0,
@@ -121,6 +152,28 @@ export function useTimelineEditorMeasuredViewport(
       observer.disconnect();
     };
   }, [scrollerRef]);
+
+  useLayoutEffect(() => {
+    const scroller = scrollerRef.current;
+
+    if (!scroller || scrollLeftMs === undefined) {
+      return;
+    }
+
+    const nextScrollLeft = getTimelineEditorScrollLeftPx(scrollLeftMs, pixelsPerSecond, scroller);
+
+    if (Math.abs(scroller.scrollLeft - nextScrollLeft) < 1) {
+      return;
+    }
+
+    scroller.scrollLeft = nextScrollLeft;
+    setMeasuredViewport({
+      scrollLeftPx: nextScrollLeft,
+      scrollTopPx: scroller.scrollTop,
+      widthPx: scroller.clientWidth,
+      heightPx: scroller.clientHeight,
+    });
+  }, [pixelsPerSecond, scrollLeftMs, scrollerRef]);
 
   useLayoutEffect(() => {
     const scroller = scrollerRef.current;

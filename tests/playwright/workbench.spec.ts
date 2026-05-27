@@ -199,17 +199,48 @@ test("zooms the timeline with ctrl mousewheel", async ({ page }) => {
   expect(initialBox).not.toBeNull();
   expect(editorBox).not.toBeNull();
 
-  await getTimelineEditor(page).dispatchEvent("wheel", {
-    bubbles: true,
-    cancelable: true,
-    clientX: editorBox!.x + editorBox!.width / 2,
-    ctrlKey: true,
-    deltaY: -120,
-  });
+  const defaultAllowed = await getTimelineEditor(page).evaluate(
+    (editor, clientX) =>
+      editor.dispatchEvent(
+        new WheelEvent("wheel", {
+          bubbles: true,
+          cancelable: true,
+          clientX,
+          ctrlKey: true,
+          deltaY: -120,
+        }),
+      ),
+    editorBox!.x + editorBox!.width / 2,
+  );
 
+  expect(defaultAllowed).toBe(false);
   await expect
     .poll(async () => (await ruler.boundingBox())?.width ?? 0)
     .toBeGreaterThan(initialBox!.width);
+});
+
+test("keeps horizontal timeline scroll on the editor scroller", async ({ page }) => {
+  await page.goto("/?fixture=large");
+
+  const scrollState = await getTimelineEditor(page).evaluate((editor) => {
+    window.scrollTo(0, 0);
+    editor.scrollLeft = 200;
+    editor.dispatchEvent(new Event("scroll", { bubbles: true }));
+
+    return {
+      bodyScrollLeft: document.body.scrollLeft,
+      documentScrollLeft: document.documentElement.scrollLeft,
+      editorScrollLeft: editor.scrollLeft,
+      windowScrollX: window.scrollX,
+    };
+  });
+
+  expect(scrollState).toEqual({
+    bodyScrollLeft: 0,
+    documentScrollLeft: 0,
+    editorScrollLeft: 200,
+    windowScrollX: 0,
+  });
 });
 
 test("virtualizes large timeline rows", async ({ page }) => {

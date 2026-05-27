@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@moritzbrantner/ui";
 
@@ -61,6 +61,7 @@ import { TimelineEditorTrackList } from "./timeline-editor/track-list";
 import type { TimelineEditorDragState, TimelineEditorProps } from "./timeline-editor/types";
 import {
   getNextTimelineEditorPixelsPerSecond,
+  getTimelineEditorScrollLeftMs,
   getTimelineEditorVisibleRange,
   resolveTimelineEditorViewport,
   useTimelineEditorMeasuredViewport,
@@ -108,6 +109,7 @@ export function TimelineEditor<
   getItemContextMenuItems,
   getTrackContextMenuItems,
   className,
+  style,
   onScroll,
   onWheel,
   ...props
@@ -149,6 +151,7 @@ export function TimelineEditor<
     scrollerRef,
     pendingWheelZoomRef,
     resolvedViewport.pixelsPerSecond,
+    resolvedViewport.scrollLeftMs,
   );
   const [dragState, setDragState] = useState<TimelineEditorDragState<
     TItemData,
@@ -324,47 +327,75 @@ export function TimelineEditor<
       widthPx: event.currentTarget.clientWidth,
       heightPx: event.currentTarget.clientHeight,
     });
+    onViewportChange?.({
+      ...resolvedViewport,
+      scrollLeftMs: getTimelineEditorScrollLeftMs(
+        event.currentTarget.scrollLeft,
+        resolvedViewport.pixelsPerSecond,
+        durationMs,
+      ),
+    });
     onScroll?.(event);
   };
 
-  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
-    onWheel?.(event);
+  const handleNativeWheel = useCallback(
+    (event: WheelEvent) => {
+      if (!event.ctrlKey || event.defaultPrevented || !event.cancelable) {
+        return;
+      }
 
-    if (event.defaultPrevented || !event.ctrlKey) {
+      const scroller = scrollerRef.current;
+
+      if (!scroller) {
+        return;
+      }
+
+      event.preventDefault();
+      const direction = event.deltaY < 0 ? 1 : -1;
+      const nextPixelsPerSecond = getNextTimelineEditorPixelsPerSecond(
+        resolvedViewport.pixelsPerSecond,
+        direction,
+      );
+
+      if (nextPixelsPerSecond === resolvedViewport.pixelsPerSecond) {
+        return;
+      }
+
+      const scrollerRect = scroller.getBoundingClientRect();
+      const offsetX = clampTimelineEditorTime(
+        event.clientX - scrollerRect.left,
+        0,
+        scroller.clientWidth,
+      );
+      const timeMs = clampTimelineEditorTime(
+        ((scroller.scrollLeft + offsetX - timelineEditorTrackHeaderWidthPx) /
+          Math.max(1, resolvedViewport.pixelsPerSecond)) *
+          1_000,
+        0,
+        durationMs,
+      );
+      pendingWheelZoomRef.current = { offsetX, timeMs };
+      onViewportChange?.({
+        ...resolvedViewport,
+        pixelsPerSecond: nextPixelsPerSecond,
+      });
+    },
+    [durationMs, onViewportChange, resolvedViewport],
+  );
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+
+    if (!scroller) {
       return;
     }
 
-    event.preventDefault();
-    const direction = event.deltaY < 0 ? 1 : -1;
-    const nextPixelsPerSecond = getNextTimelineEditorPixelsPerSecond(
-      resolvedViewport.pixelsPerSecond,
-      direction,
-    );
+    scroller.addEventListener("wheel", handleNativeWheel, { passive: false });
 
-    if (nextPixelsPerSecond === resolvedViewport.pixelsPerSecond) {
-      return;
-    }
-
-    const scroller = event.currentTarget;
-    const scrollerRect = scroller.getBoundingClientRect();
-    const offsetX = clampTimelineEditorTime(
-      event.clientX - scrollerRect.left,
-      0,
-      scroller.clientWidth,
-    );
-    const timeMs = clampTimelineEditorTime(
-      ((scroller.scrollLeft + offsetX - timelineEditorTrackHeaderWidthPx) /
-        Math.max(1, resolvedViewport.pixelsPerSecond)) *
-        1_000,
-      0,
-      durationMs,
-    );
-    pendingWheelZoomRef.current = { offsetX, timeMs };
-    onViewportChange?.({
-      ...resolvedViewport,
-      pixelsPerSecond: nextPixelsPerSecond,
-    });
-  };
+    return () => {
+      scroller.removeEventListener("wheel", handleNativeWheel);
+    };
+  }, [handleNativeWheel]);
 
   return (
     <div
@@ -372,13 +403,18 @@ export function TimelineEditor<
       data-read-only={readOnly ? "true" : undefined}
       ref={scrollerRef}
       className={cn("overflow-auto rounded-md border bg-card text-card-foreground", className)}
+      style={{
+        overscrollBehavior: "contain",
+        overflowAnchor: "none",
+        ...style,
+      }}
       tabIndex={0}
       onPointerMove={handlePointerMove}
       onPointerUp={commitDrag}
       onPointerCancel={cancelDrag}
       onKeyDown={handleKeyDown}
       onScroll={handleScroll}
-      onWheel={handleWheel}
+      onWheel={onWheel}
       {...props}
     >
       <div className="relative" style={{ width: editorWidthPx }}>
