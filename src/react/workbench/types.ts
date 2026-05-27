@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import type { MenuActionItem } from "@moritzbrantner/ui";
 
@@ -80,6 +80,7 @@ export type TimelineWorkbenchProps<
   virtualization?: TimelineEditorVirtualizationOptions;
   assets?: Array<TimelineWorkbenchAsset<TAssetData>>;
   className?: string;
+  style?: CSSProperties;
   createItemId?: (asset: TimelineWorkbenchAsset<TAssetData>) => string;
   createMarkerId?: (timeMs: number) => string;
   onDocumentChange?: (document: TimelineEditorDocument<TTrackData, TItemData>) => void;

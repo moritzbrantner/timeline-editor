@@ -2,7 +2,11 @@
 
 import { InspectorPanel, type InspectorFieldValue } from "@moritzbrantner/ui/labs";
 
-import { getTimelineEditorItemEndMs, snapTimelineEditorTime } from "../../core";
+import {
+  formatTimelineEditorTimeMs,
+  getTimelineEditorItemEndMs,
+  snapTimelineEditorTime,
+} from "../../core";
 import type { TimelineWorkbenchInspectorContext } from "../workbench";
 
 export function DefaultTimelineInspector<TData>({
@@ -14,23 +18,45 @@ export function DefaultTimelineInspector<TData>({
 }) {
   const item = context.selectedItem;
   const inputStepMs = timingStepMs ?? 100;
+  const documentItemCount = context.document.tracks.reduce(
+    (count, track) => count + track.items.length,
+    0,
+  );
 
   if (context.selectedItems.length > 1) {
+    const selectionStartMs = Math.min(...context.selectedItems.map((selected) => selected.startMs));
+    const selectionEndMs = Math.max(
+      ...context.selectedItems.map((selected) => getTimelineEditorItemEndMs(selected)),
+    );
+
     return (
-      <div className="grid gap-3 p-4 text-sm">
-        <div className="font-medium">{context.selectedItems.length} timeline items</div>
-        <div className="text-muted-foreground">
-          Shared actions are available from the toolbar. Select one item to edit timing fields.
-        </div>
-      </div>
+      <TimelineWorkbenchInfoPanel
+        title="Selection"
+        summary={`${context.selectedItems.length} timeline items`}
+        rows={[
+          ["Start", formatTimelineEditorTimeMs(selectionStartMs)],
+          ["End", formatTimelineEditorTimeMs(selectionEndMs)],
+          ["Span", formatTimelineEditorTimeMs(selectionEndMs - selectionStartMs)],
+        ]}
+      />
     );
   }
 
   if (!item) {
     return (
-      <div className="p-4 text-sm text-muted-foreground">
-        Select a timeline item to inspect its timing and metadata.
-      </div>
+      <TimelineWorkbenchInfoPanel
+        title="Document"
+        summary={formatDocumentSummary(context.document.tracks.length, documentItemCount)}
+        rows={[
+          ["Duration", formatTimelineEditorTimeMs(context.durationMs)],
+          ["Current time", formatTimelineEditorTimeMs(context.document.currentTimeMs ?? 0)],
+          ["Tracks", context.document.tracks.length],
+          ["Items", documentItemCount],
+          ["Markers", context.document.markers?.length ?? 0],
+          ["Groups", context.document.groups?.length ?? 0],
+          ["Item groups", context.document.itemGroups?.length ?? 0],
+        ]}
+      />
     );
   }
 
@@ -87,4 +113,37 @@ function toNumber(value: InspectorFieldValue, fallback: number) {
 
 function snapTimelineWorkbenchInspectorTime(timeMs: number, snapMs?: number) {
   return snapMs && snapMs > 0 ? snapTimelineEditorTime(timeMs, snapMs) : timeMs;
+}
+
+function formatDocumentSummary(trackCount: number, itemCount: number) {
+  return `${trackCount} ${trackCount === 1 ? "track" : "tracks"} · ${itemCount} ${
+    itemCount === 1 ? "item" : "items"
+  }`;
+}
+
+function TimelineWorkbenchInfoPanel({
+  title,
+  summary,
+  rows,
+}: {
+  title: string;
+  summary: string;
+  rows: Array<[string, string | number]>;
+}) {
+  return (
+    <aside className="grid gap-3 p-3 text-sm">
+      <div className="grid gap-1">
+        <h2 className="text-sm font-semibold">{title}</h2>
+        <p className="text-xs text-muted-foreground">{summary}</p>
+      </div>
+      <dl className="grid gap-2">
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex items-center justify-between gap-3">
+            <dt className="min-w-0 truncate text-muted-foreground">{label}</dt>
+            <dd className="text-right font-medium tabular-nums">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </aside>
+  );
 }

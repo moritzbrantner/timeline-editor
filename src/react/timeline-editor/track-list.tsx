@@ -230,6 +230,7 @@ function TimelineEditorTrackRowComponent<TTrackData extends Record<string, unkno
   const track = (
     <div
       data-slot="timeline-editor-track"
+      data-track-id={entry.track.id}
       className="grid"
       style={{
         gridTemplateColumns: `${timelineEditorTrackHeaderWidthPx}px ${timelineWidthPx}px`,

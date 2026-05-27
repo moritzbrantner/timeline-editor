@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-import { type MenuActionItem, WorkbenchLayout, WorkbenchPanel, cn } from "@moritzbrantner/ui";
+import { type MenuActionItem, WorkbenchPanel, cn } from "@moritzbrantner/ui";
 
 import {
   detectTimelineEditorOverlaps,
@@ -45,6 +45,7 @@ import {
   getTimelineWorkbenchSelectionPayload,
 } from "./workbench/selection";
 import { TimelineWorkbenchToolbar } from "./workbench/toolbar";
+import { TimelineWorkbenchPreview } from "./workbench/preview";
 import type {
   TimelineWorkbenchAsset,
   TimelineWorkbenchInspectorContext,
@@ -77,6 +78,7 @@ export function TimelineWorkbench<
   virtualization,
   assets = [],
   className,
+  style,
   createItemId,
   createMarkerId,
   onDocumentChange,
@@ -261,20 +263,30 @@ export function TimelineWorkbench<
     updateSelectedItem,
   } satisfies TimelineWorkbenchInspectorContext<TItemData>;
 
-  const insertAsset = (asset: TimelineWorkbenchAsset<TAssetData>) => {
+  const insertAssetAt = (
+    asset: TimelineWorkbenchAsset<TAssetData>,
+    placement: { trackId?: string; timeMs: number },
+  ) => {
+    const requestedTrack = placement.trackId
+      ? document.tracks.find((track) => track.id === placement.trackId)
+      : undefined;
     const selectedTrackForPlacement =
-      selectedTrack && canPlaceTimelineWorkbenchAssetOnTrack(asset, selectedTrack)
+      !requestedTrack &&
+      selectedTrack &&
+      canPlaceTimelineWorkbenchAssetOnTrack(asset, selectedTrack)
         ? selectedTrack
         : undefined;
     const targetTrack =
-      selectedTrackForPlacement ??
-      document.tracks.find((track) => canPlaceTimelineWorkbenchAssetOnTrack(asset, track));
+      requestedTrack && canPlaceTimelineWorkbenchAssetOnTrack(asset, requestedTrack)
+        ? requestedTrack
+        : (selectedTrackForPlacement ??
+          document.tracks.find((track) => canPlaceTimelineWorkbenchAssetOnTrack(asset, track)));
 
     if (!targetTrack || readOnly) {
       return;
     }
 
-    onAssetInsert?.(asset, { trackId: targetTrack.id, timeMs: currentTimeMs });
+    onAssetInsert?.(asset, { trackId: targetTrack.id, timeMs: placement.timeMs });
 
     if (onAssetInsert) {
       return;
@@ -284,7 +296,7 @@ export function TimelineWorkbench<
       id: createTimelineWorkbenchItemId(asset, createItemId),
       trackId: targetTrack.id,
       label: asset.label,
-      startMs: currentTimeMs,
+      startMs: placement.timeMs,
       durationMs: asset.durationMs,
       kind: asset.kind,
       color: asset.color,
@@ -292,6 +304,9 @@ export function TimelineWorkbench<
     };
 
     runCommand({ type: "insert-item", item });
+  };
+  const insertAsset = (asset: TimelineWorkbenchAsset<TAssetData>) => {
+    insertAssetAt(asset, { timeMs: currentTimeMs });
   };
 
   const getWorkbenchItemContextMenuItems = (
@@ -336,18 +351,83 @@ export function TimelineWorkbench<
   };
 
   return (
-    <WorkbenchLayout
-      className={cn("min-h-[34rem] overflow-hidden border border-border bg-background", className)}
-      leftPanel={
+    <div
+      data-slot="timeline-workbench"
+      className={cn("grid overflow-hidden border border-border bg-background", className)}
+      style={{
+        gridTemplateRows: "auto minmax(0, 1fr) minmax(0, 1fr)",
+        height: "42rem",
+        minHeight: "34rem",
+        ...style,
+      }}
+    >
+      <TimelineWorkbenchToolbar
+        document={document}
+        durationMs={durationMs}
+        hasSelectedItemGroup={hasSelectedItemGroup}
+        history={history}
+        inspectorContext={inspectorContext}
+        overlaps={overlaps}
+        pixelsPerSecond={pixelsPerSecond}
+        readOnly={readOnly}
+        renderToolbarActions={renderToolbarActions}
+        resolvedSelection={resolvedSelection}
+        resolvedViewport={resolvedViewport}
+        onAddMarker={() => {
+          const marker = {
+            id: createTimelineWorkbenchMarkerId(currentTimeMs, createMarkerId),
+            timeMs: currentTimeMs,
+            label: formatTimelineEditorTimeMs(currentTimeMs),
+          };
+          runCommand({ type: "add-marker", marker });
+        }}
+        onDelete={() => deleteItems()}
+        onDuplicate={() => duplicateItems()}
+        onGroup={() => groupItems()}
+        onRedo={() => {
+          const redo = redoTimelineEditorHistory(history);
+          setHistory(redo.history);
+          if (redo.document) {
+            onDocumentChange?.(redo.document);
+            if (redo.selection) {
+              commitSelection(redo.selection);
+            }
+          }
+        }}
+        onSplit={() => splitItems()}
+        onUndo={() => {
+          const undo = undoTimelineEditorHistory(history);
+          setHistory(undo.history);
+          if (undo.document) {
+            onDocumentChange?.(undo.document);
+            if (undo.selection) {
+              commitSelection(undo.selection);
+            }
+          }
+        }}
+        onUngroup={() => ungroupItems()}
+        onViewportChange={commitViewport}
+      />
+      <div
+        className="grid min-h-0 gap-3 overflow-auto border-b border-border/60 p-3"
+        style={{
+          gridTemplateColumns: "minmax(14rem, 9fr) minmax(18rem, 14fr) minmax(16rem, 10fr)",
+        }}
+      >
         <TimelineWorkbenchAssetsPanel
+          className="h-full min-w-0"
           assets={assets}
           readOnly={readOnly}
           renderAsset={renderAsset}
           onInsertAsset={insertAsset}
         />
-      }
-      rightPanel={
-        <WorkbenchPanel side="right" className="min-w-72">
+        <TimelineWorkbenchPreview
+          currentTimeMs={currentTimeMs}
+          document={document}
+          durationMs={durationMs}
+          selectedItems={selectedItems}
+        />
+        <WorkbenchPanel side="right" className="h-full min-w-0 p-0">
           {renderInspector ? (
             renderInspector(inspectorContext)
           ) : (
@@ -357,58 +437,9 @@ export function TimelineWorkbench<
             />
           )}
         </WorkbenchPanel>
-      }
-      toolbar={
-        <TimelineWorkbenchToolbar
-          document={document}
-          durationMs={durationMs}
-          hasSelectedItemGroup={hasSelectedItemGroup}
-          history={history}
-          inspectorContext={inspectorContext}
-          overlaps={overlaps}
-          pixelsPerSecond={pixelsPerSecond}
-          readOnly={readOnly}
-          renderToolbarActions={renderToolbarActions}
-          resolvedSelection={resolvedSelection}
-          resolvedViewport={resolvedViewport}
-          onAddMarker={() => {
-            const marker = {
-              id: createTimelineWorkbenchMarkerId(currentTimeMs, createMarkerId),
-              timeMs: currentTimeMs,
-              label: formatTimelineEditorTimeMs(currentTimeMs),
-            };
-            runCommand({ type: "add-marker", marker });
-          }}
-          onDelete={() => deleteItems()}
-          onDuplicate={() => duplicateItems()}
-          onGroup={() => groupItems()}
-          onRedo={() => {
-            const redo = redoTimelineEditorHistory(history);
-            setHistory(redo.history);
-            if (redo.document) {
-              onDocumentChange?.(redo.document);
-              if (redo.selection) {
-                commitSelection(redo.selection);
-              }
-            }
-          }}
-          onSplit={() => splitItems()}
-          onUndo={() => {
-            const undo = undoTimelineEditorHistory(history);
-            setHistory(undo.history);
-            if (undo.document) {
-              onDocumentChange?.(undo.document);
-              if (undo.selection) {
-                commitSelection(undo.selection);
-              }
-            }
-          }}
-          onUngroup={() => ungroupItems()}
-          onViewportChange={commitViewport}
-        />
-      }
-    >
+      </div>
       <TimelineWorkbenchCanvas
+        assets={assets}
         document={document}
         editPolicy={editPolicy}
         frameRate={frameRate}
@@ -423,10 +454,11 @@ export function TimelineWorkbench<
         onAddTimeline={addTimeline}
         onCurrentTimeChange={onCurrentTimeChange}
         onDocumentChange={commitDocument}
+        onDropAsset={insertAssetAt}
         onSelectionChange={commitSelection}
         onViewportChange={commitViewport}
       />
-    </WorkbenchLayout>
+    </div>
   );
 }
 

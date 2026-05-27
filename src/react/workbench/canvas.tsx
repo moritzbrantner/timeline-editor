@@ -10,14 +10,25 @@ import type {
 } from "../../core";
 import {
   TimelineEditor,
+  timelineEditorTrackHeaderWidthPx,
   type TimelineEditorItemContextMenuItems,
   type TimelineEditorItemRenderContext,
   type TimelineEditorTrackContextMenuItems,
   type TimelineEditorVirtualizationOptions,
 } from "../timeline-editor";
+import {
+  canPlaceTimelineWorkbenchAssetOnTrack,
+  timelineWorkbenchAssetDragDataType,
+} from "./assets";
 import { defaultTimelineWorkbenchHotkeys } from "./toolbar";
+import type { TimelineWorkbenchAsset } from "./types";
 
-type TimelineWorkbenchCanvasProps<TTrackData extends Record<string, unknown>, TItemData> = {
+type TimelineWorkbenchCanvasProps<
+  TTrackData extends Record<string, unknown>,
+  TItemData,
+  TAssetData,
+> = {
+  assets: Array<TimelineWorkbenchAsset<TAssetData>>;
   document: TimelineEditorDocument<TTrackData, TItemData>;
   editPolicy?: Partial<TimelineEditorEditPolicy>;
   frameRate?: number;
@@ -32,11 +43,20 @@ type TimelineWorkbenchCanvasProps<TTrackData extends Record<string, unknown>, TI
   onAddTimeline: () => void;
   onCurrentTimeChange?: (timeMs: number) => void;
   onDocumentChange: (document: TimelineEditorDocument<TTrackData, TItemData>) => void;
+  onDropAsset: (
+    asset: TimelineWorkbenchAsset<TAssetData>,
+    placement: { trackId: string; timeMs: number },
+  ) => void;
   onSelectionChange: (selection: TimelineEditorSelection) => void;
   onViewportChange: (viewport: TimelineEditorViewport) => void;
 };
 
-export function TimelineWorkbenchCanvas<TTrackData extends Record<string, unknown>, TItemData>({
+export function TimelineWorkbenchCanvas<
+  TTrackData extends Record<string, unknown>,
+  TItemData,
+  TAssetData,
+>({
+  assets,
   document,
   editPolicy,
   frameRate,
@@ -51,12 +71,50 @@ export function TimelineWorkbenchCanvas<TTrackData extends Record<string, unknow
   onAddTimeline,
   onCurrentTimeChange,
   onDocumentChange,
+  onDropAsset,
   onSelectionChange,
   onViewportChange,
-}: TimelineWorkbenchCanvasProps<TTrackData, TItemData>) {
+}: TimelineWorkbenchCanvasProps<TTrackData, TItemData, TAssetData>) {
+  const getAssetDropPlacement = (event: React.DragEvent<HTMLDivElement>) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const trackElement = target?.closest<HTMLElement>("[data-slot='timeline-editor-track']");
+    const trackId = trackElement?.dataset["trackId"];
+    const track = trackId ? document.tracks.find((candidate) => candidate.id === trackId) : null;
+
+    if (!track) {
+      return null;
+    }
+
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const timelineOffsetPx =
+      event.clientX -
+      bounds.left +
+      event.currentTarget.scrollLeft -
+      timelineEditorTrackHeaderWidthPx;
+    const timeMs = Math.max(
+      0,
+      Math.min(
+        document.durationMs ?? Number.POSITIVE_INFINITY,
+        (timelineOffsetPx / Math.max(1, resolvedViewport.pixelsPerSecond)) * 1_000,
+      ),
+    );
+
+    return { track, timeMs };
+  };
+
+  const getDraggedAsset = (event: React.DragEvent<HTMLDivElement>) => {
+    const assetId = event.dataTransfer.getData(timelineWorkbenchAssetDragDataType);
+
+    return assets.find((asset) => asset.id === assetId);
+  };
+
   return (
-    <WorkbenchCanvas className="overflow-auto p-3">
+    <WorkbenchCanvas
+      className="grid min-h-0 overflow-hidden p-3"
+      style={{ gridTemplateRows: "minmax(0, 1fr) auto" }}
+    >
       <TimelineEditor
+        className="h-full min-h-0 w-full"
         document={document}
         selection={resolvedSelection}
         viewport={resolvedViewport}
@@ -82,6 +140,44 @@ export function TimelineWorkbenchCanvas<TTrackData extends Record<string, unknow
         renderItem={renderTimelineItem}
         getItemContextMenuItems={getItemContextMenuItems}
         getTrackContextMenuItems={getTrackContextMenuItems}
+        onDragOver={(event) => {
+          if (readOnly || !event.dataTransfer.types.includes(timelineWorkbenchAssetDragDataType)) {
+            return;
+          }
+
+          const asset = getDraggedAsset(event);
+          const placement = getAssetDropPlacement(event);
+
+          if (
+            !asset ||
+            !placement ||
+            !canPlaceTimelineWorkbenchAssetOnTrack(asset, placement.track)
+          ) {
+            return;
+          }
+
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+        }}
+        onDrop={(event) => {
+          if (readOnly || !event.dataTransfer.types.includes(timelineWorkbenchAssetDragDataType)) {
+            return;
+          }
+
+          const asset = getDraggedAsset(event);
+          const placement = getAssetDropPlacement(event);
+
+          if (
+            !asset ||
+            !placement ||
+            !canPlaceTimelineWorkbenchAssetOnTrack(asset, placement.track)
+          ) {
+            return;
+          }
+
+          event.preventDefault();
+          onDropAsset(asset, { trackId: placement.track.id, timeMs: placement.timeMs });
+        }}
       />
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button

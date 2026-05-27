@@ -2,11 +2,12 @@
 
 import type { ReactNode } from "react";
 
-import { Badge, Button, WorkbenchPanel } from "@moritzbrantner/ui";
-import { AssetBrowser, type AssetBrowserItem } from "@moritzbrantner/ui/labs";
+import { Badge, Button, WorkbenchPanel, cn } from "@moritzbrantner/ui";
 
 import { formatTimelineEditorTimeMs, type TimelineEditorTrack } from "../../core";
 import type { TimelineWorkbenchAsset } from "./types";
+
+export const timelineWorkbenchAssetDragDataType = "application/x-timeline-workbench-asset-id";
 
 export function canPlaceTimelineWorkbenchAssetOnTrack<TTrackData, TItemData, TAssetData>(
   asset: TimelineWorkbenchAsset<TAssetData>,
@@ -21,71 +22,89 @@ export function canPlaceTimelineWorkbenchAssetOnTrack<TTrackData, TItemData, TAs
 export function getTimelineWorkbenchAssetBrowserItems<TAssetData>(
   assets: Array<TimelineWorkbenchAsset<TAssetData>>,
 ) {
-  return assets.map(
-    (asset): AssetBrowserItem => ({
-      id: asset.id,
-      name: asset.label,
-      type: "file",
-      description: asset.description ?? asset.kind,
-      metadata: {
-        Duration: formatTimelineEditorTimeMs(asset.durationMs),
-        Kind: asset.kind ?? "item",
-      },
-    }),
-  );
+  return assets.map((asset) => ({
+    id: asset.id,
+    name: asset.label,
+    type: "file",
+    description: asset.description ?? asset.kind,
+    metadata: {
+      Duration: formatTimelineEditorTimeMs(asset.durationMs),
+      Kind: asset.kind ?? "item",
+    },
+  }));
 }
 
 type TimelineWorkbenchAssetsPanelProps<TAssetData> = {
   assets: Array<TimelineWorkbenchAsset<TAssetData>>;
+  className?: string;
   readOnly: boolean;
   renderAsset?: (asset: TimelineWorkbenchAsset<TAssetData>) => ReactNode;
+  onMinimize?: () => void;
   onInsertAsset: (asset: TimelineWorkbenchAsset<TAssetData>) => void;
 };
 
 export function TimelineWorkbenchAssetsPanel<TAssetData>({
   assets,
+  className,
   readOnly,
   renderAsset,
+  onMinimize,
   onInsertAsset,
 }: TimelineWorkbenchAssetsPanelProps<TAssetData>) {
   const assetBrowserItems = getTimelineWorkbenchAssetBrowserItems(assets);
+  const assetBrowserItemLookup = new Map(assetBrowserItems.map((item) => [item.id, item]));
 
   return (
-    <WorkbenchPanel side="left" className="min-w-64">
+    <WorkbenchPanel side="left" className={cn("min-w-64 p-0", className)}>
       <div className="grid gap-3 p-3">
         <div className="flex items-center justify-between gap-3">
           <div className="text-sm font-medium">Assets</div>
-          <Badge variant="secondary">{assets.length}</Badge>
-        </div>
-        {renderAsset ? (
-          <div className="grid gap-2">
-            {assets.map((asset) => (
-              <Button
-                key={asset.id}
-                type="button"
-                variant="ghost"
-                className="h-auto justify-start border border-border bg-background px-3 py-2 text-left"
-                disabled={readOnly}
-                onClick={() => onInsertAsset(asset)}
-              >
-                {renderAsset(asset)}
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary">{assets.length}</Badge>
+            {onMinimize ? (
+              <Button type="button" size="sm" variant="ghost" onClick={onMinimize}>
+                Minimize
               </Button>
-            ))}
+            ) : null}
+          </div>
+        </div>
+        {assets.length > 0 ? (
+          <div className="grid gap-2">
+            {assets.map((asset) => {
+              const assetBrowserItem = assetBrowserItemLookup.get(asset.id);
+
+              return (
+                <Button
+                  key={asset.id}
+                  type="button"
+                  variant="ghost"
+                  className="h-auto justify-start border border-border bg-background px-3 py-2 text-left"
+                  disabled={readOnly}
+                  draggable={!readOnly}
+                  onClick={() => onInsertAsset(asset)}
+                  onDragStart={(event) => {
+                    event.dataTransfer.effectAllowed = "copy";
+                    event.dataTransfer.setData(timelineWorkbenchAssetDragDataType, asset.id);
+                    event.dataTransfer.setData("text/plain", asset.label);
+                  }}
+                >
+                  {renderAsset ? (
+                    renderAsset(asset)
+                  ) : (
+                    <span className="grid gap-1">
+                      <span className="font-medium">{assetBrowserItem?.name ?? asset.label}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {assetBrowserItem?.description ?? asset.kind ?? "item"} ·{" "}
+                        {formatTimelineEditorTimeMs(asset.durationMs)}
+                      </span>
+                    </span>
+                  )}
+                </Button>
+              );
+            })}
           </div>
         ) : (
-          <AssetBrowser
-            items={assetBrowserItems}
-            selectionMode="single"
-            showPreview={false}
-            emptyMessage="No timeline assets"
-            onOpenItem={(item) => {
-              const asset = assets.find((candidate) => candidate.id === item.id);
-
-              if (asset) {
-                onInsertAsset(asset);
-              }
-            }}
-          />
+          <p className="text-sm text-muted-foreground">No timeline assets</p>
         )}
       </div>
     </WorkbenchPanel>

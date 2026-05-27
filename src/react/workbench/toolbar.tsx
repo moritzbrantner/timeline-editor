@@ -72,8 +72,8 @@ export function TimelineWorkbenchToolbar<TTrackData, TItemData>({
   onViewportChange,
 }: TimelineWorkbenchToolbarProps<TTrackData, TItemData>) {
   return (
-    <WorkbenchToolbar className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-3 py-2">
-      <div className="flex flex-wrap items-center gap-2">
+    <WorkbenchToolbar className="min-h-9 justify-between gap-2 border-b border-border px-2 py-1">
+      <div className="flex flex-wrap items-center gap-1.5">
         <Button
           type="button"
           size="sm"
@@ -155,7 +155,7 @@ export function TimelineWorkbenchToolbar<TTrackData, TItemData>({
           Nudge {formatShortcutLabel(defaultTimelineWorkbenchHotkeys.nudgeRight)}
         </span>
       </div>
-      <div className="flex min-w-52 items-center gap-3">
+      <div className="flex min-w-44 items-center gap-2">
         <span className="text-xs text-muted-foreground">Zoom</span>
         <Slider
           value={[resolvedViewport.pixelsPerSecond]}
