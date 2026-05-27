@@ -9,6 +9,7 @@ import {
   getVisibleTimelineEditorTicks,
 } from "../timeline-rendering";
 import { timelineEditorRulerHeightPx, timelineEditorTrackHeaderWidthPx } from "./constants";
+import { isTimelineEditorPrimaryPointerButton } from "./pointer";
 import type { TimelineEditorVisibleRange } from "./viewport";
 import { isTimelineEditorTimeVisible } from "./viewport";
 
@@ -27,6 +28,7 @@ type TimelineEditorRulerProps<TTrackData, TItemData> = {
     marker: TimelineEditorMarker,
     event: React.PointerEvent<HTMLDivElement>,
   ) => void;
+  onScrubPointerDown?: (event: React.PointerEvent<HTMLDivElement>) => void;
   setCurrentTime: (
     document: TimelineEditorDocument<TTrackData, TItemData>,
     timeMs: number,
@@ -46,6 +48,7 @@ export function TimelineEditorRuler<TTrackData, TItemData>({
   onCurrentTimeChange,
   onDocumentChange,
   onMarkerPointerDown,
+  onScrubPointerDown,
   setCurrentTime,
 }: TimelineEditorRulerProps<TTrackData, TItemData>) {
   return (
@@ -63,6 +66,11 @@ export function TimelineEditorRuler<TTrackData, TItemData>({
           data-slot="timeline-editor-ruler-lane"
           className="relative"
           onPointerDown={(event) => {
+            if (event.defaultPrevented || !isTimelineEditorPrimaryPointerButton(event)) {
+              return;
+            }
+
+            onScrubPointerDown?.(event);
             const timeMs = getTimelineEditorTimeFromPointer(event, durationMs);
             const nextDocument = setCurrentTime(document, timeMs, {
               durationMs,

@@ -169,7 +169,10 @@ export function TimelineWorkbench<
   };
 
   const commitDocument = (nextDocument: TimelineEditorDocument<TTrackData, TItemData>) => {
-    if (nextDocument !== document) {
+    if (
+      nextDocument !== document &&
+      !isTimelineWorkbenchCurrentTimeOnlyChange(document, nextDocument)
+    ) {
       setHistory((currentHistory) => ({
         undoStack: [
           ...currentHistory.undoStack,
@@ -889,6 +892,20 @@ export function TimelineWorkbench<
         onViewportChange={commitViewport}
       />
     </div>
+  );
+}
+
+function isTimelineWorkbenchCurrentTimeOnlyChange<TTrackData, TItemData>(
+  document: TimelineEditorDocument<TTrackData, TItemData>,
+  nextDocument: TimelineEditorDocument<TTrackData, TItemData>,
+) {
+  return (
+    nextDocument.tracks === document.tracks &&
+    nextDocument.groups === document.groups &&
+    nextDocument.itemGroups === document.itemGroups &&
+    nextDocument.durationMs === document.durationMs &&
+    nextDocument.markers === document.markers &&
+    nextDocument.currentTimeMs !== document.currentTimeMs
   );
 }
 

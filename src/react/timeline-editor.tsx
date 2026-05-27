@@ -52,6 +52,7 @@ import { useTimelineEditorKeyboard } from "./timeline-editor/keyboard";
 import {
   captureTimelineEditorPointer,
   getTimelineEditorPointerClientX,
+  isTimelineEditorPrimaryPointerButton,
 } from "./timeline-editor/pointer";
 import { useTimelineEditorPreview } from "./timeline-editor/preview";
 import {
@@ -168,6 +169,7 @@ export function TimelineEditor<
     startX: number;
     originalTimeMs: number;
   } | null>(null);
+  const [scrubState, setScrubState] = useState<{ pointerId: number } | null>(null);
   const selectedIds = useMemo(() => new Set(selection.itemIds), [selection.itemIds]);
   const documentIndex = useMemo(() => createTimelineEditorDocumentIndex(document), [document]);
   const selectedItems = useMemo(
@@ -255,7 +257,61 @@ export function TimelineEditor<
     commitSelection({ itemIds: groupedItemIds, anchorItemId: item.id });
   };
 
+  const beginTimelineScrub = (event: React.PointerEvent<Element>) => {
+    const scroller = scrollerRef.current;
+
+    if (
+      event.defaultPrevented ||
+      !isTimelineEditorPrimaryPointerButton(event) ||
+      !scroller ||
+      dragState ||
+      markerDragState
+    ) {
+      return false;
+    }
+
+    event.preventDefault();
+    captureTimelineEditorPointer(scroller, event.pointerId);
+    setScrubState({ pointerId: event.pointerId });
+    return true;
+  };
+
+  const commitCurrentTimeAtClientX = (clientX: number) => {
+    const scroller = scrollerRef.current;
+
+    if (!scroller) {
+      return;
+    }
+
+    const scrollerRect = scroller.getBoundingClientRect();
+    const timelineOffsetPx =
+      clientX - scrollerRect.left + scroller.scrollLeft - timelineEditorTrackHeaderWidthPx;
+    const timeMs = clampTimelineEditorTime(
+      (timelineOffsetPx / Math.max(1, resolvedViewport.pixelsPerSecond)) * 1_000,
+      0,
+      durationMs,
+    );
+    const nextDocument = setTimelineEditorCurrentTime(document, timeMs, {
+      durationMs,
+      snapMs: nudgeMs,
+    });
+
+    onCurrentTimeChange?.(nextDocument.currentTimeMs ?? 0);
+
+    if (nextDocument !== document) {
+      commitDocument(nextDocument);
+    }
+  };
+
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (scrubState) {
+      if (event.pointerId === scrubState.pointerId) {
+        commitCurrentTimeAtClientX(getTimelineEditorPointerClientX(event));
+      }
+
+      return;
+    }
+
     if (markerDragState || !dragState || readOnly) {
       return;
     }
@@ -360,6 +416,7 @@ export function TimelineEditor<
     cancelScheduledPreview();
     setDragState(null);
     setMarkerDragState(null);
+    setScrubState(null);
     clearPreview();
   };
 
@@ -367,6 +424,7 @@ export function TimelineEditor<
     cancelScheduledPreview();
     setDragState(null);
     setMarkerDragState(null);
+    setScrubState(null);
     clearPreview();
   };
 
@@ -391,16 +449,21 @@ export function TimelineEditor<
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     onPointerDown?.(event);
 
-    if (event.defaultPrevented || event.button !== 0) {
+    if (event.defaultPrevented || !isTimelineEditorPrimaryPointerButton(event)) {
       return;
     }
 
     const target = event.target instanceof Element ? event.target : null;
 
+    if (target?.closest("[data-slot='timeline-editor-ruler-lane']")) {
+      return;
+    }
+
     if (
       target?.closest("[data-slot='timeline-editor-track-lane']") &&
       !target.closest("[data-slot='timeline-editor-clip']")
     ) {
+      beginTimelineScrub(event);
       commitSelection(defaultTimelineEditorSelection);
     }
   };
@@ -529,6 +592,7 @@ export function TimelineEditor<
               originalTimeMs: marker.timeMs,
             });
           }}
+          onScrubPointerDown={beginTimelineScrub}
         />
         <TimelineEditorTrackList
           document={document}

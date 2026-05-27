@@ -477,6 +477,29 @@ test("clears selection from an empty timeline lane and previews playhead content
   await expect(preview.getByText("Handoff task")).toBeVisible();
 });
 
+test("scrubs the preview by dragging an empty timeline lane", async ({ page }) => {
+  await page.goto("/");
+
+  const rulerLaneBox = await getTimelineRulerLane(page).boundingBox();
+  const reviewTrackBox = await getTimelineTrack(page, "Review").boundingBox();
+  expect(rulerLaneBox).not.toBeNull();
+  expect(reviewTrackBox).not.toBeNull();
+
+  const startX = rulerLaneBox!.x + rulerLaneBox!.width * 0.25;
+  const endX = rulerLaneBox!.x + rulerLaneBox!.width * 0.75;
+  const y = reviewTrackBox!.y + reviewTrackBox!.height / 2;
+
+  await page.mouse.move(startX, y);
+  await page.mouse.down();
+  await page.mouse.move(endX, y, { steps: 5 });
+  await page.mouse.up();
+
+  await expect.poll(async () => (await getHarnessState(page)).document.currentTimeMs).toBe(6_000);
+  await expect(
+    page.locator("[data-slot='timeline-workbench-preview']").last().getByText("0:06.0"),
+  ).toBeVisible();
+});
+
 test("duplicates, deletes, undoes, and redoes from the toolbar", async ({ page }) => {
   await page.goto("/");
 

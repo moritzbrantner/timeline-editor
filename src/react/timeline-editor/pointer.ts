@@ -4,6 +4,12 @@ export function getTimelineEditorPointerClientX(event: Pick<PointerEvent, "clien
   return Number.isFinite(event.clientX) ? event.clientX : 0;
 }
 
+export function isTimelineEditorPrimaryPointerButton(event: Pick<PointerEvent, "button">) {
+  const button = (event as { button?: number }).button;
+
+  return button === undefined || button === 0;
+}
+
 export function captureTimelineEditorPointer(element: Element, pointerId: number) {
   if (
     Number.isFinite(pointerId) &&
