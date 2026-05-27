@@ -432,6 +432,7 @@ until the next point. Supported easings are `linear`, `hold`, `ease-in`,
 ## Serialization Example
 
 ```ts
+import { migrateTimelineEditorDocument } from "@moritzbrantner/timeline-editor";
 import {
   parseTimelineEditorDocument,
   serializeTimelineEditorDocument,
@@ -439,7 +440,12 @@ import {
 
 const stored = serializeTimelineEditorDocument(document);
 const restored = parseTimelineEditorDocument(stored);
+const migrated = migrateTimelineEditorDocument(stored);
 ```
+
+Serialized documents use `schemaVersion: 1`. `migrateTimelineEditorDocument`
+accepts raw documents and v1 serialized documents, preserves custom `data`, and
+throws `TimelineEditorMigrationError` for unsupported future schema versions.
 
 ## Media Kinds
 
@@ -474,7 +480,6 @@ limits, including when the currently selected track rejects the asset kind.
 
 ## Enhancement Roadmap
 
-- More complete multi-select inspector editing.
-- Cross-track drag/drop placement.
-- Richer visual snap feedback and viewport scroll helpers.
-- Deeper examples for project planning, subtitles, sequencing, and annotation timelines.
+- More complete transform/keyframe inspector editing.
+- Broader track-group workflows for multi-track project structures.
+- Deeper examples for subtitles, sequencing, and annotation timelines.

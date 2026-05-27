@@ -28,8 +28,11 @@ jobs:
       - name: Verify
         run: bun run verify
 
-      - name: Test package exports
-        run: bun run test:package
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: bun run test:playwright
 
       - name: Create release PR or publish
         uses: changesets/action@v1

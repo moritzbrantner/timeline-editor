@@ -215,6 +215,72 @@ test("drops an asset on the timeline at a snapped frame timestamp", async ({ pag
     );
 });
 
+test("shows asset drop feedback for compatible and incompatible tracks", async ({ page }) => {
+  await page.goto("/");
+
+  const planningTrack = getTimelineTrack(page, "Planning");
+  const reviewTrack = getTimelineTrack(page, "Review");
+  const editorBox = await getTimelineEditor(page).boundingBox();
+  const planningBox = await planningTrack.boundingBox();
+  const reviewBox = await reviewTrack.boundingBox();
+  expect(editorBox).not.toBeNull();
+  expect(planningBox).not.toBeNull();
+  expect(reviewBox).not.toBeNull();
+
+  const dispatchDragOver = async (
+    trackLocator: Locator,
+    assetId: string,
+    clientX: number,
+    clientY: number,
+  ) =>
+    trackLocator.evaluate(
+      (track, point) => {
+        const dataTransfer = new DataTransfer();
+        dataTransfer.setData("application/x-timeline-workbench-asset-id", point.assetId);
+        dataTransfer.setData("text/plain", point.assetId);
+
+        return !track.dispatchEvent(
+          new DragEvent("dragover", {
+            bubbles: true,
+            cancelable: true,
+            clientX: point.clientX,
+            clientY: point.clientY,
+            dataTransfer,
+          }),
+        );
+      },
+      { assetId, clientX, clientY },
+    );
+
+  await dispatchDragOver(
+    planningTrack,
+    "prototype",
+    editorBox!.x + 80 + 99,
+    planningBox!.y + planningBox!.height / 2,
+  );
+  await expect(page.locator("[data-slot='timeline-workbench-drop-feedback']")).toHaveAttribute(
+    "data-allowed",
+    "true",
+  );
+  await expect(page.locator("[data-slot='timeline-workbench-drop-label']")).toContainText(
+    "Drop Prototype",
+  );
+
+  await dispatchDragOver(
+    reviewTrack,
+    "handoff-task",
+    editorBox!.x + 80 + 99,
+    reviewBox!.y + reviewBox!.height / 2,
+  );
+  await expect(page.locator("[data-slot='timeline-workbench-drop-feedback']")).toHaveAttribute(
+    "data-allowed",
+    "false",
+  );
+  await expect(page.locator("[data-slot='timeline-workbench-drop-label']")).toContainText(
+    "Incompatible Handoff task",
+  );
+});
+
 test("drags an asset from the asset panel onto the timeline", async ({ page }) => {
   await page.goto("/");
 

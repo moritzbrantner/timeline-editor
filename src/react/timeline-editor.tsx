@@ -21,6 +21,7 @@ import {
 import {
   createTimelineEditorSnapResolver,
   createTimelineEditorSnapOptions,
+  formatTimelineEditorTimeMs,
   getTimelineEditorFrameDurationMs,
   getTimelineEditorItemEndMs,
   clampTimelineEditorTime,
@@ -710,6 +711,25 @@ export function TimelineEditor<
             });
           }}
         />
+        {snapGuideMs !== null ? (
+          <div
+            data-slot="timeline-editor-snap-feedback"
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-0 top-9 z-20 border-l-2 border-primary/80"
+            style={{
+              left:
+                timelineEditorTrackHeaderWidthPx +
+                (snapGuideMs / Math.max(1, durationMs)) * timelineWidthPx,
+            }}
+          >
+            <span
+              data-slot="timeline-editor-snap-feedback-label"
+              className="absolute left-1 top-1 whitespace-nowrap rounded border bg-background px-1.5 py-0.5 text-[10px] font-medium text-foreground shadow-sm"
+            >
+              {formatTimelineEditorTimeMs(snapGuideMs)}
+            </span>
+          </div>
+        ) : null}
         <span className="sr-only" aria-live="polite">
           {selection.itemIds.length > 0
             ? `${selection.itemIds.length} timeline items selected`

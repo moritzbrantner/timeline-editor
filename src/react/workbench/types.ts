@@ -43,6 +43,11 @@ export type TimelineWorkbenchInspectorContext<TData = Record<string, unknown>> =
   selectedItems: Array<TimelineEditorItem<TData>>;
   selectedTrack?: TimelineEditorTrack<Record<string, unknown>, TData>;
   updateSelectedItem: (patch: Partial<TimelineEditorItem<TData>>) => void;
+  updateSelectedItems: (
+    patch:
+      | Partial<TimelineEditorItem<TData>>
+      | ((item: TimelineEditorItem<TData>) => Partial<TimelineEditorItem<TData>>),
+  ) => void;
 };
 
 export type TimelinePreviewContext<TItemData = Record<string, unknown>> = {

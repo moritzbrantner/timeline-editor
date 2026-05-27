@@ -33,6 +33,7 @@ import {
   setTimelineEditorItemTransform,
   splitTimelineEditorItem,
   TimelineEditor,
+  TimelineEditorMigrationError,
   undoTimelineEditorHistory,
   validateTimelineEditorDocument,
   type TimelineEditorDocument,
@@ -373,11 +374,27 @@ describe("@moritzbrantner/timeline-editor core", () => {
 
   test("validates, serializes, migrates, and creates timeline ticks", () => {
     const document: TimelineEditorDocument = { tracks, durationMs: 8_000 };
+    const documentWithData: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks: [
+        {
+          ...tracks[0]!,
+          items: [{ ...tracks[0]!.items[0]!, data: { priority: "high" } }],
+        },
+      ],
+    };
     const serialized = serializeTimelineEditorDocument(document);
 
     expect(serialized.schemaVersion).toBe(1);
     expect(parseTimelineEditorDocument(serialized).tracks[0]?.items[0]?.id).toBe("brief");
     expect(migrateTimelineEditorDocument(document).schemaVersion).toBe(1);
+    expect(
+      migrateTimelineEditorDocument(serializeTimelineEditorDocument(documentWithData)).document
+        .tracks[0]?.items[0]?.data,
+    ).toEqual({ priority: "high" });
+    expect(() => migrateTimelineEditorDocument({ schemaVersion: 99, document })).toThrowError(
+      TimelineEditorMigrationError,
+    );
     expect(validateTimelineEditorDocument(document)).toHaveLength(0);
     expect(getTimelineEditorTicks(2_000, 1_000)).toEqual([
       { timeMs: 0, label: "0:00.0", major: true },
@@ -1121,6 +1138,119 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
         ],
       }),
     );
+  });
+
+  test("edits shared multi-selection inspector fields in one document commit", () => {
+    type ItemData = { status?: string; owner?: string };
+    const document: TimelineEditorDocument<Record<string, unknown>, ItemData> = {
+      durationMs: 8_000,
+      tracks: [
+        {
+          id: "planning",
+          label: "Planning",
+          items: [
+            {
+              id: "brief",
+              trackId: "planning",
+              label: "Brief",
+              startMs: 1_000,
+              durationMs: 1_000,
+              data: { status: "todo", owner: "A" },
+            },
+            {
+              id: "draft",
+              trackId: "planning",
+              label: "Draft",
+              startMs: 3_000,
+              durationMs: 1_000,
+              data: { status: "doing", owner: "B" },
+            },
+          ],
+        },
+      ],
+    };
+    const handleDocumentChange = vi.fn();
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        selection={{ itemIds: ["brief", "draft"], anchorItemId: "brief" }}
+        inspectorSchema={{
+          itemFields: [{ id: "status", label: "Status", type: "text", dataKey: "status" }],
+        }}
+        onDocumentChange={handleDocumentChange}
+      />,
+    );
+
+    expect(screen.getByText("2 timeline items")).toBeTruthy();
+    expect(screen.getByLabelText("Label").getAttribute("placeholder")).toBe("Mixed values");
+    expect(screen.getByLabelText("Status").getAttribute("placeholder")).toBe("Mixed values");
+
+    fireEvent.change(screen.getByLabelText("Label"), { target: { value: "Selected" } });
+    fireEvent.change(screen.getByLabelText("Duration"), { target: { value: "1500" } });
+    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "ready" } });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+    expect(handleDocumentChange).toHaveBeenCalledTimes(1);
+    expect(handleDocumentChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tracks: [
+          expect.objectContaining({
+            items: [
+              expect.objectContaining({
+                id: "brief",
+                label: "Selected",
+                durationMs: 1_500,
+                data: { status: "ready", owner: "A" },
+              }),
+              expect.objectContaining({
+                id: "draft",
+                label: "Selected",
+                durationMs: 1_500,
+                data: { status: "ready", owner: "B" },
+              }),
+            ],
+          }),
+        ],
+      }),
+    );
+  });
+
+  test("manages track groups from the workbench group menu without deleting tracks", () => {
+    let document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks,
+    };
+    const handleDocumentChange = vi.fn((nextDocument: TimelineEditorDocument) => {
+      document = nextDocument;
+    });
+    const renderWorkbench = () => (
+      <TimelineWorkbench document={document} onDocumentChange={handleDocumentChange} />
+    );
+    const { rerender } = render(renderWorkbench());
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Track Groups" }), { key: "ArrowDown" });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Create Group From All Tracks" }));
+
+    expect(document.groups).toEqual([
+      expect.objectContaining({ label: "Group 1", trackIds: ["planning", "review"] }),
+    ]);
+
+    rerender(renderWorkbench());
+    fireEvent.keyDown(screen.getByRole("button", { name: "Track Groups" }), { key: "ArrowDown" });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Collapse Group 1" }));
+    expect(document.groups?.[0]).toEqual(expect.objectContaining({ collapsed: true }));
+
+    rerender(renderWorkbench());
+    fireEvent.keyDown(screen.getByRole("button", { name: "Track Groups" }), { key: "ArrowDown" });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Lock Group 1" }));
+    expect(document.groups?.[0]).toEqual(expect.objectContaining({ locked: true }));
+
+    rerender(renderWorkbench());
+    fireEvent.keyDown(screen.getByRole("button", { name: "Track Groups" }), { key: "ArrowDown" });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Remove Group 1" }));
+    expect(document.groups ?? []).toEqual([]);
+    expect(document.tracks.map((track) => track.id)).toEqual(["planning", "review"]);
   });
 
   test("adjusts workbench hotkeys from the toolbar menu", () => {

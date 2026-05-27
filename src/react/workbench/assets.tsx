@@ -46,6 +46,8 @@ type TimelineWorkbenchAssetsPanelProps<TAssetData> = {
   renderAsset?: (asset: TimelineWorkbenchAsset<TAssetData>) => ReactNode;
   onMinimize?: () => void;
   onInsertAsset: (asset: TimelineWorkbenchAsset<TAssetData>) => void;
+  onAssetDragEnd?: () => void;
+  onAssetDragStart?: (asset: TimelineWorkbenchAsset<TAssetData>) => void;
 };
 
 export function TimelineWorkbenchAssetsPanel<TAssetData>({
@@ -55,6 +57,8 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
   renderAsset,
   onMinimize,
   onInsertAsset,
+  onAssetDragEnd,
+  onAssetDragStart,
 }: TimelineWorkbenchAssetsPanelProps<TAssetData>) {
   const assetBrowserItems = getTimelineWorkbenchAssetBrowserItems(assets);
   const assetBrowserItemLookup = new Map(assetBrowserItems.map((item) => [item.id, item]));
@@ -91,7 +95,9 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
                     event.dataTransfer.effectAllowed = "copy";
                     event.dataTransfer.setData(timelineWorkbenchAssetDragDataType, asset.id);
                     event.dataTransfer.setData("text/plain", asset.label);
+                    onAssetDragStart?.(asset);
                   }}
+                  onDragEnd={onAssetDragEnd}
                 >
                   {renderAsset ? (
                     renderAsset(asset)

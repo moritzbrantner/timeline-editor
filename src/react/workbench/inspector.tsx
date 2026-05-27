@@ -2,12 +2,17 @@
 
 import type { ReactNode } from "react";
 
-import { InspectorPanel, type InspectorFieldValue } from "@moritzbrantner/ui/labs";
+import {
+  InspectorPanel,
+  type InspectorFieldDefinition,
+  type InspectorFieldValue,
+} from "@moritzbrantner/ui/labs";
 
 import {
   formatTimelineEditorTimeMs,
   getTimelineEditorItemEndMs,
   snapTimelineEditorTime,
+  type TimelineEditorItem,
   validateTimelineEditorDocument,
 } from "../../core";
 import type {
@@ -38,17 +43,98 @@ export function DefaultTimelineInspector<TData>({
     const selectionEndMs = Math.max(
       ...context.selectedItems.map((selected) => getTimelineEditorItemEndMs(selected)),
     );
+    const sharedValues = getTimelineWorkbenchInspectorSharedValues(
+      context.selectedItems,
+      inspectorSchema,
+    );
+    const mixedFieldIds = new Set(
+      Object.entries(sharedValues)
+        .filter(([, value]) => value.mixed)
+        .map(([fieldId]) => fieldId),
+    );
+    const values = Object.fromEntries(
+      Object.entries(sharedValues).map(([fieldId, value]) => [fieldId, value.value]),
+    );
+    const sections = getTimelineWorkbenchInspectorSections({
+      inputStepMs,
+      inspectorSchema,
+      mixedFieldIds,
+      showEndMs: false,
+    });
 
     return (
-      <TimelineWorkbenchInfoPanel
-        title="Selection"
-        summary={`${context.selectedItems.length} timeline items`}
-        rows={[
-          ["Start", formatTimelineEditorTimeMs(selectionStartMs)],
-          ["End", formatTimelineEditorTimeMs(selectionEndMs)],
-          ["Span", formatTimelineEditorTimeMs(selectionEndMs - selectionStartMs)],
-        ]}
-      />
+      <div className="grid gap-3">
+        <TimelineWorkbenchInfoPanel
+          title="Selection"
+          summary={`${context.selectedItems.length} timeline items`}
+          rows={[
+            ["Start", formatTimelineEditorTimeMs(selectionStartMs)],
+            ["End", formatTimelineEditorTimeMs(selectionEndMs)],
+            ["Span", formatTimelineEditorTimeMs(selectionEndMs - selectionStartMs)],
+          ]}
+        />
+        <InspectorPanel
+          title="Timeline items"
+          description="Shared fields"
+          readOnly={context.readOnly}
+          defaultValues={values}
+          sections={sections}
+          onApply={(nextValues) => {
+            context.updateSelectedItems((selected) => {
+              const dataPatch = Object.fromEntries(
+                (inspectorSchema?.itemFields ?? [])
+                  .filter(
+                    (field) =>
+                      field.dataKey &&
+                      (!mixedFieldIds.has(field.id) || nextValues[field.id] !== values[field.id]),
+                  )
+                  .map((field) => [field.dataKey!, nextValues[field.id]]),
+              );
+              const patch: Partial<typeof selected> = {};
+
+              if (!mixedFieldIds.has("label") || nextValues.label !== values.label) {
+                patch.label = String(nextValues.label ?? selected.label);
+              }
+
+              if (!mixedFieldIds.has("startMs") || nextValues.startMs !== values.startMs) {
+                patch.startMs = snapTimelineWorkbenchInspectorTime(
+                  toNumber(nextValues.startMs, selected.startMs),
+                  timingStepMs,
+                );
+              }
+
+              if (!mixedFieldIds.has("durationMs") || nextValues.durationMs !== values.durationMs) {
+                patch.durationMs = snapTimelineWorkbenchInspectorTime(
+                  toNumber(nextValues.durationMs, selected.durationMs),
+                  timingStepMs,
+                );
+              }
+
+              if (!mixedFieldIds.has("kind") || nextValues.kind !== values.kind) {
+                patch.kind = String(nextValues.kind ?? "") || undefined;
+              }
+
+              if (!mixedFieldIds.has("color") || nextValues.color !== values.color) {
+                patch.color = String(nextValues.color ?? "") || undefined;
+              }
+
+              if (!mixedFieldIds.has("locked") || nextValues.locked !== values.locked) {
+                patch.locked = Boolean(nextValues.locked);
+              }
+
+              if (Object.keys(dataPatch).length > 0) {
+                patch.data = {
+                  ...((selected.data as object | undefined) ?? {}),
+                  ...dataPatch,
+                } as TData;
+              }
+
+              return patch;
+            });
+          }}
+        />
+        {extensionSections}
+      </div>
     );
   }
 
@@ -106,7 +192,7 @@ export function DefaultTimelineInspector<TData>({
         title="Timeline item"
         description={context.selectedTrack?.label}
         readOnly={context.readOnly}
-        values={{
+        defaultValues={{
           label: item.label,
           startMs: item.startMs,
           durationMs: item.durationMs,
@@ -116,34 +202,7 @@ export function DefaultTimelineInspector<TData>({
           locked: item.locked ?? false,
           ...schemaValues,
         }}
-        sections={[
-          {
-            id: "timing",
-            title: "Timing",
-            fields: [
-              { id: "label", label: "Label", type: "text" },
-              { id: "startMs", label: "Start", type: "number", min: 0, step: inputStepMs },
-              { id: "durationMs", label: "Duration", type: "number", min: 100, step: inputStepMs },
-              { id: "endMs", label: "End", type: "number", readOnly: true },
-              { id: "kind", label: "Kind", type: "text" },
-              { id: "color", label: "Color", type: "text" },
-              { id: "locked", label: "Locked", type: "boolean" },
-            ],
-          },
-          ...(inspectorSchema?.itemFields?.length
-            ? [
-                {
-                  id: "data",
-                  title: "Data",
-                  fields: inspectorSchema.itemFields.map((field) => ({
-                    id: field.id,
-                    label: field.label,
-                    type: field.type === "color" ? "text" : field.type,
-                  })),
-                },
-              ]
-            : []),
-        ]}
+        sections={getTimelineWorkbenchInspectorSections({ inputStepMs, inspectorSchema })}
         onApply={(values) => {
           const dataPatch = Object.fromEntries(
             (inspectorSchema?.itemFields ?? [])
@@ -183,6 +242,138 @@ function toNumber(value: InspectorFieldValue, fallback: number) {
 
 function snapTimelineWorkbenchInspectorTime(timeMs: number, snapMs?: number) {
   return snapMs && snapMs > 0 ? snapTimelineEditorTime(timeMs, snapMs) : timeMs;
+}
+
+function getTimelineWorkbenchInspectorSections<TData>({
+  inputStepMs,
+  inspectorSchema,
+  mixedFieldIds = new Set(),
+  showEndMs = true,
+}: {
+  inputStepMs: number;
+  inspectorSchema?: TimelineWorkbenchInspectorSchema<TData>;
+  mixedFieldIds?: ReadonlySet<string>;
+  showEndMs?: boolean;
+}) {
+  const fields: InspectorFieldDefinition[] = [
+    withMixedPlaceholder({ id: "label", label: "Label", type: "text" }, mixedFieldIds),
+    withMixedPlaceholder(
+      { id: "startMs", label: "Start", type: "number", min: 0, step: inputStepMs },
+      mixedFieldIds,
+    ),
+    withMixedPlaceholder(
+      { id: "durationMs", label: "Duration", type: "number", min: 100, step: inputStepMs },
+      mixedFieldIds,
+    ),
+    ...(showEndMs
+      ? [
+          {
+            id: "endMs",
+            label: "End",
+            type: "number",
+            readOnly: true,
+          } satisfies InspectorFieldDefinition,
+        ]
+      : []),
+    withMixedPlaceholder({ id: "kind", label: "Kind", type: "text" }, mixedFieldIds),
+    withMixedPlaceholder({ id: "color", label: "Color", type: "text" }, mixedFieldIds),
+    withMixedPlaceholder({ id: "locked", label: "Locked", type: "boolean" }, mixedFieldIds),
+  ];
+
+  return [
+    {
+      id: "timing",
+      title: "Timing",
+      fields,
+    },
+    ...(inspectorSchema?.itemFields?.length
+      ? [
+          {
+            id: "data",
+            title: "Data",
+            fields: inspectorSchema.itemFields.map((field) =>
+              withMixedPlaceholder(
+                {
+                  id: field.id,
+                  label: field.label,
+                  type: field.type === "color" ? "text" : field.type,
+                },
+                mixedFieldIds,
+              ),
+            ),
+          },
+        ]
+      : []),
+  ];
+}
+
+function withMixedPlaceholder(
+  field: InspectorFieldDefinition,
+  mixedFieldIds: ReadonlySet<string>,
+): InspectorFieldDefinition {
+  return mixedFieldIds.has(field.id)
+    ? { ...field, placeholder: field.placeholder ?? "Mixed values" }
+    : field;
+}
+
+function getTimelineWorkbenchInspectorSharedValues<TData>(
+  selectedItems: Array<TimelineEditorItem<TData>>,
+  inspectorSchema?: TimelineWorkbenchInspectorSchema<TData>,
+) {
+  return {
+    label: getSharedInspectorValue(selectedItems, (item) => item.label),
+    startMs: getSharedInspectorValue(selectedItems, (item) => item.startMs),
+    durationMs: getSharedInspectorValue(selectedItems, (item) => item.durationMs),
+    kind: getSharedInspectorValue(selectedItems, (item) => item.kind ?? ""),
+    color: getSharedInspectorValue(selectedItems, (item) => item.color ?? ""),
+    locked: getSharedInspectorValue(selectedItems, (item) => item.locked ?? false),
+    ...Object.fromEntries(
+      (inspectorSchema?.itemFields ?? []).map((field) => [
+        field.id,
+        getSharedInspectorValue(selectedItems, (item) =>
+          field.dataKey ? (item.data as Record<string, unknown> | undefined)?.[field.dataKey] : "",
+        ),
+      ]),
+    ),
+  } satisfies Record<string, { value: InspectorFieldValue; mixed: boolean }>;
+}
+
+function getSharedInspectorValue<TItem>(
+  items: TItem[],
+  getValue: (item: TItem) => unknown,
+): { value: InspectorFieldValue; mixed: boolean } {
+  const [firstItem] = items;
+
+  if (!firstItem) {
+    return { value: "", mixed: false };
+  }
+
+  const firstValue = normalizeInspectorFieldValue(getValue(firstItem));
+  const mixed = items.some((item) => normalizeInspectorFieldValue(getValue(item)) !== firstValue);
+
+  return { value: mixed ? getMixedInspectorFieldValue(firstValue) : firstValue, mixed };
+}
+
+function normalizeInspectorFieldValue(value: unknown): InspectorFieldValue {
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    value === null ||
+    value === undefined
+  ) {
+    return value;
+  }
+
+  if (Array.isArray(value) && value.every((entry) => typeof entry === "string")) {
+    return value;
+  }
+
+  return String(value ?? "");
+}
+
+function getMixedInspectorFieldValue(value: InspectorFieldValue): InspectorFieldValue {
+  return typeof value === "boolean" ? null : "";
 }
 
 function formatDocumentSummary(trackCount: number, itemCount: number) {

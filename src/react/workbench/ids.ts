@@ -1,4 +1,8 @@
-import type { TimelineEditorItemKind, TimelineEditorTrack } from "../../core";
+import type {
+  TimelineEditorDocument,
+  TimelineEditorItemKind,
+  TimelineEditorTrack,
+} from "../../core";
 import type { TimelineWorkbenchAsset } from "./types";
 
 export function createTimelineWorkbenchTrack<TTrackData, TItemData>(
@@ -53,4 +57,26 @@ export function createTimelineWorkbenchMarkerId(
   createMarkerId?: (timeMs: number) => string,
 ) {
   return createMarkerId?.(timeMs) ?? `marker-${Date.now()}`;
+}
+
+export function createTimelineWorkbenchTrackGroupId<TTrackData, TItemData, TGroupData>(
+  document: TimelineEditorDocument<TTrackData, TItemData, TGroupData>,
+  preferredId = "track-group",
+) {
+  const existingIds = new Set(document.groups?.map((group) => group.id));
+  const slug =
+    preferredId
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "track-group";
+  let index = (document.groups?.length ?? 0) + 1;
+  let id = `${slug}-${index}`;
+
+  while (existingIds.has(id)) {
+    index += 1;
+    id = `${slug}-${index}`;
+  }
+
+  return id;
 }

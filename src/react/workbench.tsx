@@ -5,12 +5,14 @@ import { useMemo, useState } from "react";
 import { type MenuActionItem, WorkbenchPanel, cn } from "@moritzbrantner/ui";
 
 import {
+  canPlaceTimelineEditorItemOnTrack,
   createTimelineEditorClipboard,
   detectTimelineEditorOverlaps,
   formatTimelineEditorTimeMs,
   getTimelineEditorDurationMs,
   getTimelineEditorFrameDurationMs,
   getTimelineEditorItemEndMs,
+  normalizeTimelineEditorDocument,
   setTimelineEditorCurrentTime,
   type TimelineEditorDocument,
   type TimelineEditorClipboard,
@@ -19,6 +21,7 @@ import {
   type TimelineEditorSelection,
   type TimelineEditorTool,
   type TimelineEditorTrack,
+  type TimelineEditorTrackGroup,
   type TimelineEditorViewport,
 } from "../core";
 import type { TimelineEditorCommand } from "../commands";
@@ -46,6 +49,7 @@ import {
   createTimelineWorkbenchItemId,
   createTimelineWorkbenchMarkerId,
   createTimelineWorkbenchTrack,
+  createTimelineWorkbenchTrackGroupId,
   formatTimelineWorkbenchTrackKind,
 } from "./workbench/ids";
 import { DefaultTimelineInspector } from "./workbench/inspector";
@@ -130,6 +134,7 @@ export function TimelineWorkbench<
   const [customHotkeys, setCustomHotkeys] = useState<
     Partial<typeof defaultTimelineWorkbenchHotkeys>
   >({});
+  const [draggedAssetId, setDraggedAssetId] = useState<string | null>(null);
   const resolvedViewport = viewport ?? internalViewport;
   const durationMs = document.durationMs ?? getTimelineEditorDurationMs(document.tracks, 30_000);
   const frameDurationMs = getTimelineEditorFrameDurationMs(frameRate);
@@ -273,6 +278,55 @@ export function TimelineWorkbench<
     }
   };
 
+  const updateSelectedItems = (
+    patch:
+      | Partial<TimelineEditorItem<TItemData>>
+      | ((item: TimelineEditorItem<TItemData>) => Partial<TimelineEditorItem<TItemData>>),
+  ) => {
+    if (readOnly || selectedItems.length === 0) {
+      return;
+    }
+
+    const selectedItemIds = new Set(selectedItems.map((item) => item.id));
+    let changed = false;
+    const tracks = document.tracks.map((track) => {
+      if (track.locked || !track.items.some((item) => selectedItemIds.has(item.id))) {
+        return track;
+      }
+
+      let trackChanged = false;
+      const items = track.items.map((item) => {
+        if (!selectedItemIds.has(item.id) || item.locked) {
+          return item;
+        }
+
+        const itemPatch = typeof patch === "function" ? patch(item) : patch;
+        const nextItem = {
+          ...item,
+          ...itemPatch,
+          id: item.id,
+          trackId: track.id,
+        };
+
+        if (!canPlaceTimelineEditorItemOnTrack(nextItem, track)) {
+          return item;
+        }
+
+        trackChanged = true;
+        changed = true;
+        return nextItem;
+      });
+
+      return trackChanged ? { ...track, items } : track;
+    });
+
+    if (!changed) {
+      return;
+    }
+
+    commitDocument(normalizeTimelineEditorDocument({ ...document, tracks }, { durationMs }));
+  };
+
   const deleteItems = (itemIds = resolvedSelection.itemIds) => {
     if (readOnly || itemIds.length === 0) {
       return;
@@ -349,6 +403,87 @@ export function TimelineWorkbench<
     runCommand({ type: "add-track", track });
   };
 
+  const addTrackGroup = (trackIds: string[], label?: string) => {
+    if (readOnly || trackIds.length === 0) {
+      return;
+    }
+
+    const groupIndex = (document.groups?.length ?? 0) + 1;
+    runCommand({
+      type: "add-track-group",
+      group: {
+        id: createTimelineWorkbenchTrackGroupId(document, label ?? "track-group"),
+        label: label ?? `Group ${groupIndex}`,
+        trackIds,
+      },
+    });
+  };
+
+  const renameTrackGroup = (groupId: string) => {
+    if (readOnly) {
+      return;
+    }
+
+    const group = document.groups?.find((candidate) => candidate.id === groupId);
+    const label =
+      typeof window === "undefined"
+        ? group?.label
+        : window.prompt("Track group name", group?.label ?? "Group");
+
+    if (!label || label === group?.label) {
+      return;
+    }
+
+    runCommand({ type: "update-track-group", groupId, patch: { label } });
+  };
+
+  const updateTrackGroup = (
+    groupId: string,
+    patch: Partial<Omit<TimelineEditorTrackGroup<Record<string, unknown>>, "id">>,
+  ) => {
+    if (readOnly) {
+      return;
+    }
+
+    runCommand({ type: "update-track-group", groupId, patch });
+  };
+
+  const removeTrackGroup = (groupId: string) => {
+    if (readOnly) {
+      return;
+    }
+
+    runCommand({ type: "remove-track-group", groupId });
+  };
+
+  const getTrackGroupForTrack = (trackId: string) =>
+    document.groups?.find((group) => group.trackIds.includes(trackId));
+
+  const moveTrackWithinGroup = (trackId: string, direction: -1 | 1) => {
+    const group = getTrackGroupForTrack(trackId);
+    const currentIndex = group?.trackIds.indexOf(trackId) ?? -1;
+
+    if (!group || currentIndex === -1) {
+      return;
+    }
+
+    const nextIndex = currentIndex + direction;
+
+    if (nextIndex < 0 || nextIndex >= group.trackIds.length) {
+      return;
+    }
+
+    const trackIds = [...group.trackIds];
+    const [movedTrackId] = trackIds.splice(currentIndex, 1);
+
+    if (!movedTrackId) {
+      return;
+    }
+
+    trackIds.splice(nextIndex, 0, movedTrackId);
+    updateTrackGroup(group.id, { trackIds });
+  };
+
   const removeTimeline = (trackId?: string) => {
     if (readOnly || document.tracks.length === 0) {
       return;
@@ -388,6 +523,7 @@ export function TimelineWorkbench<
     selectedItems,
     selectedTrack: selectedTrack as TimelineEditorTrack<Record<string, unknown>, TItemData>,
     updateSelectedItem,
+    updateSelectedItems,
   } satisfies TimelineWorkbenchInspectorContext<TItemData>;
 
   const extensionInspectorSections = extensions.flatMap(
@@ -480,6 +616,8 @@ export function TimelineWorkbench<
     context: TimelineEditorTrackContextMenuContext<TTrackData, TItemData>,
   ): MenuActionItem[] => {
     const trackIndex = document.tracks.findIndex((track) => track.id === context.track.id);
+    const trackGroup = getTrackGroupForTrack(context.track.id);
+    const groupTrackIndex = trackGroup?.trackIds.indexOf(context.track.id) ?? -1;
 
     return [
       {
@@ -527,6 +665,41 @@ export function TimelineWorkbench<
           });
         },
       },
+      { id: "track-group-separator", type: "separator" },
+      {
+        id: "create-track-group",
+        label: "Create Group From Track",
+        disabled: readOnly || Boolean(trackGroup),
+        onSelect: () => addTrackGroup([context.track.id], `${context.track.label} Group`),
+      },
+      {
+        id: "move-track-group-up",
+        label: "Move Track Up In Group",
+        disabled: readOnly || !trackGroup || groupTrackIndex <= 0,
+        onSelect: () => moveTrackWithinGroup(context.track.id, -1),
+      },
+      {
+        id: "move-track-group-down",
+        label: "Move Track Down In Group",
+        disabled:
+          readOnly ||
+          !trackGroup ||
+          groupTrackIndex === -1 ||
+          groupTrackIndex >= trackGroup.trackIds.length - 1,
+        onSelect: () => moveTrackWithinGroup(context.track.id, 1),
+      },
+      {
+        id: "remove-track-from-group",
+        label: "Remove Track From Group",
+        disabled: readOnly || !trackGroup,
+        onSelect: () => {
+          if (trackGroup) {
+            updateTrackGroup(trackGroup.id, {
+              trackIds: trackGroup.trackIds.filter((trackId) => trackId !== context.track.id),
+            });
+          }
+        },
+      },
       { id: "track-separator", type: "separator" },
       {
         id: "remove-timeline",
@@ -538,6 +711,45 @@ export function TimelineWorkbench<
       },
     ];
   };
+
+  const trackGroupMenuItems: MenuActionItem[] = [
+    {
+      id: "create-group-all-tracks",
+      label: "Create Group From All Tracks",
+      disabled: readOnly || document.tracks.length === 0,
+      onSelect: () => addTrackGroup(document.tracks.map((track) => track.id)),
+    },
+    ...(document.groups?.length
+      ? [{ id: "track-groups-separator", type: "separator" as const }]
+      : []),
+    ...(document.groups ?? []).flatMap((group): MenuActionItem[] => [
+      {
+        id: `rename-track-group-${group.id}`,
+        label: `Rename ${group.label}`,
+        disabled: readOnly,
+        onSelect: () => renameTrackGroup(group.id),
+      },
+      {
+        id: `toggle-track-group-${group.id}`,
+        label: group.collapsed ? `Expand ${group.label}` : `Collapse ${group.label}`,
+        disabled: readOnly,
+        onSelect: () => updateTrackGroup(group.id, { collapsed: !group.collapsed }),
+      },
+      {
+        id: `lock-track-group-${group.id}`,
+        label: group.locked ? `Unlock ${group.label}` : `Lock ${group.label}`,
+        disabled: readOnly,
+        onSelect: () => updateTrackGroup(group.id, { locked: !group.locked }),
+      },
+      {
+        id: `remove-track-group-${group.id}`,
+        label: `Remove ${group.label}`,
+        destructive: true,
+        disabled: readOnly,
+        onSelect: () => removeTrackGroup(group.id),
+      },
+    ]),
+  ];
 
   const commitViewport = (nextViewport: TimelineEditorViewport) => {
     if (!viewport) {
@@ -843,6 +1055,8 @@ export function TimelineWorkbench<
           assets={assets}
           readOnly={readOnly}
           renderAsset={renderAsset}
+          onAssetDragEnd={() => setDraggedAssetId(null)}
+          onAssetDragStart={(asset) => setDraggedAssetId(asset.id)}
           onInsertAsset={insertAsset}
         />
         <TimelineWorkbenchPreview
@@ -867,6 +1081,7 @@ export function TimelineWorkbench<
       </div>
       <TimelineWorkbenchCanvas
         assets={assets}
+        draggedAssetId={draggedAssetId}
         document={document}
         editPolicy={editPolicy}
         frameRate={frameRate}
@@ -882,6 +1097,7 @@ export function TimelineWorkbench<
         resolvedSnapMs={resolvedSnapMs}
         resolvedViewport={resolvedViewport}
         virtualization={virtualization}
+        trackGroupMenuItems={trackGroupMenuItems}
         trackKinds={trackKinds}
         formatTrackKind={formatTimelineWorkbenchTrackKind}
         onAddTrack={addTrack}
