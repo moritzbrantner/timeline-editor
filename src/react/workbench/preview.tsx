@@ -10,21 +10,29 @@ import {
 } from "../../core";
 import type { TimelineEditorExtension } from "./types";
 
-type TimelineWorkbenchPreviewProps<TTrackData extends Record<string, unknown>, TItemData> = {
+type TimelineWorkbenchPreviewProps<
+  TTrackData extends Record<string, unknown>,
+  TItemData,
+  TAssetData,
+> = {
   currentTimeMs: number;
   document: TimelineEditorDocument<TTrackData, TItemData>;
   durationMs: number;
-  extensions?: Array<TimelineEditorExtension<TItemData, TTrackData>>;
+  extensions?: Array<TimelineEditorExtension<TItemData, TTrackData, TAssetData>>;
   selectedItems: Array<TimelineEditorItem<TItemData>>;
 };
 
-export function TimelineWorkbenchPreview<TTrackData extends Record<string, unknown>, TItemData>({
+export function TimelineWorkbenchPreview<
+  TTrackData extends Record<string, unknown>,
+  TItemData,
+  TAssetData,
+>({
   currentTimeMs,
   document,
   durationMs,
   extensions = [],
   selectedItems,
-}: TimelineWorkbenchPreviewProps<TTrackData, TItemData>) {
+}: TimelineWorkbenchPreviewProps<TTrackData, TItemData, TAssetData>) {
   const activeItems = document.tracks.flatMap((track) =>
     track.items
       .filter(

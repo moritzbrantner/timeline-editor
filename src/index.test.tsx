@@ -1739,6 +1739,219 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     expect(handleCustomAction).toHaveBeenCalledWith("scene");
   });
 
+  test("opens timeline context menus from empty lanes with clicked timeline context", async () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks: [
+        {
+          id: "planning",
+          label: "Planning",
+          items: [
+            { id: "brief", trackId: "planning", label: "Brief", startMs: 1_000, durationMs: 500 },
+          ],
+        },
+      ],
+    };
+    const handleTimelineAction = vi.fn();
+
+    const { container } = render(
+      <TimelineEditor
+        document={document}
+        selection={{ itemIds: ["brief"], anchorItemId: "brief" }}
+        viewport={{ pixelsPerSecond: 80 }}
+        snap={{ enabled: true, thresholdPx: 8, targets: [{ type: "interval", intervalMs: 100 }] }}
+        getTimelineContextMenuItems={(context) => [
+          {
+            id: "inspect-time",
+            label: "Inspect time",
+            onSelect: () => handleTimelineAction(context),
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.contextMenu(container.querySelector("[data-slot='timeline-editor-track-lane']")!, {
+      clientX: 164,
+      clientY: 24,
+    });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Inspect time" }));
+
+    expect(handleTimelineAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: "track-lane",
+        timeMs: 250,
+        snappedTimeMs: 200,
+        snapped: true,
+        track: expect.objectContaining({ id: "planning" }),
+        selection: { itemIds: ["brief"], anchorItemId: "brief" },
+        selectedItems: [expect.objectContaining({ id: "brief" })],
+        clientX: 164,
+        clientY: 24,
+      }),
+    );
+  });
+
+  test("opens timeline context menus from the ruler without a track", async () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks: [{ id: "planning", label: "Planning", items: [] }],
+    };
+    const handleTimelineAction = vi.fn();
+
+    const { container } = render(
+      <TimelineEditor
+        document={document}
+        viewport={{ pixelsPerSecond: 80 }}
+        getTimelineContextMenuItems={(context) => [
+          {
+            id: "inspect-ruler",
+            label: "Inspect ruler",
+            onSelect: () => handleTimelineAction(context),
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.contextMenu(container.querySelector("[data-slot='timeline-editor-ruler-lane']")!, {
+      clientX: 240,
+      clientY: 12,
+    });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Inspect ruler" }));
+
+    expect(handleTimelineAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: "ruler",
+        timeMs: 1_200,
+        track: undefined,
+      }),
+    );
+  });
+
+  test("keeps clip context menus separate from timeline context menus", async () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks: [
+        {
+          id: "planning",
+          label: "Planning",
+          items: [
+            { id: "brief", trackId: "planning", label: "Brief", startMs: 1_000, durationMs: 500 },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineEditor
+        document={document}
+        getItemContextMenuItems={() => [{ id: "item-action", label: "Item action" }]}
+        getTimelineContextMenuItems={() => [{ id: "timeline-action", label: "Timeline action" }]}
+      />,
+    );
+
+    fireEvent.contextMenu(container.querySelector("[data-slot='timeline-editor-clip']")!);
+
+    expect(await screen.findByRole("menuitem", { name: "Item action" })).toBeTruthy();
+    expect(screen.queryByRole("menuitem", { name: "Timeline action" })).toBeNull();
+  });
+
+  test("does not render an empty timeline context menu", () => {
+    const timelineDocument: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks: [{ id: "planning", label: "Planning", items: [] }],
+    };
+
+    const { container } = render(
+      <TimelineEditor document={timelineDocument} getTimelineContextMenuItems={() => []} />,
+    );
+
+    fireEvent.contextMenu(container.querySelector("[data-slot='timeline-editor-track-lane']")!);
+
+    expect(document.body.querySelector("[data-slot='context-action-menu-empty']")).toBeNull();
+  });
+
+  test("combines workbench timeline context menu items and extension items", async () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks: [{ id: "planning", label: "Planning", items: [] }],
+    };
+    const extensionAction = vi.fn();
+    const extensions = [
+      {
+        id: "timeline-extension",
+        timelineContextMenuItems: (context) => [
+          {
+            id: "extension-time",
+            label: "Extension time",
+            onSelect: () => extensionAction(context.snappedTimeMs),
+          },
+        ],
+      },
+    ] satisfies Array<TimelineEditorExtension>;
+
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        extensions={extensions}
+        getTimelineContextMenuItems={() => [{ id: "consumer-time", label: "Consumer time" }]}
+      />,
+    );
+
+    fireEvent.contextMenu(container.querySelector("[data-slot='timeline-editor-track-lane']")!, {
+      clientX: 160,
+    });
+
+    expect(await screen.findByRole("menuitem", { name: "Consumer time" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Extension time" }));
+    expect(extensionAction).toHaveBeenCalledWith(200);
+  });
+
+  test("workbench timeline context menu helpers set time and add markers", async () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 0,
+      tracks: [{ id: "planning", label: "Planning", items: [] }],
+    };
+    const handleDocumentChange = vi.fn();
+
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        onDocumentChange={handleDocumentChange}
+        getTimelineContextMenuItems={(context) => [
+          {
+            id: "set-current",
+            label: "Set current",
+            onSelect: () => context.setCurrentTime(),
+          },
+          {
+            id: "add-marker",
+            label: "Add marker",
+            onSelect: () => context.addMarker(),
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.contextMenu(container.querySelector("[data-slot='timeline-editor-track-lane']")!, {
+      clientX: 160,
+    });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Set current" }));
+    expect(handleDocumentChange).toHaveBeenCalledWith(
+      expect.objectContaining({ currentTimeMs: 200 }),
+    );
+
+    fireEvent.contextMenu(container.querySelector("[data-slot='timeline-editor-track-lane']")!, {
+      clientX: 240,
+    });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Add marker" }));
+    expect(handleDocumentChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        markers: [expect.objectContaining({ timeMs: 1_200, label: "0:01.2" })],
+      }),
+    );
+  });
+
   test("runs workbench item commands from the context menu", async () => {
     let document: TimelineEditorDocument = {
       durationMs: 8_000,

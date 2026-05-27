@@ -472,6 +472,43 @@ limits, including when the currently selected track rejects the asset kind.
 />
 ```
 
+## Timeline Context Menus
+
+`TimelineEditor` and `TimelineWorkbench` can expose right-click menus for empty
+timeline lanes and the ruler. The context includes the clicked time, snapped
+time, source, selected items, and track when the click happened inside a track
+lane. Consumers own application-specific state such as frame rate.
+
+```tsx
+const [frameRate, setFrameRate] = useState(30);
+
+<TimelineWorkbench
+  document={document}
+  frameRate={frameRate}
+  onDocumentChange={setDocument}
+  getTimelineContextMenuItems={(context) => [
+    {
+      id: "frame-rate",
+      type: "radio-group",
+      label: "Frame rate",
+      value: String(frameRate),
+      options: [24, 25, 30, 50, 60].map((fps) => ({
+        id: `fps-${fps}`,
+        value: String(fps),
+        label: `${fps} fps`,
+      })),
+      onValueChange: (value) => setFrameRate(Number(value)),
+    },
+    {
+      id: "add-marker-at-click",
+      label: "Add marker here",
+      disabled: context.readOnly,
+      onSelect: () => context.addMarker(context.snappedTimeMs),
+    },
+  ]}
+/>;
+```
+
 ## Notes
 
 - The package also exposes `@moritzbrantner/timeline-editor/core`, `@moritzbrantner/timeline-editor/react`, `@moritzbrantner/timeline-editor/commands`, `@moritzbrantner/timeline-editor/history`, and `@moritzbrantner/timeline-editor/serialization` subpaths.

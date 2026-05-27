@@ -12,6 +12,7 @@ import type {
   TimelineEditorTick,
   TimelineEditorTrack,
 } from "../../types";
+import { TimelineEditorContextMenuTarget } from "./context-menu";
 import {
   getVisibleTimelineEditorItems,
   type TimelineEditorMeasuredViewport,
@@ -31,6 +32,8 @@ import type {
   TimelineEditorTrackContextMenuContext,
   TimelineEditorTrackContextMenuItems,
   TimelineEditorTrackRenderContext,
+  TimelineEditorTimelineContextMenuContext,
+  TimelineEditorTimelineContextMenuItems,
   TimelineEditorVirtualizationOptions,
 } from "./types";
 
@@ -59,6 +62,12 @@ type TimelineEditorTrackListProps<TTrackData extends Record<string, unknown>, TI
   visibleTracks: Array<VisibleTrackEntry<TTrackData, TItemData>>;
   virtualization: Required<TimelineEditorVirtualizationOptions>;
   getItemContextMenuItems?: TimelineEditorItemContextMenuItems<TTrackData, TItemData>;
+  getTimelineContextMenuContext?: (
+    event: React.MouseEvent<Element>,
+    track: TimelineEditorTrack<TTrackData, TItemData>,
+    locked: boolean,
+  ) => TimelineEditorTimelineContextMenuContext<TTrackData, TItemData>;
+  getTimelineContextMenuItems?: TimelineEditorTimelineContextMenuItems<TTrackData, TItemData>;
   getTrackContextMenuItems?: TimelineEditorTrackContextMenuItems<TTrackData, TItemData>;
   renderItem?: (context: TimelineEditorItemRenderContext<TItemData>) => ReactNode;
   renderTrackHeader?: (context: TimelineEditorTrackRenderContext<TTrackData>) => ReactNode;
@@ -91,6 +100,8 @@ export function TimelineEditorTrackList<TTrackData extends Record<string, unknow
   visibleTracks,
   virtualization,
   getItemContextMenuItems,
+  getTimelineContextMenuContext,
+  getTimelineContextMenuItems,
   getTrackContextMenuItems,
   renderItem,
   renderTrackHeader,
@@ -140,6 +151,8 @@ export function TimelineEditorTrackList<TTrackData extends Record<string, unknow
           durationMs={durationMs}
           entry={row.entry}
           getItemContextMenuItems={getItemContextMenuItems}
+          getTimelineContextMenuContext={getTimelineContextMenuContext}
+          getTimelineContextMenuItems={getTimelineContextMenuItems}
           getTrackContextMenuItems={getTrackContextMenuItems}
           readOnly={readOnly}
           renderItem={renderItem}
@@ -207,6 +220,8 @@ function TimelineEditorTrackRowComponent<TTrackData extends Record<string, unkno
   durationMs,
   entry,
   getItemContextMenuItems,
+  getTimelineContextMenuContext,
+  getTimelineContextMenuItems,
   getTrackContextMenuItems,
   readOnly,
   renderItem,
@@ -232,6 +247,62 @@ function TimelineEditorTrackRowComponent<TTrackData extends Record<string, unkno
         track: entry.track,
       } satisfies TimelineEditorTrackContextMenuContext<TTrackData, TItemData>)
     : [];
+  const trackHeader = (
+    <div className="flex items-center border-r bg-muted/20 px-3 text-sm font-medium">
+      {renderTrackHeader ? (
+        renderTrackHeader({
+          track: entry.track as TimelineEditorTrack<TTrackData, Record<string, unknown>>,
+          locked: entry.locked,
+          collapsed: false,
+        })
+      ) : (
+        <span className="truncate">{entry.track.label}</span>
+      )}
+    </div>
+  );
+  const trackLane = (
+    <div data-slot="timeline-editor-track-lane" className="relative">
+      <TimelineEditorTrackGrid
+        durationMs={durationMs}
+        ticks={ticks}
+        timelineWidthPx={timelineWidthPx}
+      />
+      {getVisibleTimelineEditorItems(entry.track.items, visibleRange, selectedIds).map((item) => {
+        const selected = selectedIds.has(item.id);
+        const locked = Boolean(readOnly || entry.locked || item.locked);
+        const contextMenuItems = getItemContextMenuItems
+          ? getItemContextMenuItems({
+              document,
+              durationMs,
+              item,
+              readOnly: locked,
+              selected,
+              selectedItems,
+              selection,
+              track: entry.track,
+            } satisfies TimelineEditorItemContextMenuContext<TTrackData, TItemData>)
+          : [];
+
+        return (
+          <TimelineEditorClip
+            key={item.id}
+            contextMenuItems={contextMenuItems}
+            durationMs={durationMs}
+            item={item}
+            locked={locked}
+            readOnly={readOnly}
+            renderItem={renderItem}
+            selected={selected}
+            timelineWidthPx={timelineWidthPx}
+            onContextMenu={() => onClipContextMenu(item)}
+            onMovePointerDown={(event) => onClipPointerDown(item, entry.track, locked, event)}
+            onResizePointerDown={(edge, event) => onResizePointerDown(edge, item, locked, event)}
+          />
+        );
+      })}
+    </div>
+  );
+  const timelineMenuEnabled = Boolean(getTimelineContextMenuItems);
   const track = (
     <div
       data-slot="timeline-editor-track"
@@ -242,61 +313,31 @@ function TimelineEditorTrackRowComponent<TTrackData extends Record<string, unkno
         minHeight: entry.track.height ?? timelineEditorDefaultTrackHeightPx,
       }}
     >
-      <div className="flex items-center border-r bg-muted/20 px-3 text-sm font-medium">
-        {renderTrackHeader ? (
-          renderTrackHeader({
-            track: entry.track as TimelineEditorTrack<TTrackData, Record<string, unknown>>,
-            locked: entry.locked,
-            collapsed: false,
-          })
-        ) : (
-          <span className="truncate">{entry.track.label}</span>
-        )}
-      </div>
-      <div data-slot="timeline-editor-track-lane" className="relative">
-        <TimelineEditorTrackGrid
-          durationMs={durationMs}
-          ticks={ticks}
-          timelineWidthPx={timelineWidthPx}
-        />
-        {getVisibleTimelineEditorItems(entry.track.items, visibleRange, selectedIds).map((item) => {
-          const selected = selectedIds.has(item.id);
-          const locked = Boolean(readOnly || entry.locked || item.locked);
-          const contextMenuItems = getItemContextMenuItems
-            ? getItemContextMenuItems({
-                document,
-                durationMs,
-                item,
-                readOnly: locked,
-                selected,
-                selectedItems,
-                selection,
-                track: entry.track,
-              } satisfies TimelineEditorItemContextMenuContext<TTrackData, TItemData>)
-            : [];
-
-          return (
-            <TimelineEditorClip
-              key={item.id}
-              contextMenuItems={contextMenuItems}
-              durationMs={durationMs}
-              item={item}
-              locked={locked}
-              readOnly={readOnly}
-              renderItem={renderItem}
-              selected={selected}
-              timelineWidthPx={timelineWidthPx}
-              onContextMenu={() => onClipContextMenu(item)}
-              onMovePointerDown={(event) => onClipPointerDown(item, entry.track, locked, event)}
-              onResizePointerDown={(edge, event) => onResizePointerDown(edge, item, locked, event)}
-            />
-          );
-        })}
-      </div>
+      {timelineMenuEnabled && trackContextMenuItems.length > 0 ? (
+        <ContextActionMenu
+          items={trackContextMenuItems}
+          contentProps={{ "data-slot": "timeline-editor-track-menu" }}
+        >
+          {trackHeader}
+        </ContextActionMenu>
+      ) : (
+        trackHeader
+      )}
+      {timelineMenuEnabled && getTimelineContextMenuContext ? (
+        <TimelineEditorContextMenuTarget
+          contentProps={{ "data-slot": "timeline-editor-timeline-menu" }}
+          getContext={(event) => getTimelineContextMenuContext(event, entry.track, entry.locked)}
+          getItems={getTimelineContextMenuItems}
+        >
+          {trackLane}
+        </TimelineEditorContextMenuTarget>
+      ) : (
+        trackLane
+      )}
     </div>
   );
 
-  if (trackContextMenuItems.length === 0) {
+  if (timelineMenuEnabled || trackContextMenuItems.length === 0) {
     return track;
   }
 

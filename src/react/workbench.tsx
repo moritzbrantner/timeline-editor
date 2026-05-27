@@ -36,6 +36,7 @@ import { isKeyboardEventFromEditableTarget, matchesHotkey } from "./timeline-edi
 import type {
   TimelineEditorItemContextMenuContext,
   TimelineEditorItemRenderContext,
+  TimelineEditorTimelineContextMenuContext,
   TimelineEditorTrackContextMenuContext,
 } from "./timeline-editor";
 import type { TimelineWorkbenchHotkeyId } from "./workbench/hotkeys";
@@ -65,6 +66,7 @@ import type {
   TimelineWorkbenchAsset,
   TimelineWorkbenchInspectorContext,
   TimelineWorkbenchProps,
+  TimelineWorkbenchTimelineContextMenuContext,
 } from "./workbench/types";
 
 export { defaultTimelineWorkbenchHotkeys } from "./workbench/toolbar";
@@ -76,6 +78,8 @@ export type {
   TimelineWorkbenchItemContextMenuContext,
   TimelineWorkbenchProps,
   TimelineWorkbenchSelection,
+  TimelineWorkbenchTimelineContextMenuContext,
+  TimelineWorkbenchTimelineContextMenuFactory,
   TimelinePreviewContext,
 } from "./workbench/types";
 
@@ -120,6 +124,7 @@ export function TimelineWorkbench<
   renderTimelineItem,
   renderToolbarActions,
   getItemContextMenuItems,
+  getTimelineContextMenuItems,
 }: TimelineWorkbenchProps<TTrackData, TItemData, TAssetData>) {
   const [internalViewport, setInternalViewport] = useState<TimelineEditorViewport>({
     pixelsPerSecond,
@@ -167,6 +172,9 @@ export function TimelineWorkbench<
     () => getTimelineWorkbenchTrackKinds(document.tracks, assets, extensions),
     [assets, document.tracks, extensions],
   );
+  const hasTimelineContextMenuItems =
+    Boolean(getTimelineContextMenuItems) ||
+    extensions.some((extension) => Boolean(extension.timelineContextMenuItems));
 
   const commitSelection = (nextSelection: TimelineEditorSelection) => {
     onSelectionChange?.(nextSelection);
@@ -381,15 +389,15 @@ export function TimelineWorkbench<
     runCommand({ type: "split-items", itemIds, timeMs: currentTimeMs });
   };
 
-  const addMarker = () => {
+  const addMarker = (timeMs = currentTimeMs) => {
     if (readOnly) {
       return;
     }
 
     const marker = {
-      id: createTimelineWorkbenchMarkerId(currentTimeMs, createMarkerId),
-      timeMs: currentTimeMs,
-      label: formatTimelineEditorTimeMs(currentTimeMs),
+      id: createTimelineWorkbenchMarkerId(timeMs, createMarkerId),
+      timeMs,
+      label: formatTimelineEditorTimeMs(timeMs),
     };
     runCommand({ type: "add-marker", marker });
   };
@@ -832,6 +840,37 @@ export function TimelineWorkbench<
     }
   };
 
+  const getWorkbenchTimelineContextMenuItems = (
+    context: TimelineEditorTimelineContextMenuContext<TTrackData, TItemData>,
+  ): MenuActionItem[] => {
+    const workbenchContext = {
+      ...context,
+      currentTimeMs,
+      setCurrentTime: (timeMs = context.snappedTimeMs) => jumpCurrentTime(timeMs),
+      addMarker: (timeMs = context.snappedTimeMs) => addMarker(timeMs),
+      insertAsset: (
+        asset: TimelineWorkbenchAsset<TAssetData>,
+        placement?: { trackId?: string; timeMs?: number },
+      ) =>
+        insertAssetAt(asset, {
+          trackId: placement?.trackId ?? context.track?.id,
+          timeMs: placement?.timeMs ?? context.snappedTimeMs,
+        }),
+    } satisfies TimelineWorkbenchTimelineContextMenuContext<TTrackData, TItemData, TAssetData>;
+    const consumerItems = getTimelineContextMenuItems?.(workbenchContext) ?? [];
+    const extensionItems = extensions.flatMap(
+      (extension) => extension.timelineContextMenuItems?.(workbenchContext) ?? [],
+    );
+
+    return consumerItems.length > 0 && extensionItems.length > 0
+      ? [
+          ...consumerItems,
+          { id: "timeline-actions-separator", type: "separator" },
+          ...extensionItems,
+        ]
+      : [...consumerItems, ...extensionItems];
+  };
+
   const handleWorkbenchKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (isKeyboardEventFromEditableTarget(event)) {
       return;
@@ -1009,7 +1048,7 @@ export function TimelineWorkbench<
         renderToolbarActions={renderToolbarActions}
         resolvedSelection={resolvedSelection}
         resolvedViewport={resolvedViewport}
-        onAddMarker={addMarker}
+        onAddMarker={() => addMarker()}
         onDelete={() => deleteItems()}
         onCopy={() => copyItems()}
         onCut={() => cutItems()}
@@ -1087,6 +1126,9 @@ export function TimelineWorkbench<
         frameRate={frameRate}
         hotkeys={resolvedHotkeys}
         getItemContextMenuItems={getWorkbenchItemContextMenuItems}
+        getTimelineContextMenuItems={
+          hasTimelineContextMenuItems ? getWorkbenchTimelineContextMenuItems : undefined
+        }
         getTrackContextMenuItems={getWorkbenchTrackContextMenuItems}
         readOnly={readOnly}
         tool={resolvedTool}
@@ -1176,7 +1218,7 @@ function getTimelineWorkbenchTrackKinds<
 >(
   tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
   assets: Array<TimelineWorkbenchAsset<TAssetData>>,
-  extensions: Array<TimelineEditorExtension<TItemData, TTrackData>>,
+  extensions: Array<TimelineEditorExtension<TItemData, TTrackData, TAssetData>>,
 ) {
   const kinds = new Set<TimelineEditorItemKind>();
 

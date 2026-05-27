@@ -16,6 +16,7 @@ import {
 type HarnessState = {
   changes: string[];
   document: TimelineEditorDocument;
+  frameRate?: number;
   selectedItemId: string | null;
   selectedItemIds: string[];
 };
@@ -96,8 +97,10 @@ function App() {
   const searchParams = new URLSearchParams(window.location.search);
   const readOnly = searchParams.get("readOnly") === "true";
   const largeFixture = searchParams.get("fixture") === "large";
+  const timelineMenuFixture = searchParams.get("timelineMenu") === "true";
   const frameRateParam = searchParams.get("frameRate");
-  const frameRate = frameRateParam ? Number(frameRateParam) : undefined;
+  const initialFrameRate = frameRateParam ? Number(frameRateParam) : undefined;
+  const [frameRate, setFrameRate] = useState<number | undefined>(initialFrameRate);
   const [document, setDocument] = useState(() =>
     largeFixture ? createLargeDocument() : createDocument(),
   );
@@ -108,13 +111,19 @@ function App() {
     window["__timelineEditorHarness"] = {
       changes: changes.current,
       document,
+      frameRate,
       selectedItemId: selection.itemIds[0] ?? null,
       selectedItemIds: selection.itemIds,
     };
-  }, [document, selection]);
+  }, [document, frameRate, selection]);
 
   const recordChange = (change: string) => {
-    changes.current = [...changes.current, change];
+    const nextChanges = [...changes.current, change];
+    changes.current = nextChanges;
+
+    if (window["__timelineEditorHarness"]) {
+      window["__timelineEditorHarness"].changes = nextChanges;
+    }
   };
 
   const handleDocumentChange = (nextDocument: TimelineEditorDocument) => {
@@ -165,6 +174,34 @@ function App() {
       onCurrentTimeChange={handleCurrentTimeChange}
       onSelectionChange={handleSelectionChange}
       onSelectedItemChange={handleSelectedItemChange}
+      getTimelineContextMenuItems={
+        timelineMenuFixture
+          ? (context) => [
+              {
+                id: "record-timeline-time",
+                label: "Record timeline time",
+                onSelect: () =>
+                  recordChange(`timeline-menu:${context.snappedTimeMs}:${context.track?.id ?? ""}`),
+              },
+              {
+                id: "frame-rate",
+                type: "radio-group",
+                label: "Frame rate",
+                value: String(frameRate ?? ""),
+                options: [24, 25, 30, 50, 60].map((fps) => ({
+                  id: `fps-${fps}`,
+                  value: String(fps),
+                  label: `${fps} fps`,
+                })),
+                onValueChange: (value) => {
+                  const nextFrameRate = Number(value);
+                  setFrameRate(nextFrameRate);
+                  recordChange(`frame-rate:${nextFrameRate}`);
+                },
+              },
+            ]
+          : undefined
+      }
       renderAsset={(asset) => (
         <div>
           <div>{asset.label}</div>

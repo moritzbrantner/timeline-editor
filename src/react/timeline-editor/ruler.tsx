@@ -8,16 +8,25 @@ import {
   getTimelineEditorTimeFromPointer,
   getVisibleTimelineEditorTicks,
 } from "../timeline-rendering";
+import { TimelineEditorContextMenuTarget } from "./context-menu";
 import { timelineEditorRulerHeightPx, timelineEditorTrackHeaderWidthPx } from "./constants";
 import { isTimelineEditorPrimaryPointerButton } from "./pointer";
+import type {
+  TimelineEditorTimelineContextMenuContext,
+  TimelineEditorTimelineContextMenuItems,
+} from "./types";
 import type { TimelineEditorVisibleRange } from "./viewport";
 import { isTimelineEditorTimeVisible } from "./viewport";
 
-type TimelineEditorRulerProps<TTrackData, TItemData> = {
+type TimelineEditorRulerProps<TTrackData extends Record<string, unknown>, TItemData> = {
   document: TimelineEditorDocument<TTrackData, TItemData>;
   durationMs: number;
   nudgeMs: number;
   readOnly: boolean;
+  getTimelineContextMenuContext?: (
+    event: React.MouseEvent<Element>,
+  ) => TimelineEditorTimelineContextMenuContext<TTrackData, TItemData>;
+  getTimelineContextMenuItems?: TimelineEditorTimelineContextMenuItems<TTrackData, TItemData>;
   snapGuideMs: number | null;
   ticks: ReturnType<typeof getVisibleTimelineEditorTicks>;
   timelineWidthPx: number;
@@ -36,9 +45,11 @@ type TimelineEditorRulerProps<TTrackData, TItemData> = {
   ) => TimelineEditorDocument<TTrackData, TItemData>;
 };
 
-export function TimelineEditorRuler<TTrackData, TItemData>({
+export function TimelineEditorRuler<TTrackData extends Record<string, unknown>, TItemData>({
   document,
   durationMs,
+  getTimelineContextMenuContext,
+  getTimelineContextMenuItems,
   nudgeMs,
   readOnly,
   snapGuideMs,
@@ -51,6 +62,61 @@ export function TimelineEditorRuler<TTrackData, TItemData>({
   onScrubPointerDown,
   setCurrentTime,
 }: TimelineEditorRulerProps<TTrackData, TItemData>) {
+  const rulerLane = (
+    <div
+      data-slot="timeline-editor-ruler-lane"
+      className="relative"
+      onPointerDown={(event) => {
+        if (event.defaultPrevented || !isTimelineEditorPrimaryPointerButton(event)) {
+          return;
+        }
+
+        onScrubPointerDown?.(event);
+        const timeMs = getTimelineEditorTimeFromPointer(event, durationMs);
+        const nextDocument = setCurrentTime(document, timeMs, {
+          durationMs,
+          snapMs: nudgeMs,
+        });
+        onCurrentTimeChange?.(nextDocument.currentTimeMs ?? 0);
+        onDocumentChange(nextDocument);
+      }}
+    >
+      {ticks.map((tick) => (
+        <div
+          key={tick.timeMs}
+          className="absolute top-0 h-full border-l border-border"
+          style={{ left: `${(tick.timeMs / durationMs) * 100}%` }}
+        >
+          {tick.major ? (
+            <span className="ml-1 text-[10px] text-muted-foreground">{tick.label}</span>
+          ) : null}
+        </div>
+      ))}
+      {(document.markers ?? [])
+        .filter((marker) => isTimelineEditorTimeVisible(marker.timeMs, visibleRange))
+        .map((marker) => (
+          <div
+            key={marker.id}
+            data-slot="timeline-editor-marker"
+            className="absolute top-0 h-full border-l-2"
+            style={{
+              left: `${(marker.timeMs / durationMs) * 100}%`,
+              borderColor: marker.color ?? "var(--primary)",
+            }}
+            title={marker.label}
+            onPointerDown={(event) => {
+              if (readOnly) {
+                return;
+              }
+
+              event.stopPropagation();
+              onMarkerPointerDown?.(marker, event);
+            }}
+          />
+        ))}
+    </div>
+  );
+
   return (
     <>
       <div
@@ -62,58 +128,17 @@ export function TimelineEditorRuler<TTrackData, TItemData>({
         }}
       >
         <div className="border-r bg-muted/20" />
-        <div
-          data-slot="timeline-editor-ruler-lane"
-          className="relative"
-          onPointerDown={(event) => {
-            if (event.defaultPrevented || !isTimelineEditorPrimaryPointerButton(event)) {
-              return;
-            }
-
-            onScrubPointerDown?.(event);
-            const timeMs = getTimelineEditorTimeFromPointer(event, durationMs);
-            const nextDocument = setCurrentTime(document, timeMs, {
-              durationMs,
-              snapMs: nudgeMs,
-            });
-            onCurrentTimeChange?.(nextDocument.currentTimeMs ?? 0);
-            onDocumentChange(nextDocument);
-          }}
-        >
-          {ticks.map((tick) => (
-            <div
-              key={tick.timeMs}
-              className="absolute top-0 h-full border-l border-border"
-              style={{ left: `${(tick.timeMs / durationMs) * 100}%` }}
-            >
-              {tick.major ? (
-                <span className="ml-1 text-[10px] text-muted-foreground">{tick.label}</span>
-              ) : null}
-            </div>
-          ))}
-          {(document.markers ?? [])
-            .filter((marker) => isTimelineEditorTimeVisible(marker.timeMs, visibleRange))
-            .map((marker) => (
-              <div
-                key={marker.id}
-                data-slot="timeline-editor-marker"
-                className="absolute top-0 h-full border-l-2"
-                style={{
-                  left: `${(marker.timeMs / durationMs) * 100}%`,
-                  borderColor: marker.color ?? "var(--primary)",
-                }}
-                title={marker.label}
-                onPointerDown={(event) => {
-                  if (readOnly) {
-                    return;
-                  }
-
-                  event.stopPropagation();
-                  onMarkerPointerDown?.(marker, event);
-                }}
-              />
-            ))}
-        </div>
+        {getTimelineContextMenuContext ? (
+          <TimelineEditorContextMenuTarget
+            contentProps={{ "data-slot": "timeline-editor-ruler-menu" }}
+            getContext={getTimelineContextMenuContext}
+            getItems={getTimelineContextMenuItems}
+          >
+            {rulerLane}
+          </TimelineEditorContextMenuTarget>
+        ) : (
+          rulerLane
+        )}
       </div>
       <div
         data-slot="timeline-editor-playhead"

@@ -28,6 +28,7 @@ type TimelineEditorHarnessState = {
   };
   selectedItemId: string | null;
   selectedItemIds: string[];
+  frameRate?: number;
 };
 
 async function getHarnessState(page: Page) {
@@ -349,6 +350,47 @@ test("adds and removes whole tracks", async ({ page }) => {
     .poll(async () => (await getHarnessState(page)).document.tracks.map((track) => track.id))
     .toEqual(["review", "review-track-3"]);
   await expect.poll(async () => (await getHarnessState(page)).selectedItemIds).toEqual([]);
+});
+
+test("runs custom timeline context menu actions at the clicked time", async ({ page }) => {
+  await page.goto("/?timelineMenu=true");
+
+  const planningTrack = getTimelineTrack(page, "Planning");
+  const planningTrackBox = await planningTrack.boundingBox();
+  expect(planningTrackBox).not.toBeNull();
+
+  await planningTrack.click({
+    button: "right",
+    position: {
+      x: 160,
+      y: planningTrackBox!.height / 2,
+    },
+  });
+  await page.getByRole("menuitem", { name: "Record timeline time" }).click();
+
+  await expect
+    .poll(async () => (await getHarnessState(page)).changes)
+    .toContain("timeline-menu:200:planning");
+});
+
+test("changes frame rate through a custom timeline context menu", async ({ page }) => {
+  await page.goto("/?timelineMenu=true&frameRate=30");
+
+  const planningTrack = getTimelineTrack(page, "Planning");
+  const planningTrackBox = await planningTrack.boundingBox();
+  expect(planningTrackBox).not.toBeNull();
+
+  await planningTrack.click({
+    button: "right",
+    position: {
+      x: 160,
+      y: planningTrackBox!.height / 2,
+    },
+  });
+  await page.getByRole("menuitemradio", { name: "24 fps" }).click();
+
+  await expect.poll(async () => (await getHarnessState(page)).frameRate).toBe(24);
+  await expect.poll(async () => (await getHarnessState(page)).changes).toContain("frame-rate:24");
 });
 
 test("zooms the timeline with ctrl mousewheel", async ({ page }) => {

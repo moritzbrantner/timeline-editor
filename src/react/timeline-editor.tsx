@@ -63,7 +63,11 @@ import {
 } from "./timeline-editor/selection";
 import { TimelineEditorRuler } from "./timeline-editor/ruler";
 import { TimelineEditorTrackList } from "./timeline-editor/track-list";
-import type { TimelineEditorDragState, TimelineEditorProps } from "./timeline-editor/types";
+import type {
+  TimelineEditorDragState,
+  TimelineEditorProps,
+  TimelineEditorTimelineContextMenuContext,
+} from "./timeline-editor/types";
 import {
   getNextTimelineEditorPixelsPerSecond,
   getTimelineEditorScrollLeftMs,
@@ -81,6 +85,9 @@ export type {
   TimelineEditorTrackContextMenuContext,
   TimelineEditorTrackContextMenuItems,
   TimelineEditorTrackRenderContext,
+  TimelineEditorTimelineContextMenuContext,
+  TimelineEditorTimelineContextMenuItems,
+  TimelineEditorTimelineContextMenuSource,
   TimelineEditorVirtualizationOptions,
 } from "./timeline-editor/types";
 export {
@@ -115,6 +122,7 @@ export function TimelineEditor<
   renderTrackHeader,
   getItemContextMenuItems,
   getTrackContextMenuItems,
+  getTimelineContextMenuItems,
   className,
   style,
   onPointerDown,
@@ -302,6 +310,49 @@ export function TimelineEditor<
     if (nextDocument !== document) {
       commitDocument(nextDocument);
     }
+  };
+
+  const getTimelineContextMenuContext = (
+    source: TimelineEditorTimelineContextMenuContext<TTrackData, TItemData>["source"],
+    event: React.MouseEvent<Element>,
+    track?: TimelineEditorTrack<TTrackData, TItemData>,
+    locked = false,
+  ): TimelineEditorTimelineContextMenuContext<TTrackData, TItemData> => {
+    const scroller = scrollerRef.current;
+    const scrollerRect = scroller?.getBoundingClientRect();
+    const timelineOffsetPx =
+      scroller && scrollerRect
+        ? event.clientX - scrollerRect.left + scroller.scrollLeft - timelineEditorTrackHeaderWidthPx
+        : 0;
+    const timeMs = clampTimelineEditorTime(
+      (timelineOffsetPx / Math.max(1, resolvedViewport.pixelsPerSecond)) * 1_000,
+      0,
+      durationMs,
+    );
+    const snapResult = createTimelineEditorSnapResolver(
+      document,
+      resolvedSnap,
+      resolvedViewport.pixelsPerSecond,
+    )(timeMs);
+    const snappedTimeMs = clampTimelineEditorTime(snapResult.timeMs, 0, durationMs);
+
+    return {
+      document,
+      durationMs,
+      frameRate,
+      readOnly,
+      selection,
+      selectedItems,
+      source,
+      timeMs,
+      snappedTimeMs,
+      snapped: snapResult.snapped,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      track,
+      locked: Boolean(readOnly || locked),
+      viewport: resolvedViewport,
+    };
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -567,6 +618,8 @@ export function TimelineEditor<
         <TimelineEditorRuler
           document={document}
           durationMs={durationMs}
+          getTimelineContextMenuItems={getTimelineContextMenuItems}
+          getTimelineContextMenuContext={(event) => getTimelineContextMenuContext("ruler", event)}
           nudgeMs={nudgeMs}
           readOnly={readOnly}
           setCurrentTime={setTimelineEditorCurrentTime}
@@ -599,6 +652,10 @@ export function TimelineEditor<
           document={document}
           durationMs={durationMs}
           getItemContextMenuItems={getItemContextMenuItems}
+          getTimelineContextMenuContext={(event, track, locked) =>
+            getTimelineContextMenuContext("track-lane", event, track, locked)
+          }
+          getTimelineContextMenuItems={getTimelineContextMenuItems}
           getTrackContextMenuItems={getTrackContextMenuItems}
           readOnly={readOnly}
           renderItem={renderItem}

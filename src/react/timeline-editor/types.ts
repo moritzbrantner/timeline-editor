@@ -72,6 +72,29 @@ export type TimelineEditorTrackContextMenuContext<
   track: TimelineEditorTrack<TTrackData, TItemData>;
 };
 
+export type TimelineEditorTimelineContextMenuSource = "ruler" | "track-lane";
+
+export type TimelineEditorTimelineContextMenuContext<
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+> = {
+  document: TimelineEditorDocument<TTrackData, TItemData>;
+  durationMs: number;
+  frameRate?: number;
+  readOnly: boolean;
+  selection: TimelineEditorSelection;
+  selectedItems: Array<TimelineEditorItem<TItemData>>;
+  source: TimelineEditorTimelineContextMenuSource;
+  timeMs: number;
+  snappedTimeMs: number;
+  snapped: boolean;
+  clientX: number;
+  clientY: number;
+  track?: TimelineEditorTrack<TTrackData, TItemData>;
+  locked: boolean;
+  viewport: TimelineEditorViewport;
+};
+
 export type TimelineEditorItemContextMenuContext<
   TTrackData extends Record<string, unknown> = Record<string, unknown>,
   TItemData = Record<string, unknown>,
@@ -92,6 +115,11 @@ export type TimelineEditorTrackContextMenuItems<
   TTrackData extends Record<string, unknown> = Record<string, unknown>,
   TItemData = Record<string, unknown>,
 > = (context: TimelineEditorTrackContextMenuContext<TTrackData, TItemData>) => MenuActionItem[];
+
+export type TimelineEditorTimelineContextMenuItems<
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+> = (context: TimelineEditorTimelineContextMenuContext<TTrackData, TItemData>) => MenuActionItem[];
 
 export type TimelineEditorVirtualizationOptions = {
   rows?: "auto" | boolean;
@@ -121,6 +149,7 @@ export type TimelineEditorProps<
   renderTrackHeader?: (context: TimelineEditorTrackRenderContext<TTrackData>) => ReactNode;
   getItemContextMenuItems?: TimelineEditorItemContextMenuItems<TTrackData, TItemData>;
   getTrackContextMenuItems?: TimelineEditorTrackContextMenuItems<TTrackData, TItemData>;
+  getTimelineContextMenuItems?: TimelineEditorTimelineContextMenuItems<TTrackData, TItemData>;
 };
 
 export type TimelineEditorDragState<TItemData, TSnapResolver> =

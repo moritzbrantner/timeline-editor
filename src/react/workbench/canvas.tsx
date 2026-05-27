@@ -20,6 +20,7 @@ import {
   type TimelineEditorItemContextMenuItems,
   type TimelineEditorHotkeys,
   type TimelineEditorItemRenderContext,
+  type TimelineEditorTimelineContextMenuItems,
   type TimelineEditorTrackContextMenuItems,
   type TimelineEditorVirtualizationOptions,
 } from "../timeline-editor";
@@ -57,6 +58,7 @@ type TimelineWorkbenchCanvasProps<
   virtualization?: TimelineEditorVirtualizationOptions;
   renderTimelineItem?: (context: TimelineEditorItemRenderContext<TItemData>) => React.ReactNode;
   getItemContextMenuItems: TimelineEditorItemContextMenuItems<TTrackData, TItemData>;
+  getTimelineContextMenuItems?: TimelineEditorTimelineContextMenuItems<TTrackData, TItemData>;
   getTrackContextMenuItems: TimelineEditorTrackContextMenuItems<TTrackData, TItemData>;
   trackGroupMenuItems: MenuActionItem[];
   trackKinds: TimelineEditorItemKind[];
@@ -93,6 +95,7 @@ export function TimelineWorkbenchCanvas<
   virtualization,
   renderTimelineItem,
   getItemContextMenuItems,
+  getTimelineContextMenuItems,
   getTrackContextMenuItems,
   trackGroupMenuItems,
   trackKinds,
@@ -249,6 +252,7 @@ export function TimelineWorkbenchCanvas<
           onViewportChange={onViewportChange}
           renderItem={renderTimelineItem}
           getItemContextMenuItems={getItemContextMenuItems}
+          getTimelineContextMenuItems={getTimelineContextMenuItems}
           getTrackContextMenuItems={getTrackContextMenuItems}
           onDragEnter={updateAssetDropFeedback}
           onDragLeave={(event) => {

@@ -14,7 +14,11 @@ import type {
   TimelineEditorTrack,
   TimelineEditorViewport,
 } from "../../core";
-import type { TimelineEditorHotkeys, TimelineEditorItemRenderContext } from "../timeline-editor";
+import type {
+  TimelineEditorHotkeys,
+  TimelineEditorItemRenderContext,
+  TimelineEditorTimelineContextMenuContext,
+} from "../timeline-editor";
 import type { TimelineEditorVirtualizationOptions } from "../timeline-editor/types";
 
 export type TimelineWorkbenchAsset<TData = Record<string, unknown>> = {
@@ -76,6 +80,28 @@ export type TimelineContextMenuFactory<
   TItemData = Record<string, unknown>,
 > = (context: TimelineWorkbenchItemContextMenuContext<TTrackData, TItemData>) => MenuActionItem[];
 
+export type TimelineWorkbenchTimelineContextMenuContext<
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+  TAssetData = Record<string, unknown>,
+> = TimelineEditorTimelineContextMenuContext<TTrackData, TItemData> & {
+  currentTimeMs: number;
+  setCurrentTime: (timeMs?: number) => void;
+  addMarker: (timeMs?: number) => void;
+  insertAsset: (
+    asset: TimelineWorkbenchAsset<TAssetData>,
+    placement?: { trackId?: string; timeMs?: number },
+  ) => void;
+};
+
+export type TimelineWorkbenchTimelineContextMenuFactory<
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+  TAssetData = Record<string, unknown>,
+> = (
+  context: TimelineWorkbenchTimelineContextMenuContext<TTrackData, TItemData, TAssetData>,
+) => MenuActionItem[];
+
 export type TimelineExtensionOperations<TItemData = Record<string, unknown>> = Record<
   string,
   (context: TimelineWorkbenchInspectorContext<TItemData>) => void
@@ -84,6 +110,7 @@ export type TimelineExtensionOperations<TItemData = Record<string, unknown>> = R
 export type TimelineEditorExtension<
   TItemData = Record<string, unknown>,
   TTrackData extends Record<string, unknown> = Record<string, unknown>,
+  TAssetData = Record<string, unknown>,
 > = {
   id: string;
   itemKinds?: string[];
@@ -93,6 +120,11 @@ export type TimelineEditorExtension<
   inspectorSections?: Array<TimelineInspectorSectionFactory<TItemData, TTrackData>>;
   toolbarActions?: Array<TimelineToolbarActionFactory<TItemData>>;
   contextMenuItems?: TimelineContextMenuFactory<TTrackData, TItemData>;
+  timelineContextMenuItems?: TimelineWorkbenchTimelineContextMenuFactory<
+    TTrackData,
+    TItemData,
+    TAssetData
+  >;
   operations?: TimelineExtensionOperations<TItemData>;
 };
 
@@ -150,7 +182,7 @@ export type TimelineWorkbenchProps<
   onClipboardChange?: (clipboard: TimelineEditorClipboard<TItemData> | undefined) => void;
   hotkeys?: Partial<TimelineEditorHotkeys>;
   onHotkeysChange?: (hotkeys: Partial<TimelineEditorHotkeys>) => void;
-  extensions?: Array<TimelineEditorExtension<TItemData, TTrackData>>;
+  extensions?: Array<TimelineEditorExtension<TItemData, TTrackData, TAssetData>>;
   inspectorSchema?: TimelineWorkbenchInspectorSchema<TItemData>;
   assets?: Array<TimelineWorkbenchAsset<TAssetData>>;
   className?: string;
@@ -172,5 +204,8 @@ export type TimelineWorkbenchProps<
   renderToolbarActions?: (context: TimelineWorkbenchInspectorContext<TItemData>) => ReactNode;
   getItemContextMenuItems?: (
     context: TimelineWorkbenchItemContextMenuContext<TTrackData, TItemData>,
+  ) => MenuActionItem[];
+  getTimelineContextMenuItems?: (
+    context: TimelineWorkbenchTimelineContextMenuContext<TTrackData, TItemData, TAssetData>,
   ) => MenuActionItem[];
 };
