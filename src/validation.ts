@@ -1,5 +1,10 @@
 import { getTimelineEditorDurationMs, getTimelineEditorItemEndMs } from "./time";
-import { type TimelineEditorDocument, type TimelineEditorValidationIssue } from "./types";
+import {
+  isTimelineEditorTransformEasing,
+  timelineEditorTransformEasings,
+  type TimelineEditorDocument,
+  type TimelineEditorValidationIssue,
+} from "./types";
 
 export function validateTimelineEditorDocument(document: TimelineEditorDocument) {
   const issues: TimelineEditorValidationIssue[] = [];
@@ -78,6 +83,16 @@ export function validateTimelineEditorDocument(document: TimelineEditorDocument)
               `${pointPath}.offsetMs`,
               "transform_offset_exceeds_duration",
               "Transform point is outside the item duration.",
+            ),
+          );
+        }
+
+        if (point.easing !== undefined && !isTimelineEditorTransformEasing(point.easing)) {
+          issues.push(
+            error(
+              `${pointPath}.easing`,
+              "invalid_transform_easing",
+              `Transform easing must be one of: ${timelineEditorTransformEasings.join(", ")}.`,
             ),
           );
         }

@@ -4,6 +4,7 @@ import { beforeAll, describe, expect, test, vi } from "vitest";
 
 import {
   TimelineWorkbench,
+  applyTimelineEditorTransformEasing,
   applyTimelineEditorCommand,
   applyTimelineEditorCommandWithHistory,
   clampTimelineEditorTime,
@@ -203,6 +204,26 @@ describe("@moritzbrantner/timeline-editor core", () => {
       { offsetMs: 0, values: { x: 50, opacity: 0.5 } },
       { offsetMs: 1_000, values: { x: 100, opacity: 0 } },
     ]);
+  });
+
+  test("samples transform points with easing curves", () => {
+    const transformed = setTimelineEditorItemTransform(tracks, "brief", {
+      points: [
+        { offsetMs: 0, values: { x: 0 }, easing: "cubic" },
+        { offsetMs: 2_000, values: { x: 100 }, easing: "hold" },
+      ],
+    });
+    const item = transformed[0]!.items[0]!;
+
+    expect(getTimelineEditorTransformValuesAt(item.transform, 500, item.durationMs)).toEqual({
+      x: 6.25,
+    });
+    expect(applyTimelineEditorTransformEasing("cubic-in", 0.5)).toBe(0.125);
+    expect(applyTimelineEditorTransformEasing("cubic-out", 0.5)).toBe(0.875);
+    expect(
+      parseTimelineEditorDocument(serializeTimelineEditorDocument({ tracks: transformed }))
+        .tracks[0]?.items[0]?.transform?.points[0]?.easing,
+    ).toBe("cubic");
   });
 
   test("resolves snap targets without enumerating interval candidates", () => {

@@ -110,7 +110,7 @@ import {
 
 const nextTracks = setTimelineEditorItemTransform(document.tracks, "brief", {
   points: [
-    { offsetMs: 0, values: { x: 0, opacity: 1 } },
+    { offsetMs: 0, values: { x: 0, opacity: 1 }, easing: "cubic" },
     { offsetMs: 2_000, values: { x: 100, opacity: 0 } },
   ],
 });
@@ -119,6 +119,12 @@ const item = nextTracks[0].items[0];
 const values = getTimelineEditorItemTransformValuesAt(item, 2_000);
 // { x: 50, opacity: 0.5 } when the item starts at 1_000ms
 ```
+
+Set `easing` on the point that starts a segment to control how values change
+until the next point. Supported easings are `linear`, `hold`, `ease-in`,
+`ease-out`, `ease-in-out`, `quadratic`, `quadratic-in`, `quadratic-out`,
+`quadratic-in-out`, `cubic`, `cubic-in`, `cubic-out`, `cubic-in-out`, `quartic`,
+`quartic-in`, `quartic-out`, and `quartic-in-out`.
 
 ## Serialization Example
 

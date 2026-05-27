@@ -1,5 +1,7 @@
 import { normalizeTimelineEditorDocument } from "./operations";
 import {
+  isTimelineEditorTransformEasing,
+  timelineEditorTransformEasings,
   type TimelineEditorDocument,
   type TimelineEditorItem,
   type TimelineEditorItemGroup,
@@ -265,8 +267,10 @@ function optionalTransformEasing(input: unknown, path: string) {
     return undefined;
   }
 
-  if (input !== "linear" && input !== "hold") {
-    throw new TimelineEditorParseError([{ path, message: 'Expected "linear" or "hold".' }]);
+  if (!isTimelineEditorTransformEasing(input)) {
+    throw new TimelineEditorParseError([
+      { path, message: `Expected one of: ${timelineEditorTransformEasings.join(", ")}.` },
+    ]);
   }
 
   return input;

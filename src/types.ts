@@ -2,7 +2,36 @@ export type TimelineEditorItemKind = string;
 
 export type TimelineEditorTransformValues = Record<string, number>;
 
-export type TimelineEditorTransformEasing = "linear" | "hold";
+export const timelineEditorTransformEasings = [
+  "linear",
+  "hold",
+  "ease-in",
+  "ease-out",
+  "ease-in-out",
+  "quadratic",
+  "quadratic-in",
+  "quadratic-out",
+  "quadratic-in-out",
+  "cubic",
+  "cubic-in",
+  "cubic-out",
+  "cubic-in-out",
+  "quartic",
+  "quartic-in",
+  "quartic-out",
+  "quartic-in-out",
+] as const;
+
+export type TimelineEditorTransformEasing = (typeof timelineEditorTransformEasings)[number];
+
+export function isTimelineEditorTransformEasing(
+  input: unknown,
+): input is TimelineEditorTransformEasing {
+  return (
+    typeof input === "string" &&
+    timelineEditorTransformEasings.includes(input as TimelineEditorTransformEasing)
+  );
+}
 
 export type TimelineEditorTransformPoint<
   TValues extends TimelineEditorTransformValues = TimelineEditorTransformValues,

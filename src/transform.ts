@@ -1,5 +1,6 @@
 import { clampTimelineEditorTime } from "./time";
 import {
+  type TimelineEditorTransformEasing,
   type TimelineEditorItem,
   type TimelineEditorTransform,
   type TimelineEditorTransformPoint,
@@ -63,6 +64,45 @@ export function getTimelineEditorTransformValuesAt<
   }
 
   return { ...lastPoint.values };
+}
+
+export function applyTimelineEditorTransformEasing(
+  easing: TimelineEditorTransformEasing | undefined,
+  ratio: number,
+): number {
+  const safeRatio = Math.max(0, Math.min(1, ratio));
+
+  switch (easing) {
+    case "hold":
+      return 0;
+    case "ease-in":
+    case "cubic-in":
+      return easeInPower(safeRatio, 3);
+    case "ease-out":
+    case "cubic-out":
+      return easeOutPower(safeRatio, 3);
+    case "ease-in-out":
+    case "cubic":
+    case "cubic-in-out":
+      return easeInOutPower(safeRatio, 3);
+    case "quadratic":
+    case "quadratic-in-out":
+      return easeInOutPower(safeRatio, 2);
+    case "quadratic-in":
+      return easeInPower(safeRatio, 2);
+    case "quadratic-out":
+      return easeOutPower(safeRatio, 2);
+    case "quartic":
+    case "quartic-in-out":
+      return easeInOutPower(safeRatio, 4);
+    case "quartic-in":
+      return easeInPower(safeRatio, 4);
+    case "quartic-out":
+      return easeOutPower(safeRatio, 4);
+    case "linear":
+    case undefined:
+      return safeRatio;
+  }
 }
 
 export function getTimelineEditorItemTransformValuesAt<
@@ -148,6 +188,7 @@ function interpolateTimelineEditorTransformValues<
   offsetMs: number,
 ): Partial<TValues> {
   const ratio = (offsetMs - previousPoint.offsetMs) / (nextPoint.offsetMs - previousPoint.offsetMs);
+  const easedRatio = applyTimelineEditorTransformEasing(previousPoint.easing, ratio);
   const keys = new Set([
     ...Object.keys(previousPoint.values),
     ...Object.keys(nextPoint.values),
@@ -168,8 +209,24 @@ function interpolateTimelineEditorTransformValues<
       continue;
     }
 
-    values[key] = (previousValue + (nextValue - previousValue) * ratio) as TValues[typeof key];
+    values[key] = (previousValue + (nextValue - previousValue) * easedRatio) as TValues[typeof key];
   }
 
   return values;
+}
+
+function easeInPower(ratio: number, power: number) {
+  return ratio ** power;
+}
+
+function easeOutPower(ratio: number, power: number) {
+  return 1 - (1 - ratio) ** power;
+}
+
+function easeInOutPower(ratio: number, power: number) {
+  if (ratio < 0.5) {
+    return 2 ** (power - 1) * ratio ** power;
+  }
+
+  return 1 - (-2 * ratio + 2) ** power / 2;
 }
