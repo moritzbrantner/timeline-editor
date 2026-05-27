@@ -8,18 +8,21 @@ import {
   type TimelineEditorDocument,
   type TimelineEditorItem,
 } from "../../core";
+import type { TimelineEditorExtension } from "./types";
 
-type TimelineWorkbenchPreviewProps<TTrackData, TItemData> = {
+type TimelineWorkbenchPreviewProps<TTrackData extends Record<string, unknown>, TItemData> = {
   currentTimeMs: number;
   document: TimelineEditorDocument<TTrackData, TItemData>;
   durationMs: number;
+  extensions?: Array<TimelineEditorExtension<TItemData, TTrackData>>;
   selectedItems: Array<TimelineEditorItem<TItemData>>;
 };
 
-export function TimelineWorkbenchPreview<TTrackData, TItemData>({
+export function TimelineWorkbenchPreview<TTrackData extends Record<string, unknown>, TItemData>({
   currentTimeMs,
   document,
   durationMs,
+  extensions = [],
   selectedItems,
 }: TimelineWorkbenchPreviewProps<TTrackData, TItemData>) {
   const activeItems = document.tracks.flatMap((track) =>
@@ -39,6 +42,19 @@ export function TimelineWorkbenchPreview<TTrackData, TItemData>({
       : activeItems;
   const progress =
     durationMs > 0 ? Math.min(100, Math.max(0, (currentTimeMs / durationMs) * 100)) : 0;
+  const extensionPreview = extensions
+    .find((extension) =>
+      previewItems.some(({ item }) =>
+        item.kind ? extension.itemKinds?.includes(item.kind) && extension.renderPreview : false,
+      ),
+    )
+    ?.renderPreview?.({
+      currentTimeMs,
+      document: document as TimelineEditorDocument<Record<string, unknown>, TItemData>,
+      durationMs,
+      items: previewItems.map(({ item }) => item),
+      selectedItems,
+    });
 
   return (
     <WorkbenchPanel
@@ -58,20 +74,25 @@ export function TimelineWorkbenchPreview<TTrackData, TItemData>({
           <div className="h-full bg-primary" style={{ width: `${progress}%` }} />
         </div>
         <div className="grid h-full place-items-center p-4">
-          <div className="grid w-full max-w-md gap-2">
-            {previewItems.slice(0, 4).map(({ item, track }) => (
-              <div
-                key={item.id}
-                className="grid min-h-12 gap-1 rounded border border-white/10 bg-white/10 px-3 py-2 text-white shadow-sm"
-                style={{ borderLeftColor: item.color ?? "hsl(var(--primary))", borderLeftWidth: 4 }}
-              >
-                <div className="truncate text-sm font-medium">{item.label}</div>
-                <div className="truncate text-xs text-white/60">
-                  {track?.label ?? item.kind ?? item.id}
+          {extensionPreview ?? (
+            <div className="grid w-full max-w-md gap-2">
+              {previewItems.slice(0, 4).map(({ item, track }) => (
+                <div
+                  key={item.id}
+                  className="grid min-h-12 gap-1 rounded border border-white/10 bg-white/10 px-3 py-2 text-white shadow-sm"
+                  style={{
+                    borderLeftColor: item.color ?? "hsl(var(--primary))",
+                    borderLeftWidth: 4,
+                  }}
+                >
+                  <div className="truncate text-sm font-medium">{item.label}</div>
+                  <div className="truncate text-xs text-white/60">
+                    {track?.label ?? item.kind ?? item.id}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </WorkbenchPanel>

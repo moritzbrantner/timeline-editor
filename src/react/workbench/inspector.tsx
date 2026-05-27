@@ -1,19 +1,29 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import { InspectorPanel, type InspectorFieldValue } from "@moritzbrantner/ui/labs";
 
 import {
   formatTimelineEditorTimeMs,
   getTimelineEditorItemEndMs,
   snapTimelineEditorTime,
+  validateTimelineEditorDocument,
 } from "../../core";
-import type { TimelineWorkbenchInspectorContext } from "../workbench";
+import type {
+  TimelineWorkbenchInspectorContext,
+  TimelineWorkbenchInspectorSchema,
+} from "../workbench";
 
 export function DefaultTimelineInspector<TData>({
   context,
+  extensionSections = [],
+  inspectorSchema,
   timingStepMs,
 }: {
   context: TimelineWorkbenchInspectorContext<TData>;
+  extensionSections?: ReactNode[];
+  inspectorSchema?: TimelineWorkbenchInspectorSchema<TData>;
   timingStepMs?: number;
 }) {
   const item = context.selectedItem;
@@ -43,66 +53,126 @@ export function DefaultTimelineInspector<TData>({
   }
 
   if (!item) {
+    const issues = validateTimelineEditorDocument(context.document as never);
+
     return (
-      <TimelineWorkbenchInfoPanel
-        title="Document"
-        summary={formatDocumentSummary(context.document.tracks.length, documentItemCount)}
-        rows={[
-          ["Duration", formatTimelineEditorTimeMs(context.durationMs)],
-          ["Current time", formatTimelineEditorTimeMs(context.document.currentTimeMs ?? 0)],
-          ["Tracks", context.document.tracks.length],
-          ["Items", documentItemCount],
-          ["Markers", context.document.markers?.length ?? 0],
-          ["Groups", context.document.groups?.length ?? 0],
-          ["Item groups", context.document.itemGroups?.length ?? 0],
-        ]}
-      />
+      <div className="grid gap-3">
+        <TimelineWorkbenchInfoPanel
+          title="Document"
+          summary={formatDocumentSummary(context.document.tracks.length, documentItemCount)}
+          rows={[
+            ["Duration", formatTimelineEditorTimeMs(context.durationMs)],
+            ["Current time", formatTimelineEditorTimeMs(context.document.currentTimeMs ?? 0)],
+            ["Tracks", context.document.tracks.length],
+            ["Items", documentItemCount],
+            ["Markers", context.document.markers?.length ?? 0],
+            ["Groups", context.document.groups?.length ?? 0],
+            ["Item groups", context.document.itemGroups?.length ?? 0],
+            ["Validation", issues.length],
+          ]}
+        />
+        {(context.document.markers?.length ?? 0) > 0 ? (
+          <TimelineWorkbenchInfoPanel
+            title="Markers"
+            summary={`${context.document.markers?.length ?? 0} markers`}
+            rows={(context.document.markers ?? []).map((marker) => [
+              marker.label ?? marker.id,
+              formatTimelineEditorTimeMs(marker.timeMs),
+            ])}
+          />
+        ) : null}
+        {issues.length > 0 ? (
+          <TimelineWorkbenchInfoPanel
+            title="Validation"
+            summary={`${issues.length} issues`}
+            rows={issues.slice(0, 6).map((issue) => [issue.code, issue.message])}
+          />
+        ) : null}
+        {extensionSections}
+      </div>
     );
   }
 
+  const schemaValues = Object.fromEntries(
+    (inspectorSchema?.itemFields ?? []).map((field) => [
+      field.id,
+      field.dataKey ? (item.data as Record<string, unknown> | undefined)?.[field.dataKey] : "",
+    ]),
+  );
+
   return (
-    <InspectorPanel
-      title="Timeline item"
-      description={context.selectedTrack?.label}
-      readOnly={context.readOnly}
-      values={{
-        label: item.label,
-        startMs: item.startMs,
-        durationMs: item.durationMs,
-        endMs: getTimelineEditorItemEndMs(item),
-        kind: item.kind ?? "",
-        locked: item.locked ?? false,
-      }}
-      sections={[
-        {
-          id: "timing",
-          title: "Timing",
-          fields: [
-            { id: "label", label: "Label", type: "text" },
-            { id: "startMs", label: "Start", type: "number", min: 0, step: inputStepMs },
-            { id: "durationMs", label: "Duration", type: "number", min: 100, step: inputStepMs },
-            { id: "endMs", label: "End", type: "number", readOnly: true },
-            { id: "kind", label: "Kind", type: "text" },
-            { id: "locked", label: "Locked", type: "boolean" },
-          ],
-        },
-      ]}
-      onApply={(values) => {
-        context.updateSelectedItem({
-          label: String(values.label ?? item.label),
-          startMs: snapTimelineWorkbenchInspectorTime(
-            toNumber(values.startMs, item.startMs),
-            timingStepMs,
-          ),
-          durationMs: snapTimelineWorkbenchInspectorTime(
-            toNumber(values.durationMs, item.durationMs),
-            timingStepMs,
-          ),
-          kind: String(values.kind ?? "") || undefined,
-          locked: Boolean(values.locked),
-        });
-      }}
-    />
+    <div className="grid gap-3">
+      <InspectorPanel
+        title="Timeline item"
+        description={context.selectedTrack?.label}
+        readOnly={context.readOnly}
+        values={{
+          label: item.label,
+          startMs: item.startMs,
+          durationMs: item.durationMs,
+          endMs: getTimelineEditorItemEndMs(item),
+          kind: item.kind ?? "",
+          color: item.color ?? "",
+          locked: item.locked ?? false,
+          ...schemaValues,
+        }}
+        sections={[
+          {
+            id: "timing",
+            title: "Timing",
+            fields: [
+              { id: "label", label: "Label", type: "text" },
+              { id: "startMs", label: "Start", type: "number", min: 0, step: inputStepMs },
+              { id: "durationMs", label: "Duration", type: "number", min: 100, step: inputStepMs },
+              { id: "endMs", label: "End", type: "number", readOnly: true },
+              { id: "kind", label: "Kind", type: "text" },
+              { id: "color", label: "Color", type: "text" },
+              { id: "locked", label: "Locked", type: "boolean" },
+            ],
+          },
+          ...(inspectorSchema?.itemFields?.length
+            ? [
+                {
+                  id: "data",
+                  title: "Data",
+                  fields: inspectorSchema.itemFields.map((field) => ({
+                    id: field.id,
+                    label: field.label,
+                    type: field.type === "color" ? "text" : field.type,
+                  })),
+                },
+              ]
+            : []),
+        ]}
+        onApply={(values) => {
+          const dataPatch = Object.fromEntries(
+            (inspectorSchema?.itemFields ?? [])
+              .filter((field) => field.dataKey)
+              .map((field) => [field.dataKey!, values[field.id]]),
+          );
+
+          context.updateSelectedItem({
+            label: String(values.label ?? item.label),
+            startMs: snapTimelineWorkbenchInspectorTime(
+              toNumber(values.startMs, item.startMs),
+              timingStepMs,
+            ),
+            durationMs: snapTimelineWorkbenchInspectorTime(
+              toNumber(values.durationMs, item.durationMs),
+              timingStepMs,
+            ),
+            kind: String(values.kind ?? "") || undefined,
+            color: String(values.color ?? "") || undefined,
+            locked: Boolean(values.locked),
+            data:
+              Object.keys(dataPatch).length > 0
+                ? ({ ...((item.data as object | undefined) ?? {}), ...dataPatch } as TData)
+                : item.data,
+          });
+        }}
+      />
+      {extensionSections}
+    </div>
   );
 }
 

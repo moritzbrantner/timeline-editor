@@ -6,6 +6,8 @@ import type {
   TimelineEditorDocument,
   TimelineEditorEditPolicy,
   TimelineEditorSelection,
+  TimelineEditorSnapOptions,
+  TimelineEditorTool,
   TimelineEditorViewport,
 } from "../../core";
 import { snapTimelineEditorTime } from "../../core";
@@ -13,6 +15,7 @@ import {
   TimelineEditor,
   timelineEditorTrackHeaderWidthPx,
   type TimelineEditorItemContextMenuItems,
+  type TimelineEditorHotkeys,
   type TimelineEditorItemRenderContext,
   type TimelineEditorTrackContextMenuItems,
   type TimelineEditorVirtualizationOptions,
@@ -38,8 +41,12 @@ type TimelineWorkbenchCanvasProps<
   document: TimelineEditorDocument<TTrackData, TItemData>;
   editPolicy?: Partial<TimelineEditorEditPolicy>;
   frameRate?: number;
+  hotkeys?: Partial<TimelineEditorHotkeys>;
   readOnly: boolean;
+  tool?: TimelineEditorTool;
+  minItemDurationMs?: number;
   resolvedSelection: TimelineEditorSelection;
+  snap?: Partial<TimelineEditorSnapOptions>;
   resolvedSnapMs: number;
   resolvedViewport: TimelineEditorViewport;
   virtualization?: TimelineEditorVirtualizationOptions;
@@ -66,8 +73,12 @@ export function TimelineWorkbenchCanvas<
   document,
   editPolicy,
   frameRate,
+  hotkeys,
   readOnly,
+  tool,
+  minItemDurationMs,
   resolvedSelection,
+  snap,
   resolvedSnapMs,
   resolvedViewport,
   virtualization,
@@ -151,12 +162,15 @@ export function TimelineWorkbenchCanvas<
             { type: "item-edge" },
             { type: "playhead" },
           ],
+          ...snap,
         }}
         frameRate={frameRate}
+        tool={tool}
+        minItemDurationMs={minItemDurationMs}
         editPolicy={editPolicy}
         readOnly={readOnly}
         virtualization={virtualization}
-        hotkeys={defaultTimelineWorkbenchHotkeys}
+        hotkeys={{ ...defaultTimelineWorkbenchHotkeys, ...hotkeys }}
         onCurrentTimeChange={onCurrentTimeChange}
         onDocumentChange={onDocumentChange}
         onSelectionChange={onSelectionChange}

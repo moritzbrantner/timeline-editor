@@ -23,6 +23,70 @@ this package.
 - `validateTimelineEditorDocument(...)`, `serializeTimelineEditorDocument(...)`, `parseTimelineEditorDocument(...)`, and `migrateTimelineEditorDocument(...)`.
 - `detectTimelineEditorOverlaps(...)`, `getTimelineEditorDurationMs(...)`, and timeline tick/snap helpers.
 
+## Core Editor
+
+The core package stays media-agnostic. Items can represent any timed domain
+object through `kind` and `data`, while the shared editor owns generic timeline
+behavior: selection, ranges, move/resize/split/trim, grouping, markers, snapping,
+overlap policies, validation, serialization, and history.
+
+Clipboard commands are available through `TimelineEditorCommand`:
+
+```ts
+const copied = applyTimelineEditorCommand(document, selection, { type: "copy-selection" });
+const pasted = applyTimelineEditorCommand(
+  document,
+  { itemIds: [] },
+  {
+    type: "paste-items",
+    clipboard: copied.clipboard!,
+    timeMs: document.currentTimeMs ?? 0,
+  },
+);
+```
+
+## Workbench
+
+`TimelineWorkbench` layers ergonomic UI over the core reducer. It includes
+undo/redo, copy/cut/paste, split, duplicate, group/ungroup, marker creation,
+track context actions, tool selection, configurable hotkeys, an inspector, and
+snap-aware asset insertion.
+
+```tsx
+<TimelineWorkbench
+  document={document}
+  selection={selection}
+  clipboard={clipboard}
+  onClipboardChange={setClipboard}
+  hotkeys={{ copy: "Mod+C", paste: "Mod+V" }}
+  onDocumentChange={setDocument}
+  onSelectionChange={setSelection}
+/>
+```
+
+## Extensions
+
+Media-specific behavior belongs in extensions rather than the generic core.
+An extension can contribute item rendering, preview rendering, inspector
+sections, toolbar actions, context menu items, and pure operations.
+
+```tsx
+<TimelineWorkbench
+  document={document}
+  extensions={[
+    createTimelineAudioExtension(),
+    createTimelineVideoExtension(),
+    createTimelineCaptionsExtension(),
+  ]}
+/>
+```
+
+This repository includes private skeleton packages under `packages/audio`,
+`packages/video`, and `packages/captions` to demonstrate the intended package
+shape. They define conventions and renderers only; decoding, waveform
+generation, playback, and export are intentionally left to dedicated media
+implementations.
+
 ## Controlled React Example
 
 ```tsx

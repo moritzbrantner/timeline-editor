@@ -11,6 +11,8 @@ import {
   normalizeTimelineEditorDocument,
   resizeTimelineEditorItem,
   setTimelineEditorCurrentTime,
+  splitTimelineEditorItems,
+  updateTimelineEditorMarker,
 } from "../core";
 import {
   createTimelineEditorDocumentIndex,
@@ -29,6 +31,7 @@ import {
   type TimelineEditorDocument,
   type TimelineEditorEditPolicy,
   type TimelineEditorItem,
+  type TimelineEditorMarker,
   type TimelineEditorTrack,
 } from "../types";
 import {
@@ -96,6 +99,8 @@ export function TimelineEditor<
   viewport,
   readOnly = false,
   frameRate,
+  tool = "select",
+  minItemDurationMs,
   editPolicy,
   snap,
   hotkeys,
@@ -158,6 +163,11 @@ export function TimelineEditor<
     TItemData,
     TimelineEditorSnapResolver
   > | null>(null);
+  const [markerDragState, setMarkerDragState] = useState<{
+    marker: TimelineEditorMarker;
+    startX: number;
+    originalTimeMs: number;
+  } | null>(null);
   const selectedIds = useMemo(() => new Set(selection.itemIds), [selection.itemIds]);
   const documentIndex = useMemo(() => createTimelineEditorDocumentIndex(document), [document]);
   const selectedItems = useMemo(
@@ -246,7 +256,7 @@ export function TimelineEditor<
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragState || readOnly) {
+    if (markerDragState || !dragState || readOnly) {
       return;
     }
 
@@ -300,6 +310,36 @@ export function TimelineEditor<
   };
 
   const commitDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (markerDragState && !readOnly) {
+      const deltaMs = getTimelineEditorTimeFromDelta(
+        getTimelineEditorPointerClientX(event) - markerDragState.startX,
+        resolvedViewport.pixelsPerSecond,
+      );
+      const snapResolver = createTimelineEditorSnapResolver(
+        document,
+        resolvedSnap,
+        resolvedViewport.pixelsPerSecond,
+      );
+      const snapResult = snapResolver(markerDragState.originalTimeMs + deltaMs);
+      if (snapResult.timeMs === markerDragState.originalTimeMs) {
+        cancelScheduledPreview();
+        setDragState(null);
+        setMarkerDragState(null);
+        clearPreview();
+        return;
+      }
+      const nextDocument = updateTimelineEditorMarker(
+        document,
+        markerDragState.marker.id,
+        { timeMs: snapResult.timeMs },
+        { durationMs, snapMs: nudgeMs },
+      );
+
+      if (nextDocument !== document) {
+        commitDocument(nextDocument);
+      }
+    }
+
     if (dragState && !readOnly) {
       const tracks = getTimelineEditorDragCommitTracks(
         document,
@@ -319,12 +359,14 @@ export function TimelineEditor<
 
     cancelScheduledPreview();
     setDragState(null);
+    setMarkerDragState(null);
     clearPreview();
   };
 
   const cancelDrag = () => {
     cancelScheduledPreview();
     setDragState(null);
+    setMarkerDragState(null);
     clearPreview();
   };
 
@@ -462,6 +504,7 @@ export function TimelineEditor<
           document={document}
           durationMs={durationMs}
           nudgeMs={nudgeMs}
+          readOnly={readOnly}
           setCurrentTime={setTimelineEditorCurrentTime}
           snapGuideMs={snapGuideMs}
           ticks={ticks}
@@ -469,6 +512,23 @@ export function TimelineEditor<
           visibleRange={visibleRange}
           onCurrentTimeChange={onCurrentTimeChange}
           onDocumentChange={commitDocument}
+          onMarkerPointerDown={(marker, event) => {
+            captureTimelineEditorPointer(event.currentTarget, event.pointerId);
+            const nextDocument = setTimelineEditorCurrentTime(document, marker.timeMs, {
+              durationMs,
+              snapMs: nudgeMs,
+            });
+            onCurrentTimeChange?.(nextDocument.currentTimeMs ?? 0);
+            if (nextDocument !== document) {
+              commitDocument(nextDocument);
+            }
+            commitSelection({ ...selection, markerIds: [marker.id] });
+            setMarkerDragState({
+              marker,
+              startX: getTimelineEditorPointerClientX(event),
+              originalTimeMs: marker.timeMs,
+            });
+          }}
         />
         <TimelineEditorTrackList
           document={document}
@@ -498,6 +558,44 @@ export function TimelineEditor<
             }
 
             event.stopPropagation();
+
+            if (tool === "blade") {
+              const scroller = scrollerRef.current;
+              const scrollerRect = scroller?.getBoundingClientRect();
+              const timeMs =
+                scroller && scrollerRect
+                  ? clampTimelineEditorTime(
+                      ((event.clientX -
+                        scrollerRect.left +
+                        scroller.scrollLeft -
+                        timelineEditorTrackHeaderWidthPx) /
+                        Math.max(1, resolvedViewport.pixelsPerSecond)) *
+                        1_000,
+                      0,
+                      durationMs,
+                    )
+                  : item.startMs;
+              const tracks = splitTimelineEditorItems(
+                document.tracks,
+                getTimelineEditorGroupedItemIdsFromIndex(documentIndex, [item.id]),
+                timeMs,
+                {
+                  durationMs,
+                  editPolicy,
+                  minItemDurationMs,
+                  snapMs: nudgeMs,
+                },
+              );
+
+              if (tracks !== document.tracks) {
+                commitDocument(
+                  normalizeTimelineEditorDocument({ ...document, tracks }, { durationMs }),
+                );
+              }
+
+              return;
+            }
+
             captureTimelineEditorPointer(event.currentTarget, event.pointerId);
             selectItem(item, track, event);
             const activeSelection = getTimelineEditorGroupedItemIdsFromIndex(

@@ -1,26 +1,17 @@
 import "@moritzbrantner/ui/styles.css";
 import "./styles.css";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import {
   TimelineWorkbench,
-  detectTimelineEditorOverlaps,
   formatTimelineEditorTimeMs,
-  getTimelineEditorDurationMs,
-  parseTimelineEditorDocument,
-  serializeTimelineEditorDocument,
   type TimelineEditorDocument,
   type TimelineEditorItem,
   type TimelineEditorSelection,
   type TimelineWorkbenchAsset,
 } from "@moritzbrantner/timeline-editor";
-
-type DevEvent = {
-  id: string;
-  label: string;
-};
 
 const initialDocument: TimelineEditorDocument = {
   durationMs: 18_000,
@@ -148,53 +139,18 @@ function App() {
   const [document, setDocument] = useState(initialDocument);
   const [selection, setSelection] = useState<TimelineEditorSelection>({ itemIds: [] });
   const [readOnly, setReadOnly] = useState(false);
-  const [events, setEvents] = useState<DevEvent[]>([]);
-  const [snapshot, setSnapshot] = useState(() => serializeTimelineEditorDocument(initialDocument));
-  const selectedItems = useMemo(
-    () =>
-      document.tracks.flatMap((track) =>
-        track.items.filter((item) => selection.itemIds.includes(item.id)),
-      ),
-    [document.tracks, selection.itemIds],
-  );
-  const durationMs = document.durationMs ?? getTimelineEditorDurationMs(document.tracks, 0);
-  const overlaps = useMemo(() => detectTimelineEditorOverlaps(document.tracks), [document.tracks]);
-
-  const recordEvent = (label: string) => {
-    setEvents((current) => [{ id: `${Date.now()}-${label}`, label }, ...current].slice(0, 6));
-  };
 
   const updateDocument = (nextDocument: TimelineEditorDocument) => {
     setDocument(nextDocument);
-    setSnapshot(serializeTimelineEditorDocument(nextDocument));
-    recordEvent("Document changed");
   };
 
   const updateSelection = (nextSelection: TimelineEditorSelection) => {
     setSelection(nextSelection);
-    recordEvent(
-      nextSelection.itemIds.length > 0
-        ? `Selected ${nextSelection.itemIds.join(", ")}`
-        : "Selection cleared",
-    );
   };
 
   const resetDocument = () => {
     setDocument(initialDocument);
     setSelection({ itemIds: [] });
-    setSnapshot(serializeTimelineEditorDocument(initialDocument));
-    recordEvent("Example reset");
-  };
-
-  const restoreSnapshot = () => {
-    try {
-      const nextDocument = parseTimelineEditorDocument(snapshot);
-      setDocument(nextDocument);
-      setSelection({ itemIds: [] });
-      recordEvent("Snapshot restored");
-    } catch (error) {
-      recordEvent(error instanceof Error ? error.message : "Snapshot restore failed");
-    }
   };
 
   return (
@@ -210,12 +166,7 @@ function App() {
               <input
                 type="checkbox"
                 checked={readOnly}
-                onChange={(event) => {
-                  setReadOnly(event.currentTarget.checked);
-                  recordEvent(
-                    event.currentTarget.checked ? "Read-only enabled" : "Editing enabled",
-                  );
-                }}
+                onChange={(event) => setReadOnly(event.currentTarget.checked)}
               />
               Read-only
             </label>
@@ -234,9 +185,6 @@ function App() {
           snapMs={100}
           assets={assets}
           onDocumentChange={updateDocument}
-          onCurrentTimeChange={(timeMs) => {
-            recordEvent(`Playhead ${formatTimelineEditorTimeMs(timeMs)}`);
-          }}
           onSelectionChange={updateSelection}
           renderAsset={(asset) => (
             <div className="dev-asset">
@@ -257,90 +205,11 @@ function App() {
               disabled: context.readOnly,
               onSelect: () => {
                 context.updateItem(context.item.id, { locked: !context.item.locked });
-                recordEvent(`${context.item.locked ? "Unlocked" : "Locked"} ${context.item.label}`);
               },
             },
           ]}
         />
       </section>
-
-      <aside className="dev-sidebar" aria-label="Example state">
-        <section className="dev-panel">
-          <h2>Document</h2>
-          <dl className="dev-stats">
-            <div>
-              <dt>Duration</dt>
-              <dd>{formatTimelineEditorTimeMs(durationMs)}</dd>
-            </div>
-            <div>
-              <dt>Tracks</dt>
-              <dd>{document.tracks.length}</dd>
-            </div>
-            <div>
-              <dt>Items</dt>
-              <dd>{document.tracks.reduce((count, track) => count + track.items.length, 0)}</dd>
-            </div>
-            <div>
-              <dt>Overlaps</dt>
-              <dd>{overlaps.length}</dd>
-            </div>
-          </dl>
-        </section>
-
-        <section className="dev-panel">
-          <h2>Selection</h2>
-          {selectedItems.length > 0 ? (
-            <div className="dev-selection-list">
-              {selectedItems.map((item) => (
-                <div key={item.id} className="dev-selection-item">
-                  <span className="dev-swatch" style={{ background: item.color }} />
-                  <span>
-                    <strong>{item.label}</strong>
-                    <small>
-                      {formatTimelineEditorTimeMs(item.startMs)} -{" "}
-                      {formatTimelineEditorTimeMs(item.durationMs)}
-                    </small>
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="dev-muted">No timeline items selected.</p>
-          )}
-        </section>
-
-        <section className="dev-panel">
-          <div className="dev-panel-header">
-            <h2>Serialized</h2>
-            <button
-              type="button"
-              className="dev-button dev-button-compact"
-              onClick={restoreSnapshot}
-            >
-              Restore
-            </button>
-          </div>
-          <textarea
-            className="dev-snapshot"
-            value={snapshot}
-            spellCheck={false}
-            onChange={(event) => setSnapshot(event.currentTarget.value)}
-          />
-        </section>
-
-        <section className="dev-panel">
-          <h2>Events</h2>
-          {events.length > 0 ? (
-            <ol className="dev-events">
-              {events.map((event) => (
-                <li key={event.id}>{event.label}</li>
-              ))}
-            </ol>
-          ) : (
-            <p className="dev-muted">Interact with the timeline to see events.</p>
-          )}
-        </section>
-      </aside>
     </main>
   );
 }

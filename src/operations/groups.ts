@@ -2,6 +2,7 @@ import type {
   TimelineEditorDocument,
   TimelineEditorItemGroup,
   TimelineEditorOperationOptions,
+  TimelineEditorTrackGroup,
 } from "../types";
 import {
   createTimelineEditorDocumentIndex,
@@ -113,5 +114,99 @@ export function getTimelineEditorGroupedItemIds<
   return getTimelineEditorGroupedItemIdsFromIndex(
     createTimelineEditorDocumentIndex(document),
     itemIds,
+  );
+}
+
+export function addTimelineEditorTrackGroup<
+  TTrackData = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+  TGroupData = Record<string, unknown>,
+>(
+  document: TimelineEditorDocument<TTrackData, TItemData, TGroupData>,
+  group: TimelineEditorTrackGroup<TGroupData>,
+  options: TimelineEditorOperationOptions = {},
+) {
+  const trackIds = new Set(document.tracks.map((track) => track.id));
+
+  if ((document.groups ?? []).some((candidate) => candidate.id === group.id)) {
+    return document;
+  }
+
+  const nextGroup = {
+    ...group,
+    trackIds: group.trackIds.filter(
+      (trackId, index, trackIdsInGroup) =>
+        trackIds.has(trackId) && trackIdsInGroup.indexOf(trackId) === index,
+    ),
+  };
+
+  if (nextGroup.trackIds.length === 0) {
+    return document;
+  }
+
+  return normalizeTimelineEditorDocument(
+    { ...document, groups: [...(document.groups ?? []), nextGroup] },
+    options,
+  );
+}
+
+export function updateTimelineEditorTrackGroup<
+  TTrackData = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+  TGroupData = Record<string, unknown>,
+>(
+  document: TimelineEditorDocument<TTrackData, TItemData, TGroupData>,
+  groupId: string,
+  patch: Partial<Omit<TimelineEditorTrackGroup<TGroupData>, "id">>,
+  options: TimelineEditorOperationOptions = {},
+) {
+  if (!(document.groups ?? []).some((group) => group.id === groupId)) {
+    return document;
+  }
+
+  const trackIds = new Set(document.tracks.map((track) => track.id));
+
+  return normalizeTimelineEditorDocument(
+    {
+      ...document,
+      groups: document.groups?.map((group) => {
+        if (group.id !== groupId) {
+          return group;
+        }
+
+        const nextGroup = { ...group, ...patch, id: group.id };
+
+        return {
+          ...nextGroup,
+          trackIds: nextGroup.trackIds.filter(
+            (trackId, index, trackIdsInGroup) =>
+              trackIds.has(trackId) && trackIdsInGroup.indexOf(trackId) === index,
+          ),
+        };
+      }),
+    },
+    options,
+  );
+}
+
+export function removeTimelineEditorTrackGroup<
+  TTrackData = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+  TGroupData = Record<string, unknown>,
+>(
+  document: TimelineEditorDocument<TTrackData, TItemData, TGroupData>,
+  groupId: string,
+  options: TimelineEditorOperationOptions = {},
+) {
+  if (!(document.groups ?? []).some((group) => group.id === groupId)) {
+    return document;
+  }
+
+  return normalizeTimelineEditorDocument(
+    {
+      ...document,
+      groups: document.groups?.filter((group) => group.id !== groupId),
+    },
+    options,
   );
 }

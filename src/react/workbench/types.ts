@@ -5,13 +5,16 @@ import type { MenuActionItem } from "@moritzbrantner/ui";
 import type {
   TimelineEditorDocument,
   TimelineEditorEditPolicy,
+  TimelineEditorClipboard,
   TimelineEditorItem,
   TimelineEditorItemKind,
   TimelineEditorSelection,
+  TimelineEditorSnapOptions,
+  TimelineEditorTool,
   TimelineEditorTrack,
   TimelineEditorViewport,
 } from "../../core";
-import type { TimelineEditorItemRenderContext } from "../timeline-editor";
+import type { TimelineEditorHotkeys, TimelineEditorItemRenderContext } from "../timeline-editor";
 import type { TimelineEditorVirtualizationOptions } from "../timeline-editor/types";
 
 export type TimelineWorkbenchAsset<TData = Record<string, unknown>> = {
@@ -40,6 +43,61 @@ export type TimelineWorkbenchInspectorContext<TData = Record<string, unknown>> =
   selectedItems: Array<TimelineEditorItem<TData>>;
   selectedTrack?: TimelineEditorTrack<Record<string, unknown>, TData>;
   updateSelectedItem: (patch: Partial<TimelineEditorItem<TData>>) => void;
+};
+
+export type TimelinePreviewContext<TItemData = Record<string, unknown>> = {
+  currentTimeMs: number;
+  document: TimelineEditorDocument<Record<string, unknown>, TItemData>;
+  durationMs: number;
+  items: Array<TimelineEditorItem<TItemData>>;
+  selectedItems: Array<TimelineEditorItem<TItemData>>;
+};
+
+export type TimelineInspectorSectionFactory<
+  TItemData = Record<string, unknown>,
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+> = (
+  context: TimelineWorkbenchInspectorContext<TItemData> & {
+    selectedTrack?: TimelineEditorTrack<TTrackData, TItemData>;
+  },
+) => ReactNode;
+
+export type TimelineToolbarActionFactory<TItemData = Record<string, unknown>> = (
+  context: TimelineWorkbenchInspectorContext<TItemData>,
+) => ReactNode;
+
+export type TimelineContextMenuFactory<
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+> = (context: TimelineWorkbenchItemContextMenuContext<TTrackData, TItemData>) => MenuActionItem[];
+
+export type TimelineExtensionOperations<TItemData = Record<string, unknown>> = Record<
+  string,
+  (context: TimelineWorkbenchInspectorContext<TItemData>) => void
+>;
+
+export type TimelineEditorExtension<
+  TItemData = Record<string, unknown>,
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+> = {
+  id: string;
+  itemKinds?: string[];
+  trackKinds?: string[];
+  renderItem?: (context: TimelineEditorItemRenderContext<TItemData>) => ReactNode;
+  renderPreview?: (context: TimelinePreviewContext<TItemData>) => ReactNode;
+  inspectorSections?: Array<TimelineInspectorSectionFactory<TItemData, TTrackData>>;
+  toolbarActions?: Array<TimelineToolbarActionFactory<TItemData>>;
+  contextMenuItems?: TimelineContextMenuFactory<TTrackData, TItemData>;
+  operations?: TimelineExtensionOperations<TItemData>;
+};
+
+export type TimelineWorkbenchInspectorSchema<TData = Record<string, unknown>> = {
+  itemFields?: Array<{
+    id: string;
+    label: string;
+    type: "text" | "number" | "boolean" | "color";
+    dataKey?: keyof TData & string;
+  }>;
 };
 
 export type TimelineWorkbenchItemContextMenuContext<
@@ -77,7 +135,17 @@ export type TimelineWorkbenchProps<
   frameRate?: number;
   editPolicy?: Partial<TimelineEditorEditPolicy>;
   snapMs?: number;
+  snap?: Partial<TimelineEditorSnapOptions>;
+  onSnapChange?: (snap: Partial<TimelineEditorSnapOptions>) => void;
+  minItemDurationMs?: number;
+  tool?: TimelineEditorTool;
+  onToolChange?: (tool: TimelineEditorTool) => void;
   virtualization?: TimelineEditorVirtualizationOptions;
+  clipboard?: TimelineEditorClipboard<TItemData>;
+  onClipboardChange?: (clipboard: TimelineEditorClipboard<TItemData> | undefined) => void;
+  hotkeys?: Partial<TimelineEditorHotkeys>;
+  extensions?: Array<TimelineEditorExtension<TItemData, TTrackData>>;
+  inspectorSchema?: TimelineWorkbenchInspectorSchema<TItemData>;
   assets?: Array<TimelineWorkbenchAsset<TAssetData>>;
   className?: string;
   style?: CSSProperties;

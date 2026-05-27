@@ -102,6 +102,11 @@ export type TimelineEditorMarker = {
   color?: string;
 };
 
+export type TimelineEditorTimeRange = {
+  startMs: number;
+  endMs: number;
+};
+
 export type TimelineEditorDocument<
   TTrackData = Record<string, unknown>,
   TItemData = Record<string, unknown>,
@@ -119,6 +124,17 @@ export type TimelineEditorDocument<
 export type TimelineEditorSelection = {
   itemIds: string[];
   anchorItemId?: string;
+  trackIds?: string[];
+  markerIds?: string[];
+  range?: TimelineEditorTimeRange;
+};
+
+export type TimelineEditorClipboard<
+  TItemData = Record<string, unknown>,
+  TTransformValues extends TimelineEditorTransformValues = TimelineEditorTransformValues,
+> = {
+  items: Array<TimelineEditorItem<TItemData, TTransformValues>>;
+  sourceStartMs: number;
 };
 
 export type TimelineEditorViewport = {
@@ -145,6 +161,8 @@ export type TimelineEditorEditPolicy = {
   overlap: "allow" | "prevent" | "push";
   ripple: boolean;
 };
+
+export type TimelineEditorTool = "select" | "blade" | "trim" | "ripple-trim" | "pan";
 
 export type TimelineEditorOperationOptions = {
   durationMs?: number;

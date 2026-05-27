@@ -1,51 +1,105 @@
 import {
+  addTimelineEditorTrackGroup,
   addTimelineEditorMarker,
   addTimelineEditorTrack,
   closeTimelineEditorGap,
+  createTimelineEditorClipboard,
   duplicateTimelineEditorItems,
   getTimelineEditorGroupedItemIds,
   groupTimelineEditorItems,
+  insertTimelineEditorGap,
   insertTimelineEditorItem,
+  moveTimelineEditorTrack,
   moveTimelineEditorItems,
   normalizeTimelineEditorDocument,
   normalizeTimelineEditorTracks,
+  pasteTimelineEditorClipboard,
+  removeTimelineEditorMarker,
+  removeTimelineEditorRange,
+  removeTimelineEditorTrackGroup,
   removeTimelineEditorTrack,
   removeTimelineEditorItems,
   resizeTimelineEditorItem,
   rippleDeleteTimelineEditorItems,
   splitTimelineEditorItems,
+  trimTimelineEditorItem,
   ungroupTimelineEditorItems,
+  updateTimelineEditorMarker,
+  updateTimelineEditorTrack,
+  updateTimelineEditorTrackGroup,
 } from "./operations";
 import {
+  type TimelineEditorClipboard,
   type TimelineEditorDocument,
   type TimelineEditorItem,
   type TimelineEditorMarker,
   type TimelineEditorOperationOptions,
   type TimelineEditorSelection,
   type TimelineEditorTrack,
+  type TimelineEditorTrackGroup,
 } from "./types";
 
 export type TimelineEditorCommand<
   TTrackData = Record<string, unknown>,
   TItemData = Record<string, unknown>,
+  TGroupData = Record<string, unknown>,
 > =
   | { type: "select"; selection: TimelineEditorSelection }
+  | { type: "select-all" }
+  | { type: "clear-selection" }
+  | { type: "invert-selection" }
+  | { type: "select-track-items"; trackId: string }
+  | { type: "set-range"; range?: { startMs: number; endMs: number } }
+  | { type: "copy-selection" }
+  | { type: "cut-selection" }
+  | {
+      type: "paste-items";
+      clipboard: TimelineEditorClipboard<TItemData>;
+      timeMs: number;
+      trackId?: string;
+      createId?: (itemId: string, existingIds: ReadonlySet<string>) => string;
+    }
   | { type: "delete-selection" }
+  | { type: "delete-range"; range?: { startMs: number; endMs: number } }
   | { type: "move-items"; itemIds: string[]; deltaMs: number; trackDelta?: number }
   | { type: "resize-item"; itemId: string; edge: "start" | "end"; timeMs: number }
+  | {
+      type: "trim-item";
+      itemId: string;
+      edge: "start" | "end";
+      timeMs: number;
+      mode?: "normal" | "ripple" | "roll";
+    }
   | { type: "split-items"; itemIds: string[]; timeMs: number }
+  | { type: "split-at-pointer"; itemIds: string[]; timeMs: number }
   | { type: "duplicate-selection" }
   | { type: "group-selection"; groupId?: string; label?: string }
   | { type: "ungroup-selection" }
   | { type: "ripple-delete"; itemIds: string[] }
   | { type: "close-gap"; trackId: string; startMs: number; endMs: number }
+  | { type: "insert-gap"; trackId: string; startMs: number; durationMs: number }
   | {
       type: "add-track";
       track: Omit<TimelineEditorTrack<TTrackData, TItemData>, "items"> &
         Partial<Pick<TimelineEditorTrack<TTrackData, TItemData>, "items">>;
     }
+  | {
+      type: "update-track";
+      trackId: string;
+      patch: Partial<Omit<TimelineEditorTrack<TTrackData, TItemData>, "id" | "items">>;
+    }
+  | { type: "move-track"; trackId: string; toIndex: number }
   | { type: "remove-track"; trackId: string }
   | { type: "add-marker"; marker: TimelineEditorMarker }
+  | { type: "update-marker"; markerId: string; patch: Partial<TimelineEditorMarker> }
+  | { type: "remove-marker"; markerId: string }
+  | { type: "add-track-group"; group: TimelineEditorTrackGroup<TGroupData> }
+  | {
+      type: "update-track-group";
+      groupId: string;
+      patch: Partial<Omit<TimelineEditorTrackGroup<TGroupData>, "id">>;
+    }
+  | { type: "remove-track-group"; groupId: string }
   | { type: "insert-item"; item: TimelineEditorItem<TItemData> }
   | { type: "update-item"; itemId: string; patch: Partial<TimelineEditorItem<TItemData>> };
 
@@ -58,6 +112,7 @@ export type TimelineEditorCommandResult<
   selection: TimelineEditorSelection;
   label: string;
   changed: boolean;
+  clipboard?: TimelineEditorClipboard<TItemData>;
 };
 
 export function applyTimelineEditorCommand<
@@ -67,7 +122,7 @@ export function applyTimelineEditorCommand<
 >(
   document: TimelineEditorDocument<TTrackData, TItemData, TGroupData>,
   selection: TimelineEditorSelection,
-  command: TimelineEditorCommand<TTrackData, TItemData>,
+  command: TimelineEditorCommand<TTrackData, TItemData, TGroupData>,
   options: TimelineEditorOperationOptions = {},
 ): TimelineEditorCommandResult<TTrackData, TItemData, TGroupData> {
   if (command.type === "select") {
@@ -79,6 +134,120 @@ export function applyTimelineEditorCommand<
     };
   }
 
+  if (command.type === "select-all") {
+    const itemIds = document.tracks
+      .filter((track) => !track.locked)
+      .flatMap((track) => track.items.filter((item) => !item.locked).map((item) => item.id));
+    const nextSelection = { itemIds, anchorItemId: itemIds[0] };
+
+    return {
+      document,
+      selection: nextSelection,
+      label: "Select all",
+      changed: !areSelectionsEqual(selection, nextSelection),
+    };
+  }
+
+  if (command.type === "clear-selection") {
+    const nextSelection = { itemIds: [] };
+
+    return {
+      document,
+      selection: nextSelection,
+      label: "Clear selection",
+      changed: !areSelectionsEqual(selection, nextSelection),
+    };
+  }
+
+  if (command.type === "invert-selection") {
+    const selectedIds = new Set(selection.itemIds);
+    const itemIds = document.tracks
+      .filter((track) => !track.locked)
+      .flatMap((track) =>
+        track.items
+          .filter((item) => !item.locked && !selectedIds.has(item.id))
+          .map((item) => item.id),
+      );
+    const nextSelection = { itemIds, anchorItemId: itemIds[0] };
+
+    return {
+      document,
+      selection: nextSelection,
+      label: "Invert selection",
+      changed: !areSelectionsEqual(selection, nextSelection),
+    };
+  }
+
+  if (command.type === "select-track-items") {
+    const track = document.tracks.find((candidate) => candidate.id === command.trackId);
+    const itemIds =
+      track && !track.locked
+        ? track.items.filter((item) => !item.locked).map((item) => item.id)
+        : [];
+    const nextSelection = {
+      itemIds,
+      anchorItemId: itemIds[0],
+      trackIds: track ? [track.id] : undefined,
+    };
+
+    return {
+      document,
+      selection: nextSelection,
+      label: "Select track items",
+      changed: !areSelectionsEqual(selection, nextSelection),
+    };
+  }
+
+  if (command.type === "set-range") {
+    const nextSelection = { ...selection, range: command.range };
+
+    return {
+      document,
+      selection: nextSelection,
+      label: "Set range",
+      changed: !areSelectionsEqual(selection, nextSelection),
+    };
+  }
+
+  if (command.type === "copy-selection") {
+    return {
+      document,
+      selection,
+      label: "Copy selection",
+      changed: false,
+      clipboard: createTimelineEditorClipboard(
+        document.tracks,
+        getTimelineEditorGroupedItemIds(document, selection.itemIds),
+      ),
+    };
+  }
+
+  if (command.type === "cut-selection") {
+    const groupedIds = getTimelineEditorGroupedItemIds(document, selection.itemIds);
+    const clipboard = createTimelineEditorClipboard(document.tracks, groupedIds);
+    const tracks = removeTimelineEditorItems(document.tracks, groupedIds, options);
+
+    return { ...result(document, tracks, { itemIds: [] }, "Cut selection"), clipboard };
+  }
+
+  if (command.type === "paste-items") {
+    const pasted = pasteTimelineEditorClipboard(
+      document.tracks,
+      command.clipboard,
+      { timeMs: command.timeMs, trackId: command.trackId, createId: command.createId },
+      options,
+    );
+
+    return result(
+      document,
+      pasted.tracks,
+      pasted.itemIds.length > 0
+        ? { itemIds: pasted.itemIds, anchorItemId: pasted.itemIds[0] }
+        : selection,
+      "Paste items",
+    );
+  }
+
   if (command.type === "delete-selection") {
     const tracks = removeTimelineEditorItems(
       document.tracks,
@@ -86,6 +255,15 @@ export function applyTimelineEditorCommand<
       options,
     );
     return result(document, tracks, { itemIds: [] }, "Delete selection");
+  }
+
+  if (command.type === "delete-range") {
+    const range = command.range ?? selection.range;
+    const tracks = range
+      ? removeTimelineEditorRange(document.tracks, range, options)
+      : document.tracks;
+
+    return result(document, tracks, { ...selection, range: undefined }, "Delete range");
   }
 
   if (command.type === "move-items") {
@@ -121,6 +299,18 @@ export function applyTimelineEditorCommand<
     return result(document, tracks, selection, "Resize item");
   }
 
+  if (command.type === "trim-item") {
+    const tracks = trimTimelineEditorItem(
+      document.tracks,
+      command.itemId,
+      command.edge,
+      command.timeMs,
+      command.mode,
+      options,
+    );
+    return result(document, tracks, selection, "Trim item");
+  }
+
   if (command.type === "split-items") {
     const tracks = splitTimelineEditorItems(
       document.tracks,
@@ -129,6 +319,16 @@ export function applyTimelineEditorCommand<
       options,
     );
     return result(document, tracks, selection, "Split item");
+  }
+
+  if (command.type === "split-at-pointer") {
+    const tracks = splitTimelineEditorItems(
+      document.tracks,
+      getTimelineEditorGroupedItemIds(document, command.itemIds),
+      command.timeMs,
+      options,
+    );
+    return result(document, tracks, selection, "Split at pointer");
   }
 
   if (command.type === "duplicate-selection") {
@@ -180,6 +380,26 @@ export function applyTimelineEditorCommand<
     return documentResult(document, nextDocument, selection, "Add timeline");
   }
 
+  if (command.type === "update-track") {
+    const nextDocument = updateTimelineEditorTrack(
+      document,
+      command.trackId,
+      command.patch,
+      options,
+    );
+    return documentResult(document, nextDocument, selection, "Update timeline");
+  }
+
+  if (command.type === "move-track") {
+    const nextDocument = moveTimelineEditorTrack(
+      document,
+      command.trackId,
+      command.toIndex,
+      options,
+    );
+    return documentResult(document, nextDocument, selection, "Move timeline");
+  }
+
   if (command.type === "remove-track") {
     const nextDocument = removeTimelineEditorTrack(document, command.trackId, options);
     return documentResult(document, nextDocument, { itemIds: [] }, "Remove timeline");
@@ -188,6 +408,41 @@ export function applyTimelineEditorCommand<
   if (command.type === "add-marker") {
     const nextDocument = addTimelineEditorMarker(document, command.marker, options);
     return documentResult(document, nextDocument, selection, "Add marker");
+  }
+
+  if (command.type === "update-marker") {
+    const nextDocument = updateTimelineEditorMarker(
+      document,
+      command.markerId,
+      command.patch,
+      options,
+    );
+    return documentResult(document, nextDocument, selection, "Update marker");
+  }
+
+  if (command.type === "remove-marker") {
+    const nextDocument = removeTimelineEditorMarker(document, command.markerId);
+    return documentResult(document, nextDocument, selection, "Remove marker");
+  }
+
+  if (command.type === "add-track-group") {
+    const nextDocument = addTimelineEditorTrackGroup(document, command.group, options);
+    return documentResult(document, nextDocument, selection, "Add timeline group");
+  }
+
+  if (command.type === "update-track-group") {
+    const nextDocument = updateTimelineEditorTrackGroup(
+      document,
+      command.groupId,
+      command.patch,
+      options,
+    );
+    return documentResult(document, nextDocument, selection, "Update timeline group");
+  }
+
+  if (command.type === "remove-track-group") {
+    const nextDocument = removeTimelineEditorTrackGroup(document, command.groupId, options);
+    return documentResult(document, nextDocument, selection, "Remove timeline group");
   }
 
   if (command.type === "insert-item") {
@@ -227,13 +482,22 @@ export function applyTimelineEditorCommand<
     return result(document, tracks, selection, "Update item");
   }
 
-  const tracks = closeTimelineEditorGap(
-    document.tracks,
-    command.trackId,
-    command.startMs,
-    command.endMs,
-    options,
-  );
+  const tracks =
+    command.type === "insert-gap"
+      ? insertTimelineEditorGap(
+          document.tracks,
+          command.trackId,
+          command.startMs,
+          command.durationMs,
+          options,
+        )
+      : closeTimelineEditorGap(
+          document.tracks,
+          command.trackId,
+          command.startMs,
+          command.endMs,
+          options,
+        );
   return result(document, tracks, selection, "Close gap");
 }
 
@@ -268,9 +532,20 @@ function result<TTrackData, TItemData, TGroupData>(
 }
 
 function areSelectionsEqual(left: TimelineEditorSelection, right: TimelineEditorSelection) {
-  if (left.anchorItemId !== right.anchorItemId || left.itemIds.length !== right.itemIds.length) {
+  if (
+    left.anchorItemId !== right.anchorItemId ||
+    left.itemIds.length !== right.itemIds.length ||
+    (left.trackIds?.length ?? 0) !== (right.trackIds?.length ?? 0) ||
+    (left.markerIds?.length ?? 0) !== (right.markerIds?.length ?? 0) ||
+    left.range?.startMs !== right.range?.startMs ||
+    left.range?.endMs !== right.range?.endMs
+  ) {
     return false;
   }
 
-  return left.itemIds.every((itemId, index) => itemId === right.itemIds[index]);
+  return (
+    left.itemIds.every((itemId, index) => itemId === right.itemIds[index]) &&
+    (left.trackIds ?? []).every((trackId, index) => trackId === right.trackIds?.[index]) &&
+    (left.markerIds ?? []).every((markerId, index) => markerId === right.markerIds?.[index])
+  );
 }

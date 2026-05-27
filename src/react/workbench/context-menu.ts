@@ -85,6 +85,9 @@ type TimelineWorkbenchItemContextMenuInput<
   getItemContextMenuItems?: (
     context: TimelineWorkbenchItemContextMenuContext<TTrackData, TItemData>,
   ) => MenuActionItem[];
+  getExtensionContextMenuItems?: (
+    context: TimelineWorkbenchItemContextMenuContext<TTrackData, TItemData>,
+  ) => MenuActionItem[];
   groupItems: (itemIds?: string[]) => void;
   hasItemGroup: (itemIds: string[]) => boolean;
   splitItems: (itemIds?: string[]) => void;
@@ -127,6 +130,7 @@ export function getTimelineWorkbenchContextMenuItems<
     updateItem: input.updateItem,
   } satisfies TimelineWorkbenchItemContextMenuContext<TTrackData, TItemData>;
   const extensionItems = input.getItemContextMenuItems?.(menuContext) ?? [];
+  const contributedItems = input.getExtensionContextMenuItems?.(menuContext) ?? [];
   const defaultItems = getTimelineWorkbenchItemCommandMenuItems({
     canUngroup: input.hasItemGroup(itemIds),
     itemIds,
@@ -138,7 +142,9 @@ export function getTimelineWorkbenchContextMenuItems<
     ungroupItems: input.ungroupItems,
   });
 
-  return extensionItems.length > 0
-    ? [...defaultItems, { id: "media-actions", type: "separator" }, ...extensionItems]
+  const extraItems = [...extensionItems, ...contributedItems];
+
+  return extraItems.length > 0
+    ? [...defaultItems, { id: "media-actions", type: "separator" }, ...extraItems]
     : defaultItems;
 }

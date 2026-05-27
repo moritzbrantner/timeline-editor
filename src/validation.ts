@@ -305,6 +305,52 @@ export function getTimelineEditorValidationErrors(document: TimelineEditorDocume
   return validateTimelineEditorDocument(document).filter((issue) => issue.severity === "error");
 }
 
+export function getTimelineEditorValidationIssueTarget(
+  issue: TimelineEditorValidationIssue,
+):
+  | { type: "document" }
+  | { type: "track"; index: number }
+  | { type: "item"; trackIndex: number; itemIndex: number }
+  | { type: "marker"; index: number }
+  | { type: "track-group"; index: number }
+  | { type: "item-group"; index: number } {
+  const markerMatch = issue.path.match(/^markers\[(\d+)\]/);
+
+  if (markerMatch?.[1]) {
+    return { type: "marker", index: Number(markerMatch[1]) };
+  }
+
+  const itemMatch = issue.path.match(/^tracks\[(\d+)\]\.items\[(\d+)\]/);
+
+  if (itemMatch?.[1] && itemMatch[2]) {
+    return {
+      type: "item",
+      trackIndex: Number(itemMatch[1]),
+      itemIndex: Number(itemMatch[2]),
+    };
+  }
+
+  const trackMatch = issue.path.match(/^tracks\[(\d+)\]/);
+
+  if (trackMatch?.[1]) {
+    return { type: "track", index: Number(trackMatch[1]) };
+  }
+
+  const trackGroupMatch = issue.path.match(/^groups\[(\d+)\]/);
+
+  if (trackGroupMatch?.[1]) {
+    return { type: "track-group", index: Number(trackGroupMatch[1]) };
+  }
+
+  const itemGroupMatch = issue.path.match(/^itemGroups\[(\d+)\]/);
+
+  if (itemGroupMatch?.[1]) {
+    return { type: "item-group", index: Number(itemGroupMatch[1]) };
+  }
+
+  return { type: "document" };
+}
+
 function error(path: string, code: string, message: string): TimelineEditorValidationIssue {
   return { path, code, message, severity: "error" };
 }

@@ -504,6 +504,42 @@ test("duplicates, deletes, undoes, and redoes from the toolbar", async ({ page }
   await expect.poll(async () => await getItem(page, "brief")).toBeUndefined();
 });
 
+test("copies and pastes selected clips with keyboard shortcuts", async ({ page }) => {
+  await page.goto("/");
+
+  await getClip(page, "Brief").click();
+  await scrubRulerTo(page, 0.75);
+  await getTimelineEditor(page).focus();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+C" : "Control+C");
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+V" : "Control+V");
+
+  await expect
+    .poll(async () => await getItem(page, "brief-copy"))
+    .toEqual(
+      expect.objectContaining({
+        durationMs: 2_000,
+        startMs: 6_000,
+        trackId: "planning",
+      }),
+    );
+});
+
+test("cuts and pastes selected clips with toolbar actions", async ({ page }) => {
+  await page.goto("/");
+
+  await getClip(page, "Brief").click();
+  await page.getByRole("button", { name: "Cut" }).click();
+
+  await expect.poll(async () => await getItem(page, "brief")).toBeUndefined();
+
+  await scrubRulerTo(page, 0.5);
+  await page.getByRole("button", { name: "Paste" }).click();
+
+  await expect
+    .poll(async () => await getItem(page, "brief-copy"))
+    .toEqual(expect.objectContaining({ startMs: 4_000 }));
+});
+
 test("splits a clip at the playhead and adds a marker", async ({ page }) => {
   await page.goto("/");
 

@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { ContextActionMenu, cn, type MenuActionItem } from "@moritzbrantner/ui";
 
 import type { TimelineEditorItem } from "../../types";
+import { formatTimelineEditorTimeMs } from "../../time";
 import { getTimelineEditorItemStyle } from "../timeline-rendering";
 import type { TimelineEditorItemRenderContext } from "./types";
 
@@ -42,8 +43,10 @@ function TimelineEditorClipComponent<TItemData>({
       data-selected={selected ? "true" : undefined}
       data-item-group-id={item.itemGroupId}
       role="button"
-      tabIndex={-1}
+      tabIndex={0}
       aria-pressed={selected}
+      aria-label={item.label}
+      title={`${item.label} · ${formatTimelineEditorTimeMs(item.startMs)} · ${formatTimelineEditorTimeMs(item.durationMs)}`}
       className={cn(
         "absolute top-2 bottom-2 flex min-w-8 cursor-grab items-center rounded-md border px-2 text-xs font-medium text-white shadow-sm outline-none data-[selected=true]:ring-2 data-[selected=true]:ring-ring",
         locked && "cursor-default opacity-60",

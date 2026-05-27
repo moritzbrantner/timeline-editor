@@ -10,6 +10,7 @@ import {
   clampTimelineEditorTime,
   closeTimelineEditorGap,
   createTimelineEditorSnapResolver,
+  createTimelineEditorClipboard,
   createTimelineEditorHistory,
   detectTimelineEditorOverlaps,
   duplicateTimelineEditorItem,
@@ -545,6 +546,66 @@ describe("@moritzbrantner/timeline-editor core", () => {
     });
     expect(withoutTrack.document.tracks).toHaveLength(0);
     expect(withoutTrack.selection).toEqual({ itemIds: [] });
+  });
+
+  test("copies, cuts, pastes, ranges, markers, and tracks through commands", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+      markers: [{ id: "handoff", timeMs: 4_000, label: "Handoff" }],
+      tracks: [
+        {
+          id: "planning",
+          label: "Planning",
+          items: [
+            { id: "brief", trackId: "planning", label: "Brief", startMs: 1_000, durationMs: 1_000 },
+            { id: "draft", trackId: "planning", label: "Draft", startMs: 3_000, durationMs: 1_000 },
+          ],
+        },
+      ],
+    };
+    const selection = { itemIds: ["brief"], anchorItemId: "brief" };
+    const copied = applyTimelineEditorCommand(document, selection, { type: "copy-selection" });
+
+    expect(copied.clipboard).toEqual(createTimelineEditorClipboard(document.tracks, ["brief"]));
+
+    const cut = applyTimelineEditorCommand(document, selection, { type: "cut-selection" });
+    expect(cut.document.tracks[0]?.items.map((item) => item.id)).toEqual(["draft"]);
+    expect(cut.clipboard?.items[0]?.id).toBe("brief");
+
+    const pasted = applyTimelineEditorCommand(
+      document,
+      { itemIds: [] },
+      { type: "paste-items", clipboard: copied.clipboard!, timeMs: 5_000 },
+    );
+    expect(pasted.document.tracks[0]?.items.at(-1)).toEqual(
+      expect.objectContaining({ id: "brief-copy", startMs: 5_000 }),
+    );
+    expect(pasted.selection.itemIds).toEqual(["brief-copy"]);
+
+    const withoutRange = applyTimelineEditorCommand(document, selection, {
+      type: "delete-range",
+      range: { startMs: 2_500, endMs: 4_500 },
+    });
+    expect(withoutRange.document.tracks[0]?.items.map((item) => item.id)).toEqual(["brief"]);
+
+    const markerUpdated = applyTimelineEditorCommand(document, selection, {
+      type: "update-marker",
+      markerId: "handoff",
+      patch: { label: "Updated", timeMs: 4_500 },
+    });
+    expect(markerUpdated.document.markers?.[0]).toEqual(
+      expect.objectContaining({ label: "Updated", timeMs: 4_500 }),
+    );
+
+    const trackUpdated = applyTimelineEditorCommand(document, selection, {
+      type: "update-track",
+      trackId: "planning",
+      patch: { label: "Plan", locked: true },
+    });
+    expect(trackUpdated.document.tracks[0]).toEqual(
+      expect.objectContaining({ label: "Plan", locked: true }),
+    );
   });
 });
 

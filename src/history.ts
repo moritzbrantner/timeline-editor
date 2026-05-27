@@ -42,7 +42,7 @@ export function applyTimelineEditorCommandWithHistory<
   document: TimelineEditorDocument<TTrackData, TItemData, TGroupData>,
   selection: TimelineEditorSelection,
   history: TimelineEditorHistory<TTrackData, TItemData, TGroupData>,
-  command: TimelineEditorCommand<TTrackData, TItemData>,
+  command: TimelineEditorCommand<TTrackData, TItemData, TGroupData>,
   options: TimelineEditorOperationOptions = {},
 ) {
   const result = applyTimelineEditorCommand(document, selection, command, options);

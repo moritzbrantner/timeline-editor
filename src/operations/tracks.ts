@@ -65,3 +65,62 @@ export function removeTimelineEditorTrack<
     options,
   );
 }
+
+export function updateTimelineEditorTrack<
+  TTrackData = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+  TGroupData = Record<string, unknown>,
+>(
+  document: TimelineEditorDocument<TTrackData, TItemData, TGroupData>,
+  trackId: string,
+  patch: Partial<Omit<TimelineEditorTrack<TTrackData, TItemData>, "id" | "items">>,
+  options: TimelineEditorOperationOptions = {},
+) {
+  if (!document.tracks.some((track) => track.id === trackId)) {
+    return document;
+  }
+
+  return normalizeTimelineEditorDocument(
+    {
+      ...document,
+      tracks: document.tracks.map((track) =>
+        track.id === trackId ? { ...track, ...patch, id: track.id, items: track.items } : track,
+      ),
+    },
+    options,
+  );
+}
+
+export function moveTimelineEditorTrack<
+  TTrackData = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+  TGroupData = Record<string, unknown>,
+>(
+  document: TimelineEditorDocument<TTrackData, TItemData, TGroupData>,
+  trackId: string,
+  toIndex: number,
+  options: TimelineEditorOperationOptions = {},
+) {
+  const fromIndex = document.tracks.findIndex((track) => track.id === trackId);
+
+  if (fromIndex === -1) {
+    return document;
+  }
+
+  const nextIndex = Math.max(0, Math.min(document.tracks.length - 1, Math.round(toIndex)));
+
+  if (fromIndex === nextIndex) {
+    return document;
+  }
+
+  const tracks = [...document.tracks];
+  const [track] = tracks.splice(fromIndex, 1);
+
+  if (!track) {
+    return document;
+  }
+
+  tracks.splice(nextIndex, 0, track);
+
+  return normalizeTimelineEditorDocument({ ...document, tracks }, options);
+}

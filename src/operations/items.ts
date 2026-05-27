@@ -6,6 +6,7 @@ import {
 import { sliceTimelineEditorTransform } from "../transform";
 import {
   defaultTimelineEditorMinItemDurationMs,
+  type TimelineEditorClipboard,
   type TimelineEditorDuplicateItemInput,
   type TimelineEditorItem,
   type TimelineEditorMoveItemInput,
@@ -330,6 +331,121 @@ export function removeTimelineEditorItems<
   }
 
   return nextTracks;
+}
+
+export function createTimelineEditorClipboard<
+  TTrackData = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+>(
+  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
+  itemIds: readonly string[],
+): TimelineEditorClipboard<TItemData> | undefined {
+  const selectedIds = new Set(itemIds);
+  const items = tracks
+    .flatMap((track) =>
+      track.items.filter((item) => selectedIds.has(item.id) && !item.locked && !track.locked),
+    )
+    .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id));
+
+  if (items.length === 0) {
+    return undefined;
+  }
+
+  return {
+    items: items.map((item) => ({ ...item })),
+    sourceStartMs: Math.min(...items.map((item) => item.startMs)),
+  };
+}
+
+export function pasteTimelineEditorClipboard<
+  TTrackData = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+>(
+  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
+  clipboard: TimelineEditorClipboard<TItemData>,
+  input: {
+    timeMs: number;
+    trackId?: string;
+    createId?: (itemId: string, existingIds: ReadonlySet<string>) => string;
+  },
+  options: TimelineEditorOperationOptions = {},
+) {
+  if (clipboard.items.length === 0) {
+    return { tracks, itemIds: [] as string[] };
+  }
+
+  let nextTracks = tracks;
+  const pastedIds: string[] = [];
+  const existingIds = new Set(tracks.flatMap((track) => track.items.map((item) => item.id)));
+  const firstSourceTrackId = clipboard.items[0]?.trackId;
+
+  for (const item of clipboard.items) {
+    const requestedTrackId =
+      input.trackId && item.trackId === firstSourceTrackId ? input.trackId : item.trackId;
+    const targetTrack =
+      nextTracks.find((track) => track.id === requestedTrackId) ??
+      nextTracks.find((track) => canPlaceTimelineEditorItemOnTrack(item, track));
+
+    if (
+      !targetTrack ||
+      targetTrack.locked ||
+      !canPlaceTimelineEditorItemOnTrack(item, targetTrack)
+    ) {
+      continue;
+    }
+
+    const requestedId = input.createId?.(item.id, existingIds);
+    const id =
+      requestedId && !existingIds.has(requestedId)
+        ? requestedId
+        : createTimelineEditorCopyId(nextTracks, requestedId ?? `${item.id}-copy`);
+    existingIds.add(id);
+
+    const pastedItem = {
+      ...item,
+      id,
+      trackId: targetTrack.id,
+      itemGroupId: undefined,
+      startMs: input.timeMs + (item.startMs - clipboard.sourceStartMs),
+    };
+    const insertedTracks = insertTimelineEditorItem(nextTracks, pastedItem, options);
+
+    if (insertedTracks !== nextTracks) {
+      pastedIds.push(id);
+      nextTracks = insertedTracks;
+    }
+  }
+
+  return { tracks: nextTracks, itemIds: pastedIds };
+}
+
+export function removeTimelineEditorRange<
+  TTrackData = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+>(
+  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
+  range: { startMs: number; endMs: number },
+  options: TimelineEditorOperationOptions = {},
+) {
+  const startMs = Math.max(0, Math.min(range.startMs, range.endMs));
+  const endMs = Math.max(startMs, range.endMs);
+
+  if (startMs === endMs) {
+    return tracks;
+  }
+
+  const itemIds = tracks.flatMap((track) =>
+    track.locked
+      ? []
+      : track.items
+          .filter(
+            (item) =>
+              !item.locked && item.startMs < endMs && getTimelineEditorItemEndMs(item) > startMs,
+          )
+          .map((item) => item.id),
+  );
+
+  return removeTimelineEditorItems(tracks, itemIds, options);
 }
 
 export function moveTimelineEditorItems<

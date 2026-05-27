@@ -8,6 +8,7 @@ import type {
   TimelineEditorItem,
   TimelineEditorSelection,
   TimelineEditorSnapOptions,
+  TimelineEditorTool,
   TimelineEditorTrack,
   TimelineEditorViewport,
 } from "../../types";
@@ -19,6 +20,19 @@ export type TimelineEditorHotkeys = {
   selectAll: string;
   zoomIn: string;
   zoomOut: string;
+  clearSelection?: string;
+  copy?: string;
+  cut?: string;
+  paste?: string;
+  undo?: string;
+  redo?: string;
+  redoAlternate?: string;
+  jumpStart?: string;
+  jumpEnd?: string;
+  previousMarker?: string;
+  nextMarker?: string;
+  previousEdge?: string;
+  nextEdge?: string;
 };
 
 export type TimelineEditorItemRenderContext<TItemData = Record<string, unknown>> = {
@@ -81,6 +95,8 @@ export type TimelineEditorProps<
   viewport?: TimelineEditorViewport;
   readOnly?: boolean;
   frameRate?: number;
+  tool?: TimelineEditorTool;
+  minItemDurationMs?: number;
   editPolicy?: Partial<TimelineEditorEditPolicy>;
   snap?: Partial<TimelineEditorSnapOptions>;
   hotkeys?: Partial<TimelineEditorHotkeys>;

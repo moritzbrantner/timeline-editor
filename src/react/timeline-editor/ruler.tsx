@@ -1,7 +1,9 @@
 "use client";
 
+import type React from "react";
+
 import { clampTimelineEditorTime } from "../../time";
-import type { TimelineEditorDocument } from "../../types";
+import type { TimelineEditorDocument, TimelineEditorMarker } from "../../types";
 import {
   getTimelineEditorTimeFromPointer,
   getVisibleTimelineEditorTicks,
@@ -14,12 +16,17 @@ type TimelineEditorRulerProps<TTrackData, TItemData> = {
   document: TimelineEditorDocument<TTrackData, TItemData>;
   durationMs: number;
   nudgeMs: number;
+  readOnly: boolean;
   snapGuideMs: number | null;
   ticks: ReturnType<typeof getVisibleTimelineEditorTicks>;
   timelineWidthPx: number;
   visibleRange: TimelineEditorVisibleRange;
   onCurrentTimeChange?: (timeMs: number) => void;
   onDocumentChange: (document: TimelineEditorDocument<TTrackData, TItemData>) => void;
+  onMarkerPointerDown?: (
+    marker: TimelineEditorMarker,
+    event: React.PointerEvent<HTMLDivElement>,
+  ) => void;
   setCurrentTime: (
     document: TimelineEditorDocument<TTrackData, TItemData>,
     timeMs: number,
@@ -31,12 +38,14 @@ export function TimelineEditorRuler<TTrackData, TItemData>({
   document,
   durationMs,
   nudgeMs,
+  readOnly,
   snapGuideMs,
   ticks,
   timelineWidthPx,
   visibleRange,
   onCurrentTimeChange,
   onDocumentChange,
+  onMarkerPointerDown,
   setCurrentTime,
 }: TimelineEditorRulerProps<TTrackData, TItemData>) {
   return (
@@ -86,6 +95,14 @@ export function TimelineEditorRuler<TTrackData, TItemData>({
                   borderColor: marker.color ?? "var(--primary)",
                 }}
                 title={marker.label}
+                onPointerDown={(event) => {
+                  if (readOnly) {
+                    return;
+                  }
+
+                  event.stopPropagation();
+                  onMarkerPointerDown?.(marker, event);
+                }}
               />
             ))}
         </div>

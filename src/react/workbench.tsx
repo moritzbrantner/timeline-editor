@@ -5,14 +5,18 @@ import { useMemo, useState } from "react";
 import { type MenuActionItem, WorkbenchPanel, cn } from "@moritzbrantner/ui";
 
 import {
+  createTimelineEditorClipboard,
   detectTimelineEditorOverlaps,
   formatTimelineEditorTimeMs,
   getTimelineEditorDurationMs,
   getTimelineEditorFrameDurationMs,
+  getTimelineEditorItemEndMs,
   setTimelineEditorCurrentTime,
   type TimelineEditorDocument,
+  type TimelineEditorClipboard,
   type TimelineEditorItem,
   type TimelineEditorSelection,
+  type TimelineEditorTool,
   type TimelineEditorTrack,
   type TimelineEditorViewport,
 } from "../core";
@@ -24,8 +28,10 @@ import {
   undoTimelineEditorHistory,
   type TimelineEditorHistory,
 } from "../history";
+import { matchesHotkey } from "./timeline-editor/hotkeys";
 import type {
   TimelineEditorItemContextMenuContext,
+  TimelineEditorItemRenderContext,
   TimelineEditorTrackContextMenuContext,
 } from "./timeline-editor";
 import {
@@ -45,7 +51,7 @@ import {
   getTimelineWorkbenchSelectedItems,
   getTimelineWorkbenchSelectionPayload,
 } from "./workbench/selection";
-import { TimelineWorkbenchToolbar } from "./workbench/toolbar";
+import { TimelineWorkbenchToolbar, defaultTimelineWorkbenchHotkeys } from "./workbench/toolbar";
 import { TimelineWorkbenchPreview } from "./workbench/preview";
 import type {
   TimelineWorkbenchAsset,
@@ -56,10 +62,13 @@ import type {
 export { defaultTimelineWorkbenchHotkeys } from "./workbench/toolbar";
 export type {
   TimelineWorkbenchAsset,
+  TimelineEditorExtension,
   TimelineWorkbenchInspectorContext,
+  TimelineWorkbenchInspectorSchema,
   TimelineWorkbenchItemContextMenuContext,
   TimelineWorkbenchProps,
   TimelineWorkbenchSelection,
+  TimelinePreviewContext,
 } from "./workbench/types";
 
 export function TimelineWorkbench<
@@ -76,7 +85,16 @@ export function TimelineWorkbench<
   frameRate,
   editPolicy,
   snapMs = 100,
+  snap,
+  minItemDurationMs,
+  tool,
+  onToolChange,
   virtualization,
+  clipboard,
+  onClipboardChange,
+  hotkeys,
+  extensions = [],
+  inspectorSchema,
   assets = [],
   className,
   style,
@@ -100,12 +118,19 @@ export function TimelineWorkbench<
   const [history, setHistory] = useState<TimelineEditorHistory<TTrackData, TItemData>>(
     () => createTimelineEditorHistory() as TimelineEditorHistory<TTrackData, TItemData>,
   );
+  const [internalClipboard, setInternalClipboard] = useState<
+    TimelineEditorClipboard<TItemData> | undefined
+  >();
+  const [internalTool, setInternalTool] = useState<TimelineEditorTool>(tool ?? "select");
   const resolvedViewport = viewport ?? internalViewport;
   const durationMs = document.durationMs ?? getTimelineEditorDurationMs(document.tracks, 30_000);
   const frameDurationMs = getTimelineEditorFrameDurationMs(frameRate);
   const resolvedSnapMs = frameDurationMs ?? snapMs;
   const currentTimeMs = document.currentTimeMs ?? 0;
   const frameStepMs = frameDurationMs ?? resolvedSnapMs;
+  const resolvedTool = tool ?? internalTool;
+  const resolvedHotkeys = { ...defaultTimelineWorkbenchHotkeys, ...hotkeys };
+  const resolvedClipboard = clipboard ?? internalClipboard;
   const resolvedSelection = selection ?? {
     itemIds: selectedItemId ? [selectedItemId] : [],
     anchorItemId: selectedItemId ?? undefined,
@@ -121,6 +146,10 @@ export function TimelineWorkbench<
     itemIds.some((itemId) => Boolean(itemLookup.get(itemId)?.item.itemGroupId));
   const hasSelectedItemGroup = hasItemGroup(resolvedSelection.itemIds);
   const overlaps = useMemo(() => detectTimelineEditorOverlaps(document.tracks), [document.tracks]);
+  const extensionItems = useMemo(
+    () => extensions.filter((extension) => extension.itemKinds && extension.itemKinds.length > 0),
+    [extensions],
+  );
 
   const commitSelection = (nextSelection: TimelineEditorSelection) => {
     onSelectionChange?.(nextSelection);
@@ -148,6 +177,14 @@ export function TimelineWorkbench<
     onDocumentChange?.(nextDocument);
   };
 
+  const commitClipboard = (nextClipboard: TimelineEditorClipboard<TItemData> | undefined) => {
+    if (!clipboard) {
+      setInternalClipboard(nextClipboard);
+    }
+
+    onClipboardChange?.(nextClipboard);
+  };
+
   const runCommand = (
     command: TimelineEditorCommand<TTrackData, TItemData>,
     commandSelection = resolvedSelection,
@@ -157,12 +194,42 @@ export function TimelineWorkbench<
       commandSelection,
       history,
       command,
-      { durationMs, editPolicy, snapMs: resolvedSnapMs },
+      { durationMs, editPolicy, snapMs: resolvedSnapMs, minItemDurationMs },
     );
 
     setHistory(result.history);
 
+    if ("clipboard" in result) {
+      commitClipboard(result.clipboard);
+    }
+
     if (result.changed) {
+      onDocumentChange?.(result.document);
+    }
+
+    if (!areTimelineWorkbenchSelectionsEqual(result.selection, resolvedSelection)) {
+      commitSelection(result.selection);
+    }
+  };
+
+  const runTransientCommand = (
+    command: TimelineEditorCommand<TTrackData, TItemData>,
+    commandSelection = resolvedSelection,
+  ) => {
+    const result = applyTimelineEditorCommandWithHistory(
+      document,
+      commandSelection,
+      history,
+      command,
+      { durationMs, editPolicy, snapMs: resolvedSnapMs, minItemDurationMs },
+    );
+
+    if ("clipboard" in result) {
+      commitClipboard(result.clipboard);
+    }
+
+    if (result.changed) {
+      setHistory(result.history);
       onDocumentChange?.(result.document);
     }
 
@@ -197,6 +264,36 @@ export function TimelineWorkbench<
     }
 
     runCommand({ type: "delete-selection" }, selectionForItemIds(itemIds));
+  };
+
+  const copyItems = (itemIds = resolvedSelection.itemIds) => {
+    if (itemIds.length === 0) {
+      return;
+    }
+
+    const nextClipboard = createTimelineEditorClipboard(document.tracks, itemIds);
+    commitClipboard(nextClipboard);
+  };
+
+  const cutItems = (itemIds = resolvedSelection.itemIds) => {
+    if (readOnly || itemIds.length === 0) {
+      return;
+    }
+
+    runCommand({ type: "cut-selection" }, selectionForItemIds(itemIds));
+  };
+
+  const pasteItems = () => {
+    if (readOnly || !resolvedClipboard || resolvedClipboard.items.length === 0) {
+      return;
+    }
+
+    runCommand({
+      type: "paste-items",
+      clipboard: resolvedClipboard,
+      timeMs: currentTimeMs,
+      trackId: selectedTrack?.id,
+    });
   };
 
   const duplicateItems = (itemIds = resolvedSelection.itemIds) => {
@@ -265,6 +362,24 @@ export function TimelineWorkbench<
     updateSelectedItem,
   } satisfies TimelineWorkbenchInspectorContext<TItemData>;
 
+  const extensionInspectorSections = extensions.flatMap(
+    (extension) =>
+      extension.inspectorSections?.map((factory) =>
+        factory({
+          ...inspectorContext,
+          selectedTrack: selectedTrack as TimelineEditorTrack<TTrackData, TItemData> | undefined,
+        }),
+      ) ?? [],
+  );
+
+  const renderResolvedTimelineItem = (context: TimelineEditorItemRenderContext<TItemData>) => {
+    const extension = extensionItems.find((candidate) =>
+      context.item.kind ? candidate.itemKinds?.includes(context.item.kind) : false,
+    );
+
+    return extension?.renderItem?.(context) ?? renderTimelineItem?.(context);
+  };
+
   const insertAssetAt = (
     asset: TimelineWorkbenchAsset<TAssetData>,
     placement: { trackId?: string; timeMs: number },
@@ -323,6 +438,8 @@ export function TimelineWorkbench<
       deleteItems,
       duplicateItems,
       getItemContextMenuItems,
+      getExtensionContextMenuItems: (menuContext) =>
+        extensions.flatMap((extension) => extension.contextMenuItems?.(menuContext) ?? []),
       groupItems,
       hasItemGroup,
       splitItems,
@@ -333,16 +450,65 @@ export function TimelineWorkbench<
 
   const getWorkbenchTrackContextMenuItems = (
     context: TimelineEditorTrackContextMenuContext<TTrackData, TItemData>,
-  ): MenuActionItem[] => [
-    {
-      id: "remove-timeline",
-      label: "Remove Timeline",
-      description: context.track.label,
-      destructive: true,
-      disabled: readOnly,
-      onSelect: () => removeTimeline(context.track.id),
-    },
-  ];
+  ): MenuActionItem[] => {
+    const trackIndex = document.tracks.findIndex((track) => track.id === context.track.id);
+
+    return [
+      {
+        id: "lock-timeline",
+        label: context.track.locked ? "Unlock Timeline" : "Lock Timeline",
+        description: context.track.label,
+        disabled: readOnly,
+        onSelect: () =>
+          runCommand({
+            type: "update-track",
+            trackId: context.track.id,
+            patch: { locked: !context.track.locked },
+          }),
+      },
+      {
+        id: "move-timeline-up",
+        label: "Move Timeline Up",
+        disabled: readOnly || trackIndex <= 0,
+        onSelect: () =>
+          runCommand({ type: "move-track", trackId: context.track.id, toIndex: trackIndex - 1 }),
+      },
+      {
+        id: "move-timeline-down",
+        label: "Move Timeline Down",
+        disabled: readOnly || trackIndex === -1 || trackIndex >= document.tracks.length - 1,
+        onSelect: () =>
+          runCommand({ type: "move-track", trackId: context.track.id, toIndex: trackIndex + 1 }),
+      },
+      {
+        id: "duplicate-empty-timeline",
+        label: "Duplicate Empty Timeline",
+        disabled: readOnly,
+        onSelect: () => {
+          const track = createTimelineWorkbenchTrack(document.tracks);
+          runCommand({
+            type: "add-track",
+            track: {
+              ...track,
+              label: `${context.track.label} Copy`,
+              acceptsItemKinds: context.track.acceptsItemKinds,
+              height: context.track.height,
+              data: context.track.data,
+            },
+          });
+        },
+      },
+      { id: "track-separator", type: "separator" },
+      {
+        id: "remove-timeline",
+        label: "Remove Timeline",
+        description: context.track.label,
+        destructive: true,
+        disabled: readOnly,
+        onSelect: () => removeTimeline(context.track.id),
+      },
+    ];
+  };
 
   const commitViewport = (nextViewport: TimelineEditorViewport) => {
     if (!viewport) {
@@ -350,6 +516,14 @@ export function TimelineWorkbench<
     }
 
     onViewportChange?.(nextViewport);
+  };
+
+  const commitTool = (nextTool: typeof resolvedTool) => {
+    if (!tool) {
+      setInternalTool(nextTool);
+    }
+
+    onToolChange?.(nextTool);
   };
 
   const stepCurrentTimeByFrame = (direction: -1 | 1) => {
@@ -367,6 +541,139 @@ export function TimelineWorkbench<
     commitDocument(nextDocument);
   };
 
+  const jumpCurrentTime = (timeMs: number) => {
+    if (readOnly) {
+      return;
+    }
+
+    const nextDocument = setTimelineEditorCurrentTime(document, timeMs, {
+      durationMs,
+      snapMs: frameStepMs,
+    });
+    onCurrentTimeChange?.(nextDocument.currentTimeMs ?? 0);
+    commitDocument(nextDocument);
+  };
+
+  const jumpToAdjacentMarker = (direction: -1 | 1) => {
+    const markers = [...(document.markers ?? [])].sort((left, right) => left.timeMs - right.timeMs);
+    const marker =
+      direction < 0
+        ? [...markers].reverse().find((candidate) => candidate.timeMs < currentTimeMs)
+        : markers.find((candidate) => candidate.timeMs > currentTimeMs);
+
+    if (marker) {
+      jumpCurrentTime(marker.timeMs);
+    }
+  };
+
+  const jumpToAdjacentItemEdge = (direction: -1 | 1) => {
+    const edges = document.tracks
+      .flatMap((track) =>
+        track.items.flatMap((item) => [item.startMs, getTimelineEditorItemEndMs(item)]),
+      )
+      .filter((timeMs) => (direction < 0 ? timeMs < currentTimeMs : timeMs > currentTimeMs))
+      .sort((left, right) => left - right);
+    const timeMs = direction < 0 ? edges.at(-1) : edges[0];
+
+    if (timeMs !== undefined) {
+      jumpCurrentTime(timeMs);
+    }
+  };
+
+  const handleWorkbenchKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (readOnly && !(resolvedHotkeys.copy && matchesHotkey(event, resolvedHotkeys.copy))) {
+      return;
+    }
+
+    if (resolvedHotkeys.undo && matchesHotkey(event, resolvedHotkeys.undo)) {
+      event.preventDefault();
+      const undo = undoTimelineEditorHistory(history);
+      setHistory(undo.history);
+      if (undo.document) {
+        onDocumentChange?.(undo.document);
+        if (undo.selection) {
+          commitSelection(undo.selection);
+        }
+      }
+      return;
+    }
+
+    if (
+      (resolvedHotkeys.redo && matchesHotkey(event, resolvedHotkeys.redo)) ||
+      (resolvedHotkeys.redoAlternate && matchesHotkey(event, resolvedHotkeys.redoAlternate))
+    ) {
+      event.preventDefault();
+      const redo = redoTimelineEditorHistory(history);
+      setHistory(redo.history);
+      if (redo.document) {
+        onDocumentChange?.(redo.document);
+        if (redo.selection) {
+          commitSelection(redo.selection);
+        }
+      }
+      return;
+    }
+
+    if (resolvedHotkeys.copy && matchesHotkey(event, resolvedHotkeys.copy)) {
+      event.preventDefault();
+      copyItems();
+      return;
+    }
+
+    if (resolvedHotkeys.cut && matchesHotkey(event, resolvedHotkeys.cut)) {
+      event.preventDefault();
+      cutItems();
+      return;
+    }
+
+    if (resolvedHotkeys.paste && matchesHotkey(event, resolvedHotkeys.paste)) {
+      event.preventDefault();
+      pasteItems();
+      return;
+    }
+
+    if (resolvedHotkeys.clearSelection && matchesHotkey(event, resolvedHotkeys.clearSelection)) {
+      event.preventDefault();
+      runTransientCommand({ type: "clear-selection" });
+      return;
+    }
+
+    if (resolvedHotkeys.jumpStart && matchesHotkey(event, resolvedHotkeys.jumpStart)) {
+      event.preventDefault();
+      jumpCurrentTime(0);
+      return;
+    }
+
+    if (resolvedHotkeys.jumpEnd && matchesHotkey(event, resolvedHotkeys.jumpEnd)) {
+      event.preventDefault();
+      jumpCurrentTime(durationMs);
+      return;
+    }
+
+    if (resolvedHotkeys.previousMarker && matchesHotkey(event, resolvedHotkeys.previousMarker)) {
+      event.preventDefault();
+      jumpToAdjacentMarker(-1);
+      return;
+    }
+
+    if (resolvedHotkeys.nextMarker && matchesHotkey(event, resolvedHotkeys.nextMarker)) {
+      event.preventDefault();
+      jumpToAdjacentMarker(1);
+      return;
+    }
+
+    if (resolvedHotkeys.previousEdge && matchesHotkey(event, resolvedHotkeys.previousEdge)) {
+      event.preventDefault();
+      jumpToAdjacentItemEdge(-1);
+      return;
+    }
+
+    if (resolvedHotkeys.nextEdge && matchesHotkey(event, resolvedHotkeys.nextEdge)) {
+      event.preventDefault();
+      jumpToAdjacentItemEdge(1);
+    }
+  };
+
   return (
     <div
       data-slot="timeline-workbench"
@@ -377,8 +684,10 @@ export function TimelineWorkbench<
         minHeight: "34rem",
         ...style,
       }}
+      onKeyDown={handleWorkbenchKeyDown}
     >
       <TimelineWorkbenchToolbar
+        clipboard={resolvedClipboard}
         currentTimeMs={currentTimeMs}
         document={document}
         durationMs={durationMs}
@@ -389,6 +698,7 @@ export function TimelineWorkbench<
         overlaps={overlaps}
         pixelsPerSecond={pixelsPerSecond}
         readOnly={readOnly}
+        resolvedTool={resolvedTool}
         renderToolbarActions={renderToolbarActions}
         resolvedSelection={resolvedSelection}
         resolvedViewport={resolvedViewport}
@@ -401,8 +711,11 @@ export function TimelineWorkbench<
           runCommand({ type: "add-marker", marker });
         }}
         onDelete={() => deleteItems()}
+        onCopy={() => copyItems()}
+        onCut={() => cutItems()}
         onDuplicate={() => duplicateItems()}
         onGroup={() => groupItems()}
+        onPaste={pasteItems}
         onRedo={() => {
           const redo = redoTimelineEditorHistory(history);
           setHistory(redo.history);
@@ -427,6 +740,7 @@ export function TimelineWorkbench<
         }}
         onUngroup={() => ungroupItems()}
         onViewportChange={commitViewport}
+        onToolChange={commitTool}
       />
       <div
         className="grid min-h-0 gap-3 overflow-auto border-b border-border/60 p-3"
@@ -445,6 +759,7 @@ export function TimelineWorkbench<
           currentTimeMs={currentTimeMs}
           document={document}
           durationMs={durationMs}
+          extensions={extensions}
           selectedItems={selectedItems}
         />
         <WorkbenchPanel side="right" className="h-full min-w-0 p-0">
@@ -453,6 +768,8 @@ export function TimelineWorkbench<
           ) : (
             <DefaultTimelineInspector
               context={inspectorContext}
+              extensionSections={extensionInspectorSections}
+              inspectorSchema={inspectorSchema}
               timingStepMs={resolvedSnapMs > 0 ? resolvedSnapMs : undefined}
             />
           )}
@@ -463,10 +780,14 @@ export function TimelineWorkbench<
         document={document}
         editPolicy={editPolicy}
         frameRate={frameRate}
+        hotkeys={resolvedHotkeys}
         getItemContextMenuItems={getWorkbenchItemContextMenuItems}
         getTrackContextMenuItems={getWorkbenchTrackContextMenuItems}
         readOnly={readOnly}
-        renderTimelineItem={renderTimelineItem}
+        tool={resolvedTool}
+        minItemDurationMs={minItemDurationMs}
+        renderTimelineItem={renderResolvedTimelineItem}
+        snap={snap}
         resolvedSelection={resolvedSelection}
         resolvedSnapMs={resolvedSnapMs}
         resolvedViewport={resolvedViewport}
@@ -490,9 +811,20 @@ function areTimelineWorkbenchSelectionsEqual(
   left: TimelineEditorSelection,
   right: TimelineEditorSelection,
 ) {
-  if (left.anchorItemId !== right.anchorItemId || left.itemIds.length !== right.itemIds.length) {
+  if (
+    left.anchorItemId !== right.anchorItemId ||
+    left.itemIds.length !== right.itemIds.length ||
+    (left.trackIds?.length ?? 0) !== (right.trackIds?.length ?? 0) ||
+    (left.markerIds?.length ?? 0) !== (right.markerIds?.length ?? 0) ||
+    left.range?.startMs !== right.range?.startMs ||
+    left.range?.endMs !== right.range?.endMs
+  ) {
     return false;
   }
 
-  return left.itemIds.every((itemId, index) => itemId === right.itemIds[index]);
+  return (
+    left.itemIds.every((itemId, index) => itemId === right.itemIds[index]) &&
+    (left.trackIds ?? []).every((trackId, index) => trackId === right.trackIds?.[index]) &&
+    (left.markerIds ?? []).every((markerId, index) => markerId === right.markerIds?.[index])
+  );
 }
