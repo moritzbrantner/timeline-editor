@@ -5,29 +5,19 @@ import { useMemo, useState } from "react";
 import { type MenuActionItem, WorkbenchLayout, WorkbenchPanel, cn } from "@moritzbrantner/ui";
 
 import {
-  addTimelineEditorMarker,
-  addTimelineEditorTrack,
   detectTimelineEditorOverlaps,
-  duplicateTimelineEditorItems,
   formatTimelineEditorTimeMs,
   getTimelineEditorDurationMs,
   getTimelineEditorFrameDurationMs,
-  getTimelineEditorGroupedItemIds,
-  groupTimelineEditorItems,
-  insertTimelineEditorItem,
-  normalizeTimelineEditorDocument,
-  normalizeTimelineEditorTracks,
-  removeTimelineEditorItems,
-  removeTimelineEditorTrack,
-  splitTimelineEditorItems,
   type TimelineEditorDocument,
   type TimelineEditorItem,
   type TimelineEditorSelection,
   type TimelineEditorTrack,
   type TimelineEditorViewport,
-  ungroupTimelineEditorItems,
 } from "../core";
+import type { TimelineEditorCommand } from "../commands";
 import {
+  applyTimelineEditorCommandWithHistory,
   createTimelineEditorHistory,
   redoTimelineEditorHistory,
   undoTimelineEditorHistory,
@@ -127,6 +117,11 @@ export function TimelineWorkbench<
   const hasSelectedItemGroup = hasItemGroup(resolvedSelection.itemIds);
   const overlaps = useMemo(() => detectTimelineEditorOverlaps(document.tracks), [document.tracks]);
 
+  const commitSelection = (nextSelection: TimelineEditorSelection) => {
+    onSelectionChange?.(nextSelection);
+    onSelectedItemChange?.(getTimelineWorkbenchSelectionPayload(nextSelection, itemLookup));
+  };
+
   const commitDocument = (nextDocument: TimelineEditorDocument<TTrackData, TItemData>) => {
     if (nextDocument !== document) {
       setHistory((currentHistory) => ({
@@ -148,13 +143,27 @@ export function TimelineWorkbench<
     onDocumentChange?.(nextDocument);
   };
 
-  const commitTracks = (tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>) => {
-    commitDocument(normalizeTimelineEditorDocument({ ...document, tracks }, { durationMs }));
-  };
+  const runCommand = (
+    command: TimelineEditorCommand<TTrackData, TItemData>,
+    commandSelection = resolvedSelection,
+  ) => {
+    const result = applyTimelineEditorCommandWithHistory(
+      document,
+      commandSelection,
+      history,
+      command,
+      { durationMs, snapMs: resolvedSnapMs },
+    );
 
-  const commitSelection = (nextSelection: TimelineEditorSelection) => {
-    onSelectionChange?.(nextSelection);
-    onSelectedItemChange?.(getTimelineWorkbenchSelectionPayload(nextSelection, itemLookup));
+    setHistory(result.history);
+
+    if (result.changed) {
+      onDocumentChange?.(result.document);
+    }
+
+    if (!areTimelineWorkbenchSelectionsEqual(result.selection, resolvedSelection)) {
+      commitSelection(result.selection);
+    }
   };
 
   const updateItem = (itemId: string, patch: Partial<TimelineEditorItem<TItemData>>) => {
@@ -168,21 +177,7 @@ export function TimelineWorkbench<
       return;
     }
 
-    commitTracks(
-      normalizeTimelineEditorTracks(
-        document.tracks.map((track) =>
-          track.id === found.item.trackId
-            ? {
-                ...track,
-                items: track.items.map((item) =>
-                  item.id === found.item.id ? { ...item, ...patch } : item,
-                ),
-              }
-            : track,
-        ),
-        { durationMs },
-      ),
-    );
+    runCommand({ type: "update-item", itemId, patch });
   };
 
   const updateSelectedItem = (patch: Partial<TimelineEditorItem<TItemData>>) => {
@@ -196,9 +191,7 @@ export function TimelineWorkbench<
       return;
     }
 
-    const groupedItemIds = getTimelineEditorGroupedItemIds(document, itemIds);
-    commitTracks(removeTimelineEditorItems(document.tracks, groupedItemIds));
-    commitSelection({ itemIds: [] });
+    runCommand({ type: "delete-selection" }, selectionForItemIds(itemIds));
   };
 
   const duplicateItems = (itemIds = resolvedSelection.itemIds) => {
@@ -206,12 +199,7 @@ export function TimelineWorkbench<
       return;
     }
 
-    commitTracks(
-      duplicateTimelineEditorItems(
-        document.tracks,
-        getTimelineEditorGroupedItemIds(document, itemIds),
-      ),
-    );
+    runCommand({ type: "duplicate-selection" }, selectionForItemIds(itemIds));
   };
 
   const splitItems = (itemIds = resolvedSelection.itemIds) => {
@@ -219,13 +207,7 @@ export function TimelineWorkbench<
       return;
     }
 
-    commitTracks(
-      splitTimelineEditorItems(
-        document.tracks,
-        getTimelineEditorGroupedItemIds(document, itemIds),
-        currentTimeMs,
-      ),
-    );
+    runCommand({ type: "split-items", itemIds, timeMs: currentTimeMs });
   };
 
   const addTimeline = () => {
@@ -234,7 +216,7 @@ export function TimelineWorkbench<
     }
 
     const track = createTimelineWorkbenchTrack(document.tracks);
-    commitDocument(addTimelineEditorTrack(document, track, { durationMs }));
+    runCommand({ type: "add-track", track });
   };
 
   const removeTimeline = (trackId?: string) => {
@@ -248,8 +230,7 @@ export function TimelineWorkbench<
       return;
     }
 
-    commitDocument(removeTimelineEditorTrack(document, resolvedTrackId, { durationMs }));
-    commitSelection({ itemIds: [] });
+    runCommand({ type: "remove-track", trackId: resolvedTrackId });
   };
 
   const groupItems = (itemIds = resolvedSelection.itemIds) => {
@@ -257,7 +238,7 @@ export function TimelineWorkbench<
       return;
     }
 
-    commitDocument(groupTimelineEditorItems(document, itemIds, {}, { durationMs }));
+    runCommand({ type: "group-selection" }, selectionForItemIds(itemIds));
   };
 
   const ungroupItems = (itemIds = resolvedSelection.itemIds) => {
@@ -265,7 +246,7 @@ export function TimelineWorkbench<
       return;
     }
 
-    commitDocument(ungroupTimelineEditorItems(document, itemIds, { durationMs }));
+    runCommand({ type: "ungroup-selection" }, selectionForItemIds(itemIds));
   };
 
   const inspectorContext = {
@@ -309,10 +290,7 @@ export function TimelineWorkbench<
       data: asset.data as TItemData | undefined,
     };
 
-    commitTracks(
-      insertTimelineEditorItem(document.tracks, item, { durationMs, snapMs: resolvedSnapMs }),
-    );
-    commitSelection({ itemIds: [item.id], anchorItemId: item.id });
+    runCommand({ type: "insert-item", item });
   };
 
   const getWorkbenchItemContextMenuItems = (
@@ -398,7 +376,7 @@ export function TimelineWorkbench<
               timeMs: currentTimeMs,
               label: formatTimelineEditorTimeMs(currentTimeMs),
             };
-            commitDocument(addTimelineEditorMarker(document, marker, { durationMs }));
+            runCommand({ type: "add-marker", marker });
           }}
           onDelete={() => deleteItems()}
           onDuplicate={() => duplicateItems()}
@@ -448,4 +426,19 @@ export function TimelineWorkbench<
       />
     </WorkbenchLayout>
   );
+}
+
+function selectionForItemIds(itemIds: string[]): TimelineEditorSelection {
+  return { itemIds, anchorItemId: itemIds[0] };
+}
+
+function areTimelineWorkbenchSelectionsEqual(
+  left: TimelineEditorSelection,
+  right: TimelineEditorSelection,
+) {
+  if (left.anchorItemId !== right.anchorItemId || left.itemIds.length !== right.itemIds.length) {
+    return false;
+  }
+
+  return left.itemIds.every((itemId, index) => itemId === right.itemIds[index]);
 }

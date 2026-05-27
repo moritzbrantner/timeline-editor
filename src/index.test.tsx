@@ -458,6 +458,64 @@ describe("@moritzbrantner/timeline-editor core", () => {
       expect.objectContaining({ id: "draft", startMs: 2_000 }),
     );
   });
+
+  test("applies workbench document commands through the command reducer", () => {
+    const document: TimelineEditorDocument = { tracks: [], durationMs: 8_000 };
+    const selection = { itemIds: [] };
+    const withTrack = applyTimelineEditorCommand(
+      document,
+      selection,
+      { type: "add-track", track: { id: "planning", label: "Planning" } },
+      { durationMs: 8_000 },
+    );
+
+    expect(withTrack.changed).toBe(true);
+    expect(withTrack.document.tracks[0]).toEqual({ id: "planning", label: "Planning", items: [] });
+
+    const withItem = applyTimelineEditorCommandWithHistory(
+      withTrack.document,
+      withTrack.selection,
+      createTimelineEditorHistory(),
+      {
+        type: "insert-item",
+        item: {
+          id: "brief",
+          trackId: "planning",
+          label: "Brief",
+          startMs: 1_000,
+          durationMs: 2_000,
+        },
+      },
+      { durationMs: 8_000 },
+    );
+
+    expect(withItem.selection).toEqual({ itemIds: ["brief"], anchorItemId: "brief" });
+    expect(withItem.history.undoStack).toHaveLength(1);
+    expect(undoTimelineEditorHistory(withItem.history).document?.tracks[0]?.items).toHaveLength(0);
+
+    const updated = applyTimelineEditorCommand(
+      withItem.document,
+      withItem.selection,
+      { type: "update-item", itemId: "brief", patch: { label: "Updated brief" } },
+      { durationMs: 8_000 },
+    );
+    expect(updated.document.tracks[0]?.items[0]?.label).toBe("Updated brief");
+
+    const withMarker = applyTimelineEditorCommand(updated.document, updated.selection, {
+      type: "add-marker",
+      marker: { id: "handoff", timeMs: 4_000, label: "Handoff" },
+    });
+    expect(withMarker.document.markers).toEqual([
+      { id: "handoff", timeMs: 4_000, label: "Handoff" },
+    ]);
+
+    const withoutTrack = applyTimelineEditorCommand(withMarker.document, withMarker.selection, {
+      type: "remove-track",
+      trackId: "planning",
+    });
+    expect(withoutTrack.document.tracks).toHaveLength(0);
+    expect(withoutTrack.selection).toEqual({ itemIds: [] });
+  });
 });
 
 describe("@moritzbrantner/timeline-editor React workbench", () => {

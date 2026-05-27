@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { cn } from "@moritzbrantner/ui";
 
 import { normalizeTimelineEditorDocument, setTimelineEditorCurrentTime } from "../core";
-import { applyTimelineEditorCommand } from "../commands";
 import {
   createTimelineEditorDocumentIndex,
   getTimelineEditorGroupedItemIdsFromIndex,
@@ -34,16 +33,17 @@ import {
   defaultTimelineEditorHotkeys,
   timelineEditorTrackHeaderWidthPx,
 } from "./timeline-editor/constants";
-import { getTimelineEditorNudgeMs, matchesHotkey } from "./timeline-editor/hotkeys";
+import { getTimelineEditorNudgeMs } from "./timeline-editor/hotkeys";
+import { useTimelineEditorKeyboard } from "./timeline-editor/keyboard";
 import {
   captureTimelineEditorPointer,
   getTimelineEditorPointerClientX,
 } from "./timeline-editor/pointer";
+import { useTimelineEditorPreview } from "./timeline-editor/preview";
 import {
   getRangeSelectionIds,
   getSelectedTimelineEditorItems,
   getVisibleTracks,
-  isTrackLockedByGroup,
 } from "./timeline-editor/selection";
 import { TimelineEditorRuler } from "./timeline-editor/ruler";
 import { TimelineEditorTrackList } from "./timeline-editor/track-list";
@@ -102,16 +102,15 @@ export function TimelineEditor<
 }: TimelineEditorProps<TTrackData, TItemData>) {
   const durationMs = getTimelineEditorDurationForDocument(document);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
-  const previewTracksRef = useRef<Array<TimelineEditorTrack<TTrackData, TItemData>> | null>(null);
-  const previewFrameRef = useRef<number | null>(null);
-  const pendingPreviewRef = useRef<{
-    snapGuideMs: number | null;
-    tracks: Array<TimelineEditorTrack<TTrackData, TItemData>> | null;
-  } | null>(null);
   const pendingWheelZoomRef = useRef<{ offsetX: number; timeMs: number } | null>(null);
-  const [previewTracks, setPreviewTracks] = useState<Array<
-    TimelineEditorTrack<TTrackData, TItemData>
-  > | null>(null);
+  const {
+    cancelScheduledPreview,
+    clearPreview,
+    flushScheduledPreview,
+    previewTracks,
+    schedulePreviewUpdate,
+    snapGuideMs,
+  } = useTimelineEditorPreview<TTrackData, TItemData>();
   const resolvedViewport = useMemo(() => resolveTimelineEditorViewport(viewport), [viewport]);
   const resolvedVirtualization = useMemo(
     () => ({
@@ -144,7 +143,6 @@ export function TimelineEditor<
     TItemData,
     TimelineEditorSnapResolver
   > | null>(null);
-  const [snapGuideMs, setSnapGuideMs] = useState<number | null>(null);
   const selectedIds = useMemo(() => new Set(selection.itemIds), [selection.itemIds]);
   const documentIndex = useMemo(() => createTimelineEditorDocumentIndex(document), [document]);
   const selectedItems = useMemo(
@@ -180,72 +178,18 @@ export function TimelineEditor<
 
   const commitDocument = onDocumentChange ?? (() => undefined);
   const commitSelection = onSelectionChange ?? (() => undefined);
-
-  const updatePreviewTracks = (
-    nextTracks: Array<TimelineEditorTrack<TTrackData, TItemData>> | null,
-  ) => {
-    previewTracksRef.current = nextTracks;
-    setPreviewTracks(nextTracks);
-  };
-
-  const cancelScheduledPreview = () => {
-    if (previewFrameRef.current !== null && typeof window !== "undefined") {
-      window.cancelAnimationFrame(previewFrameRef.current);
-    }
-
-    previewFrameRef.current = null;
-    pendingPreviewRef.current = null;
-  };
-
-  const flushScheduledPreview = () => {
-    const pendingPreview = pendingPreviewRef.current;
-
-    if (!pendingPreview) {
-      return previewTracksRef.current;
-    }
-
-    cancelScheduledPreview();
-    setSnapGuideMs(pendingPreview.snapGuideMs);
-    updatePreviewTracks(pendingPreview.tracks);
-
-    return pendingPreview.tracks;
-  };
-
-  const schedulePreviewUpdate = (
-    tracks: Array<TimelineEditorTrack<TTrackData, TItemData>> | null,
-    nextSnapGuideMs: number | null,
-  ) => {
-    pendingPreviewRef.current = { snapGuideMs: nextSnapGuideMs, tracks };
-
-    if (typeof window === "undefined") {
-      flushScheduledPreview();
-      return;
-    }
-
-    if (previewFrameRef.current !== null) {
-      return;
-    }
-
-    previewFrameRef.current = window.requestAnimationFrame(() => {
-      previewFrameRef.current = null;
-      const pendingPreview = pendingPreviewRef.current;
-      pendingPreviewRef.current = null;
-
-      if (!pendingPreview) {
-        return;
-      }
-
-      setSnapGuideMs(pendingPreview.snapGuideMs);
-      updatePreviewTracks(pendingPreview.tracks);
-    });
-  };
-
-  useEffect(
-    () => () => {
-      cancelScheduledPreview();
-    },
-    [],
-  );
+  const handleKeyDown = useTimelineEditorKeyboard({
+    document,
+    durationMs,
+    hotkeys: resolvedHotkeys,
+    nudgeMs,
+    readOnly,
+    selection,
+    viewport: resolvedViewport,
+    onDocumentChange: commitDocument,
+    onSelectionChange: commitSelection,
+    onViewportChange,
+  });
 
   const selectItem = (
     item: TimelineEditorItem<TItemData>,
@@ -336,15 +280,13 @@ export function TimelineEditor<
     }
 
     setDragState(null);
-    setSnapGuideMs(null);
-    updatePreviewTracks(null);
+    clearPreview();
   };
 
   const cancelDrag = () => {
     cancelScheduledPreview();
     setDragState(null);
-    setSnapGuideMs(null);
-    updatePreviewTracks(null);
+    clearPreview();
   };
 
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
@@ -394,70 +336,6 @@ export function TimelineEditor<
       ...resolvedViewport,
       pixelsPerSecond: nextPixelsPerSecond,
     });
-  };
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (readOnly) {
-      return;
-    }
-
-    if (matchesHotkey(event, resolvedHotkeys.selectAll)) {
-      event.preventDefault();
-      commitSelection({
-        itemIds: document.tracks
-          .filter((track) => !isTrackLockedByGroup(document, track))
-          .flatMap((track) => track.items.filter((item) => !item.locked).map((item) => item.id)),
-      });
-      return;
-    }
-
-    if (matchesHotkey(event, resolvedHotkeys.delete) || event.key === "Backspace") {
-      event.preventDefault();
-      const result = applyTimelineEditorCommand(
-        document,
-        selection,
-        { type: "delete-selection" },
-        { durationMs },
-      );
-      commitDocument(result.document);
-      commitSelection(result.selection);
-      return;
-    }
-
-    if (
-      matchesHotkey(event, resolvedHotkeys.nudgeLeft) ||
-      matchesHotkey(event, resolvedHotkeys.nudgeRight)
-    ) {
-      event.preventDefault();
-      const direction = matchesHotkey(event, resolvedHotkeys.nudgeLeft) ? -1 : 1;
-      const result = applyTimelineEditorCommand(
-        document,
-        selection,
-        {
-          type: "move-items",
-          itemIds: selection.itemIds,
-          deltaMs: direction * nudgeMs,
-        },
-        { durationMs, snapMs: nudgeMs },
-      );
-      commitDocument(result.document);
-      return;
-    }
-
-    if (
-      matchesHotkey(event, resolvedHotkeys.zoomIn) ||
-      matchesHotkey(event, resolvedHotkeys.zoomOut)
-    ) {
-      event.preventDefault();
-      const direction = matchesHotkey(event, resolvedHotkeys.zoomIn) ? 1 : -1;
-      onViewportChange?.({
-        ...resolvedViewport,
-        pixelsPerSecond: getNextTimelineEditorPixelsPerSecond(
-          resolvedViewport.pixelsPerSecond,
-          direction,
-        ),
-      });
-    }
   };
 
   return (

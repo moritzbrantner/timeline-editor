@@ -1,10 +1,15 @@
 import {
+  addTimelineEditorMarker,
+  addTimelineEditorTrack,
   closeTimelineEditorGap,
   duplicateTimelineEditorItems,
   getTimelineEditorGroupedItemIds,
   groupTimelineEditorItems,
+  insertTimelineEditorItem,
   moveTimelineEditorItems,
   normalizeTimelineEditorDocument,
+  normalizeTimelineEditorTracks,
+  removeTimelineEditorTrack,
   removeTimelineEditorItems,
   resizeTimelineEditorItem,
   rippleDeleteTimelineEditorItems,
@@ -13,11 +18,17 @@ import {
 } from "./operations";
 import {
   type TimelineEditorDocument,
+  type TimelineEditorItem,
+  type TimelineEditorMarker,
   type TimelineEditorOperationOptions,
   type TimelineEditorSelection,
+  type TimelineEditorTrack,
 } from "./types";
 
-export type TimelineEditorCommand =
+export type TimelineEditorCommand<
+  TTrackData = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+> =
   | { type: "select"; selection: TimelineEditorSelection }
   | { type: "delete-selection" }
   | { type: "move-items"; itemIds: string[]; deltaMs: number; trackDelta?: number }
@@ -27,7 +38,16 @@ export type TimelineEditorCommand =
   | { type: "group-selection"; groupId?: string; label?: string }
   | { type: "ungroup-selection" }
   | { type: "ripple-delete"; itemIds: string[] }
-  | { type: "close-gap"; trackId: string; startMs: number; endMs: number };
+  | { type: "close-gap"; trackId: string; startMs: number; endMs: number }
+  | {
+      type: "add-track";
+      track: Omit<TimelineEditorTrack<TTrackData, TItemData>, "items"> &
+        Partial<Pick<TimelineEditorTrack<TTrackData, TItemData>, "items">>;
+    }
+  | { type: "remove-track"; trackId: string }
+  | { type: "add-marker"; marker: TimelineEditorMarker }
+  | { type: "insert-item"; item: TimelineEditorItem<TItemData> }
+  | { type: "update-item"; itemId: string; patch: Partial<TimelineEditorItem<TItemData>> };
 
 export type TimelineEditorCommandResult<
   TTrackData = Record<string, unknown>,
@@ -47,7 +67,7 @@ export function applyTimelineEditorCommand<
 >(
   document: TimelineEditorDocument<TTrackData, TItemData, TGroupData>,
   selection: TimelineEditorSelection,
-  command: TimelineEditorCommand,
+  command: TimelineEditorCommand<TTrackData, TItemData>,
   options: TimelineEditorOperationOptions = {},
 ): TimelineEditorCommandResult<TTrackData, TItemData, TGroupData> {
   if (command.type === "select") {
@@ -155,6 +175,58 @@ export function applyTimelineEditorCommand<
     return result(document, tracks, { itemIds: [] }, "Ripple delete");
   }
 
+  if (command.type === "add-track") {
+    const nextDocument = addTimelineEditorTrack(document, command.track, options);
+    return documentResult(document, nextDocument, selection, "Add timeline");
+  }
+
+  if (command.type === "remove-track") {
+    const nextDocument = removeTimelineEditorTrack(document, command.trackId, options);
+    return documentResult(document, nextDocument, { itemIds: [] }, "Remove timeline");
+  }
+
+  if (command.type === "add-marker") {
+    const nextDocument = addTimelineEditorMarker(document, command.marker, options);
+    return documentResult(document, nextDocument, selection, "Add marker");
+  }
+
+  if (command.type === "insert-item") {
+    const tracks = insertTimelineEditorItem(document.tracks, command.item, options);
+    return result(
+      document,
+      tracks,
+      tracks === document.tracks
+        ? selection
+        : { itemIds: [command.item.id], anchorItemId: command.item.id },
+      "Insert item",
+    );
+  }
+
+  if (command.type === "update-item") {
+    const found = document.tracks
+      .flatMap((track) => track.items.map((item) => ({ item, track })))
+      .find(({ item }) => item.id === command.itemId);
+
+    if (!found || found.item.locked || found.track.locked) {
+      return { document, selection, label: "Update item", changed: false };
+    }
+
+    const tracks = normalizeTimelineEditorTracks(
+      document.tracks.map((track) =>
+        track.id === found.track.id
+          ? {
+              ...track,
+              items: track.items.map((item) =>
+                item.id === found.item.id ? { ...item, ...command.patch } : item,
+              ),
+            }
+          : track,
+      ),
+      options,
+    );
+    return result(document, tracks, selection, "Update item");
+  }
+
   const tracks = closeTimelineEditorGap(
     document.tracks,
     command.trackId,
@@ -163,6 +235,20 @@ export function applyTimelineEditorCommand<
     options,
   );
   return result(document, tracks, selection, "Close gap");
+}
+
+function documentResult<TTrackData, TItemData, TGroupData>(
+  document: TimelineEditorDocument<TTrackData, TItemData, TGroupData>,
+  nextDocument: TimelineEditorDocument<TTrackData, TItemData, TGroupData>,
+  selection: TimelineEditorSelection,
+  label: string,
+): TimelineEditorCommandResult<TTrackData, TItemData, TGroupData> {
+  return {
+    document: nextDocument,
+    selection,
+    label,
+    changed: nextDocument !== document,
+  };
 }
 
 function result<TTrackData, TItemData, TGroupData>(
