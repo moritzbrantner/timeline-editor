@@ -42,6 +42,7 @@ export function TimelineWorkbenchPreview<TTrackData, TItemData>({
 
   return (
     <WorkbenchPanel
+      data-slot="timeline-workbench-preview"
       side="bottom"
       className="grid min-w-0 overflow-hidden p-0"
       style={{ gridTemplateRows: "auto minmax(0, 1fr)" }}

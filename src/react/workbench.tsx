@@ -355,8 +355,8 @@ export function TimelineWorkbench<
       data-slot="timeline-workbench"
       className={cn("grid overflow-hidden border border-border bg-background", className)}
       style={{
-        gridTemplateRows: "auto minmax(0, 1fr) minmax(0, 1fr)",
-        height: "42rem",
+        gridTemplateRows: "auto minmax(0, 1fr) auto",
+        height: "auto",
         minHeight: "34rem",
         ...style,
       }}

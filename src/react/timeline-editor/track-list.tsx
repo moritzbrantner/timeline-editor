@@ -248,7 +248,7 @@ function TimelineEditorTrackRowComponent<TTrackData extends Record<string, unkno
           <span className="truncate">{entry.track.label}</span>
         )}
       </div>
-      <div className="relative">
+      <div data-slot="timeline-editor-track-lane" className="relative">
         {getVisibleTimelineEditorItems(entry.track.items, visibleRange, selectedIds).map((item) => {
           const selected = selectedIds.has(item.id);
           const locked = Boolean(readOnly || entry.locked || item.locked);

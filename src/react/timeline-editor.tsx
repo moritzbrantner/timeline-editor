@@ -110,6 +110,7 @@ export function TimelineEditor<
   getTrackContextMenuItems,
   className,
   style,
+  onPointerDown,
   onScroll,
   onWheel,
   ...props
@@ -338,15 +339,46 @@ export function TimelineEditor<
     onScroll?.(event);
   };
 
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    onPointerDown?.(event);
+
+    if (event.defaultPrevented || event.button !== 0) {
+      return;
+    }
+
+    const target = event.target instanceof Element ? event.target : null;
+
+    if (
+      target?.closest("[data-slot='timeline-editor-track-lane']") &&
+      !target.closest("[data-slot='timeline-editor-clip']")
+    ) {
+      commitSelection(defaultTimelineEditorSelection);
+    }
+  };
+
   const handleNativeWheel = useCallback(
     (event: WheelEvent) => {
-      if (!event.ctrlKey || event.defaultPrevented || !event.cancelable) {
+      if (event.defaultPrevented || !event.cancelable) {
         return;
       }
 
       const scroller = scrollerRef.current;
 
       if (!scroller) {
+        return;
+      }
+
+      if (!event.ctrlKey) {
+        const deltaX = getTimelineEditorWheelDeltaPx(event.deltaX, event.deltaMode, scroller);
+        const deltaY = getTimelineEditorWheelDeltaPx(event.deltaY, event.deltaMode, scroller);
+        const horizontalDeltaPx = deltaX + deltaY;
+
+        if (horizontalDeltaPx === 0) {
+          return;
+        }
+
+        event.preventDefault();
+        scroller.scrollLeft += horizontalDeltaPx;
         return;
       }
 
@@ -410,6 +442,7 @@ export function TimelineEditor<
       }}
       tabIndex={0}
       onPointerMove={handlePointerMove}
+      onPointerDown={handlePointerDown}
       onPointerUp={commitDrag}
       onPointerCancel={cancelDrag}
       onKeyDown={handleKeyDown}
@@ -515,6 +548,18 @@ export function TimelineEditor<
       </div>
     </div>
   );
+}
+
+function getTimelineEditorWheelDeltaPx(delta: number, deltaMode: number, scroller: HTMLDivElement) {
+  if (deltaMode === 1) {
+    return delta * 40;
+  }
+
+  if (deltaMode === 2) {
+    return delta * scroller.clientWidth;
+  }
+
+  return delta;
 }
 
 function getTimelineEditorDragCommitTracks<TTrackData extends Record<string, unknown>, TItemData>(

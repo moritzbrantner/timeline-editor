@@ -52,6 +52,10 @@ function getTimelineRulerLane(page: Page) {
   return page.locator("[data-slot='timeline-editor-ruler-lane']").last();
 }
 
+function getTimelineTrack(page: Page, label: string) {
+  return page.locator("[data-slot='timeline-editor-track']").filter({ hasText: label }).last();
+}
+
 async function getItem(page: Page, itemId: string) {
   const state = await getHarnessState(page);
 
@@ -65,6 +69,8 @@ async function getItems(page: Page) {
 }
 
 async function drag(locator: Locator, deltaX: number) {
+  await locator.scrollIntoViewIfNeeded();
+
   const box = await locator.boundingBox();
 
   if (!box) {
@@ -155,14 +161,99 @@ test("inserts an asset at the playhead", async ({ page }) => {
     .toMatch(/^prototype-/);
 });
 
+test("drops an asset on the timeline at a snapped frame timestamp", async ({ page }) => {
+  await page.goto("/?frameRate=25");
+
+  const editor = getTimelineEditor(page);
+  const planningTrack = getTimelineTrack(page, "Planning");
+  const editorBox = await editor.boundingBox();
+  const trackBox = await planningTrack.boundingBox();
+  expect(editorBox).not.toBeNull();
+  expect(trackBox).not.toBeNull();
+
+  const clientX = editorBox!.x + 80 + 99;
+  const clientY = trackBox!.y + trackBox!.height / 2;
+  const dropped = await planningTrack.evaluate(
+    (track, point) => {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.setData("application/x-timeline-workbench-asset-id", "prototype");
+      dataTransfer.setData("text/plain", "Prototype");
+
+      track.dispatchEvent(
+        new DragEvent("dragover", {
+          bubbles: true,
+          cancelable: true,
+          clientX: point.clientX,
+          clientY: point.clientY,
+          dataTransfer,
+        }),
+      );
+
+      return !track.dispatchEvent(
+        new DragEvent("drop", {
+          bubbles: true,
+          cancelable: true,
+          clientX: point.clientX,
+          clientY: point.clientY,
+          dataTransfer,
+        }),
+      );
+    },
+    { clientX, clientY },
+  );
+
+  expect(dropped).toBe(true);
+  await expect
+    .poll(async () => (await getItems(page)).find((item) => item.label === "Prototype"))
+    .toEqual(
+      expect.objectContaining({
+        durationMs: 1_000,
+        label: "Prototype",
+        startMs: 440,
+        trackId: "planning",
+      }),
+    );
+});
+
+test("drags an asset from the asset panel onto the timeline", async ({ page }) => {
+  await page.goto("/");
+
+  const planningTrack = getTimelineTrack(page, "Planning");
+  const trackBox = await planningTrack.boundingBox();
+  expect(trackBox).not.toBeNull();
+
+  await page.getByRole("button", { name: /Prototype/ }).dragTo(planningTrack, {
+    targetPosition: {
+      x: 240,
+      y: trackBox!.height / 2,
+    },
+  });
+
+  await expect
+    .poll(async () => (await getItems(page)).find((item) => item.label === "Prototype"))
+    .toEqual(
+      expect.objectContaining({
+        durationMs: 1_000,
+        label: "Prototype",
+        startMs: 1_200,
+        trackId: "planning",
+      }),
+    );
+});
+
 test("adds and removes whole timelines", async ({ page }) => {
   await page.goto("/");
+
+  const initialEditorHeight = (await getTimelineEditor(page).boundingBox())?.height ?? 0;
 
   await page.getByRole("button", { name: "Add Timeline" }).click();
 
   await expect(
     page.locator("[data-slot='timeline-editor-track']").filter({ hasText: "Timeline 3" }).last(),
   ).toBeVisible();
+  await expect
+    .poll(async () => (await getTimelineEditor(page).boundingBox())?.height ?? 0)
+    .toBeGreaterThan(initialEditorHeight);
   await expect
     .poll(async () => (await getHarnessState(page)).document.tracks.map((track) => track.id))
     .toEqual(["planning", "review", "timeline-3"]);
@@ -243,6 +334,55 @@ test("keeps horizontal timeline scroll on the editor scroller", async ({ page })
   });
 });
 
+test("maps normal timeline mousewheel to horizontal scrolling", async ({ page }) => {
+  await page.goto("/?fixture=large");
+
+  const scrollState = await getTimelineEditor(page).evaluate((editor) => {
+    editor.scrollLeft = 0;
+    const defaultAllowed = editor.dispatchEvent(
+      new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        deltaY: 180,
+      }),
+    );
+
+    return {
+      defaultAllowed,
+      scrollLeft: editor.scrollLeft,
+      scrollTop: editor.scrollTop,
+    };
+  });
+
+  expect(scrollState.defaultAllowed).toBe(false);
+  expect(scrollState.scrollLeft).toBe(180);
+  expect(scrollState.scrollTop).toBe(0);
+});
+
+test("maps shift mousewheel to horizontal timeline scrolling", async ({ page }) => {
+  await page.goto("/?fixture=large");
+
+  const scrollState = await getTimelineEditor(page).evaluate((editor) => {
+    editor.scrollLeft = 0;
+    const defaultAllowed = editor.dispatchEvent(
+      new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        deltaY: 160,
+        shiftKey: true,
+      }),
+    );
+
+    return {
+      defaultAllowed,
+      scrollLeft: editor.scrollLeft,
+    };
+  });
+
+  expect(scrollState.defaultAllowed).toBe(false);
+  expect(scrollState.scrollLeft).toBe(160);
+});
+
 test("virtualizes large timeline rows", async ({ page }) => {
   await page.goto("/?fixture=large");
 
@@ -303,6 +443,34 @@ test("groups and ungroups timeline items", async ({ page }) => {
 
   await expect.poll(async () => (await getItem(page, "brief"))?.startMs).toBe(3_000);
   await expect.poll(async () => (await getItem(page, handoffTask!.id))?.startMs).toBe(5_000);
+});
+
+test("clears selection from an empty timeline lane and previews playhead content", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await scrubRulerTo(page, 0.5);
+  await page.getByRole("button", { name: /Handoff task/ }).click();
+  await getClip(page, "Brief").click();
+
+  await expect.poll(async () => (await getHarnessState(page)).selectedItemId).toBe("brief");
+  const preview = page.locator("[data-slot='timeline-workbench-preview']").last();
+  await expect(preview.getByText("Brief")).toBeVisible();
+
+  const planningTrack = getTimelineTrack(page, "Planning");
+  const planningTrackBox = await planningTrack.boundingBox();
+  expect(planningTrackBox).not.toBeNull();
+
+  await planningTrack.click({
+    position: {
+      x: planningTrackBox!.width - 12,
+      y: planningTrackBox!.height / 2,
+    },
+  });
+
+  await expect.poll(async () => (await getHarnessState(page)).selectedItemIds).toEqual([]);
+  await expect(preview.getByText("Handoff task")).toBeVisible();
 });
 
 test("duplicates, deletes, undoes, and redoes from the toolbar", async ({ page }) => {

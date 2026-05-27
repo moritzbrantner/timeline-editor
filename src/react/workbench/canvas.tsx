@@ -8,6 +8,7 @@ import type {
   TimelineEditorSelection,
   TimelineEditorViewport,
 } from "../../core";
+import { snapTimelineEditorTime } from "../../core";
 import {
   TimelineEditor,
   timelineEditorTrackHeaderWidthPx,
@@ -16,6 +17,11 @@ import {
   type TimelineEditorTrackContextMenuItems,
   type TimelineEditorVirtualizationOptions,
 } from "../timeline-editor";
+import {
+  timelineEditorDefaultTrackHeightPx,
+  timelineEditorRulerHeightPx,
+  timelineEditorTrackGroupHeightPx,
+} from "../timeline-editor/constants";
 import {
   canPlaceTimelineWorkbenchAssetOnTrack,
   timelineWorkbenchAssetDragDataType,
@@ -75,6 +81,14 @@ export function TimelineWorkbenchCanvas<
   onSelectionChange,
   onViewportChange,
 }: TimelineWorkbenchCanvasProps<TTrackData, TItemData, TAssetData>) {
+  const timelineMinHeightPx =
+    timelineEditorRulerHeightPx +
+    document.tracks.reduce(
+      (heightPx, track) => heightPx + (track.height ?? timelineEditorDefaultTrackHeightPx),
+      0,
+    ) +
+    (document.groups?.length ?? 0) * timelineEditorTrackGroupHeightPx;
+
   const getAssetDropPlacement = (event: React.DragEvent<HTMLDivElement>) => {
     const target = event.target instanceof Element ? event.target : null;
     const trackElement = target?.closest<HTMLElement>("[data-slot='timeline-editor-track']");
@@ -91,11 +105,18 @@ export function TimelineWorkbenchCanvas<
       bounds.left +
       event.currentTarget.scrollLeft -
       timelineEditorTrackHeaderWidthPx;
-    const timeMs = Math.max(
+    const rawTimeMs = Math.max(
       0,
       Math.min(
         document.durationMs ?? Number.POSITIVE_INFINITY,
         (timelineOffsetPx / Math.max(1, resolvedViewport.pixelsPerSecond)) * 1_000,
+      ),
+    );
+    const timeMs = Math.max(
+      0,
+      Math.min(
+        document.durationMs ?? Number.POSITIVE_INFINITY,
+        snapTimelineEditorTime(rawTimeMs, resolvedSnapMs),
       ),
     );
 
@@ -111,7 +132,10 @@ export function TimelineWorkbenchCanvas<
   return (
     <WorkbenchCanvas
       className="grid min-h-0 overflow-hidden p-3"
-      style={{ gridTemplateRows: "minmax(0, 1fr) auto" }}
+      style={{
+        gridTemplateRows: "minmax(0, 1fr) auto",
+        minHeight: timelineMinHeightPx + 84,
+      }}
     >
       <TimelineEditor
         className="h-full min-h-0 w-full"
@@ -145,14 +169,9 @@ export function TimelineWorkbenchCanvas<
             return;
           }
 
-          const asset = getDraggedAsset(event);
           const placement = getAssetDropPlacement(event);
 
-          if (
-            !asset ||
-            !placement ||
-            !canPlaceTimelineWorkbenchAssetOnTrack(asset, placement.track)
-          ) {
+          if (!placement) {
             return;
           }
 
