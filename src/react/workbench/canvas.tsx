@@ -22,6 +22,7 @@ import {
   type TimelineEditorItemRenderContext,
   type TimelineEditorTimelineContextMenuItems,
   type TimelineEditorTrackContextMenuItems,
+  type TimelineEditorTrackGroupRenderContext,
   type TimelineEditorVirtualizationOptions,
 } from "../timeline-editor";
 import {
@@ -57,6 +58,7 @@ type TimelineWorkbenchCanvasProps<
   resolvedViewport: TimelineEditorViewport;
   virtualization?: TimelineEditorVirtualizationOptions;
   renderTimelineItem?: (context: TimelineEditorItemRenderContext<TItemData>) => React.ReactNode;
+  renderTrackGroupHeader?: (context: TimelineEditorTrackGroupRenderContext) => React.ReactNode;
   getItemContextMenuItems: TimelineEditorItemContextMenuItems<TTrackData, TItemData>;
   getTimelineContextMenuItems?: TimelineEditorTimelineContextMenuItems<TTrackData, TItemData>;
   getTrackContextMenuItems: TimelineEditorTrackContextMenuItems<TTrackData, TItemData>;
@@ -94,6 +96,7 @@ export function TimelineWorkbenchCanvas<
   resolvedViewport,
   virtualization,
   renderTimelineItem,
+  renderTrackGroupHeader,
   getItemContextMenuItems,
   getTimelineContextMenuItems,
   getTrackContextMenuItems,
@@ -251,6 +254,7 @@ export function TimelineWorkbenchCanvas<
           onSelectionChange={onSelectionChange}
           onViewportChange={onViewportChange}
           renderItem={renderTimelineItem}
+          renderTrackGroupHeader={renderTrackGroupHeader}
           getItemContextMenuItems={getItemContextMenuItems}
           getTimelineContextMenuItems={getTimelineContextMenuItems}
           getTrackContextMenuItems={getTrackContextMenuItems}

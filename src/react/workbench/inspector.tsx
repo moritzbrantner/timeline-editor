@@ -19,6 +19,7 @@ import type {
   TimelineWorkbenchInspectorContext,
   TimelineWorkbenchInspectorSchema,
 } from "../workbench";
+import { TimelineWorkbenchMarkerInspector, TimelineWorkbenchMarkersPanel } from "./markers";
 
 export function DefaultTimelineInspector<TData>({
   context,
@@ -32,6 +33,10 @@ export function DefaultTimelineInspector<TData>({
   timingStepMs?: number;
 }) {
   const item = context.selectedItem;
+  const selectedMarkerId = context.selection.markerIds?.[0];
+  const selectedMarker = selectedMarkerId
+    ? context.document.markers?.find((marker) => marker.id === selectedMarkerId)
+    : undefined;
   const inputStepMs = timingStepMs ?? 100;
   const documentItemCount = context.document.tracks.reduce(
     (count, track) => count + track.items.length,
@@ -138,6 +143,16 @@ export function DefaultTimelineInspector<TData>({
     );
   }
 
+  if (selectedMarker) {
+    return (
+      <TimelineWorkbenchMarkerInspector
+        context={context}
+        marker={selectedMarker}
+        timingStepMs={timingStepMs}
+      />
+    );
+  }
+
   if (!item) {
     const issues = validateTimelineEditorDocument(context.document as never);
 
@@ -157,16 +172,7 @@ export function DefaultTimelineInspector<TData>({
             ["Validation", issues.length],
           ]}
         />
-        {(context.document.markers?.length ?? 0) > 0 ? (
-          <TimelineWorkbenchInfoPanel
-            title="Markers"
-            summary={`${context.document.markers?.length ?? 0} markers`}
-            rows={(context.document.markers ?? []).map((marker) => [
-              marker.label ?? marker.id,
-              formatTimelineEditorTimeMs(marker.timeMs),
-            ])}
-          />
-        ) : null}
+        <TimelineWorkbenchMarkersPanel context={context} />
         {issues.length > 0 ? (
           <TimelineWorkbenchInfoPanel
             title="Validation"

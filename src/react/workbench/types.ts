@@ -8,8 +8,10 @@ import type {
   TimelineEditorClipboard,
   TimelineEditorItem,
   TimelineEditorItemKind,
+  TimelineEditorMarker,
   TimelineEditorSelection,
   TimelineEditorSnapOptions,
+  TimelineEditorTimeRange,
   TimelineEditorTool,
   TimelineEditorTrack,
   TimelineEditorViewport,
@@ -48,6 +50,14 @@ export type TimelineWorkbenchInspectorContext<TData = Record<string, unknown>> =
   selectedItem?: TimelineEditorItem<TData>;
   selectedItems: Array<TimelineEditorItem<TData>>;
   selectedTrack?: TimelineEditorTrack<Record<string, unknown>, TData>;
+  setCurrentTime: (timeMs?: number) => void;
+  addMarker: (timeMs?: number) => void;
+  updateMarker: (markerId: string, patch: Partial<TimelineEditorMarker>) => void;
+  removeMarker: (markerId: string) => void;
+  setRange: (range?: TimelineEditorTimeRange, trackIds?: string[]) => void;
+  deleteRange: (range?: TimelineEditorTimeRange) => void;
+  insertGap: (trackId: string, startMs: number, durationMs: number) => void;
+  closeGap: (trackId: string, startMs: number, endMs: number) => void;
   updateSelectedItem: (patch: Partial<TimelineEditorItem<TData>>) => void;
   updateSelectedItems: (
     patch:

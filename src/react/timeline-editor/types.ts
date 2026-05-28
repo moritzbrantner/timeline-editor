@@ -9,6 +9,7 @@ import type {
   TimelineEditorSelection,
   TimelineEditorSnapOptions,
   TimelineEditorTool,
+  TimelineEditorTrackGroup,
   TimelineEditorTrack,
   TimelineEditorViewport,
 } from "../../types";
@@ -57,6 +58,12 @@ export type TimelineEditorTrackRenderContext<TTrackData = Record<string, unknown
   track: TimelineEditorTrack<TTrackData, Record<string, unknown>>;
   locked: boolean;
   collapsed: boolean;
+};
+
+export type TimelineEditorTrackGroupRenderContext<TGroupData = Record<string, unknown>> = {
+  group: TimelineEditorTrackGroup<TGroupData>;
+  collapsed: boolean;
+  locked: boolean;
 };
 
 export type TimelineEditorTrackContextMenuContext<
@@ -147,6 +154,7 @@ export type TimelineEditorProps<
   onCurrentTimeChange?: (timeMs: number) => void;
   renderItem?: (context: TimelineEditorItemRenderContext<TItemData>) => ReactNode;
   renderTrackHeader?: (context: TimelineEditorTrackRenderContext<TTrackData>) => ReactNode;
+  renderTrackGroupHeader?: (context: TimelineEditorTrackGroupRenderContext) => ReactNode;
   getItemContextMenuItems?: TimelineEditorItemContextMenuItems<TTrackData, TItemData>;
   getTrackContextMenuItems?: TimelineEditorTrackContextMenuItems<TTrackData, TItemData>;
   getTimelineContextMenuItems?: TimelineEditorTimelineContextMenuItems<TTrackData, TItemData>;

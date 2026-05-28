@@ -25,6 +25,7 @@ import {
   getTimelineEditorFrameDurationMs,
   getTimelineEditorItemEndMs,
   clampTimelineEditorTime,
+  snapTimelineEditorTime,
 } from "../time";
 import {
   defaultTimelineEditorSelection,
@@ -88,6 +89,7 @@ export type {
   TimelineEditorTimelineContextMenuContext,
   TimelineEditorTimelineContextMenuItems,
   TimelineEditorTimelineContextMenuSource,
+  TimelineEditorTrackGroupRenderContext,
   TimelineEditorVirtualizationOptions,
 } from "./timeline-editor/types";
 export {
@@ -120,6 +122,7 @@ export function TimelineEditor<
   onCurrentTimeChange,
   renderItem,
   renderTrackHeader,
+  renderTrackGroupHeader,
   getItemContextMenuItems,
   getTrackContextMenuItems,
   getTimelineContextMenuItems,
@@ -178,7 +181,15 @@ export function TimelineEditor<
     startX: number;
     originalTimeMs: number;
   } | null>(null);
+  const [rangeDragState, setRangeDragState] = useState<{
+    startTimeMs: number;
+    trackId?: string;
+  } | null>(null);
   const [scrubState, setScrubState] = useState<{ pointerId: number } | null>(null);
+  const rangeDragStateRef = useRef<typeof rangeDragState>(null);
+  const scrubStateRef = useRef<typeof scrubState>(null);
+  const mouseRangeDragStateRef = useRef<typeof rangeDragState>(null);
+  const mouseScrubbingRef = useRef(false);
   const selectedIds = useMemo(() => new Set(selection.itemIds), [selection.itemIds]);
   const documentIndex = useMemo(() => createTimelineEditorDocumentIndex(document), [document]);
   const selectedItems = useMemo(
@@ -281,25 +292,31 @@ export function TimelineEditor<
 
     event.preventDefault();
     captureTimelineEditorPointer(scroller, event.pointerId);
-    setScrubState({ pointerId: event.pointerId });
+    const nextScrubState = { pointerId: event.pointerId };
+    scrubStateRef.current = nextScrubState;
+    setScrubState(nextScrubState);
     return true;
   };
 
-  const commitCurrentTimeAtClientX = (clientX: number) => {
+  const getTimeAtClientX = (clientX: number) => {
     const scroller = scrollerRef.current;
 
     if (!scroller) {
-      return;
+      return 0;
     }
 
     const scrollerRect = scroller.getBoundingClientRect();
     const timelineOffsetPx =
       clientX - scrollerRect.left + scroller.scrollLeft - timelineEditorTrackHeaderWidthPx;
-    const timeMs = clampTimelineEditorTime(
+    return clampTimelineEditorTime(
       (timelineOffsetPx / Math.max(1, resolvedViewport.pixelsPerSecond)) * 1_000,
       0,
       durationMs,
     );
+  };
+
+  const commitCurrentTimeAtClientX = (clientX: number) => {
+    const timeMs = getTimeAtClientX(clientX);
     const nextDocument = setTimelineEditorCurrentTime(document, timeMs, {
       durationMs,
       snapMs: nudgeMs,
@@ -310,6 +327,33 @@ export function TimelineEditor<
     if (nextDocument !== document) {
       commitDocument(nextDocument);
     }
+  };
+
+  const beginRangeSelection = (event: React.PointerEvent<Element>, trackId?: string) => {
+    const scroller = scrollerRef.current;
+
+    if (!scroller || event.defaultPrevented || !isTimelineEditorPrimaryPointerButton(event)) {
+      return false;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    captureTimelineEditorPointer(scroller, event.pointerId);
+    const startTimeMs = snapTimelineEditorTime(
+      getTimeAtClientX(getTimelineEditorPointerClientX(event)),
+      nudgeMs,
+    );
+    const nextRangeDragState = { startTimeMs, trackId };
+    rangeDragStateRef.current = nextRangeDragState;
+    setRangeDragState(nextRangeDragState);
+    commitSelection({
+      ...selection,
+      itemIds: [],
+      anchorItemId: undefined,
+      trackIds: trackId ? [trackId] : undefined,
+      range: { startMs: startTimeMs, endMs: startTimeMs },
+    });
+    return true;
   };
 
   const getTimelineContextMenuContext = (
@@ -356,8 +400,26 @@ export function TimelineEditor<
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (scrubState) {
-      if (event.pointerId === scrubState.pointerId) {
+    const activeRangeDragState = rangeDragStateRef.current ?? rangeDragState;
+    const activeScrubState = scrubStateRef.current ?? scrubState;
+
+    if (activeRangeDragState) {
+      const timeMs = snapTimelineEditorTime(
+        getTimeAtClientX(getTimelineEditorPointerClientX(event)),
+        nudgeMs,
+      );
+      commitSelection({
+        ...selection,
+        itemIds: [],
+        anchorItemId: undefined,
+        trackIds: activeRangeDragState.trackId ? [activeRangeDragState.trackId] : undefined,
+        range: normalizeTimelineEditorDragRange(activeRangeDragState.startTimeMs, timeMs),
+      });
+      return;
+    }
+
+    if (activeScrubState) {
+      if (event.pointerId === activeScrubState.pointerId) {
         commitCurrentTimeAtClientX(getTimelineEditorPointerClientX(event));
       }
 
@@ -468,6 +530,9 @@ export function TimelineEditor<
     cancelScheduledPreview();
     setDragState(null);
     setMarkerDragState(null);
+    rangeDragStateRef.current = null;
+    scrubStateRef.current = null;
+    setRangeDragState(null);
     setScrubState(null);
     clearPreview();
   };
@@ -476,6 +541,9 @@ export function TimelineEditor<
     cancelScheduledPreview();
     setDragState(null);
     setMarkerDragState(null);
+    rangeDragStateRef.current = null;
+    scrubStateRef.current = null;
+    setRangeDragState(null);
     setScrubState(null);
     clearPreview();
   };
@@ -512,12 +580,118 @@ export function TimelineEditor<
     }
 
     if (
-      target?.closest("[data-slot='timeline-editor-track-lane']") &&
+      target?.closest("[data-slot='timeline-editor-track']") &&
       !target.closest("[data-slot='timeline-editor-clip']")
     ) {
+      if (event.shiftKey) {
+        const trackElement = target.closest<HTMLElement>("[data-slot='timeline-editor-track']");
+        beginRangeSelection(event, trackElement?.dataset["trackId"]);
+        return;
+      }
+
       beginTimelineScrub(event);
       commitSelection(defaultTimelineEditorSelection);
     }
+  };
+
+  const handlePointerDownCapture = (event: React.PointerEvent<HTMLDivElement>) => {
+    const target = event.target instanceof Element ? event.target : null;
+
+    if (
+      event.defaultPrevented ||
+      !isTimelineEditorPrimaryPointerButton(event) ||
+      target?.closest("[data-slot='timeline-editor-ruler']") ||
+      target?.closest("[data-slot='timeline-editor-clip']") ||
+      target?.closest("[data-slot='timeline-editor-track-header']")
+    ) {
+      return;
+    }
+
+    const trackElement = target?.closest<HTMLElement>("[data-slot='timeline-editor-track']");
+    const trackId = trackElement?.dataset["trackId"];
+
+    if (!trackId) {
+      return;
+    }
+
+    const visibleTrack = visibleTracks.find(
+      (entry) => entry.type === "track" && entry.track.id === trackId,
+    );
+
+    if (!visibleTrack || visibleTrack.type !== "track" || visibleTrack.locked) {
+      return;
+    }
+
+    if (event.shiftKey) {
+      beginRangeSelection(event, trackId);
+      return;
+    }
+
+    event.stopPropagation();
+    beginTimelineScrub(event);
+    commitSelection(defaultTimelineEditorSelection);
+  };
+
+  const handleMouseDownCapture = (event: React.MouseEvent<HTMLDivElement>) => {
+    const trackId = getTimelineEditorEventTrackId(event);
+
+    if (event.defaultPrevented || event.button !== 0 || !trackId) {
+      return;
+    }
+
+    const visibleTrack = visibleTracks.find(
+      (entry) => entry.type === "track" && entry.track.id === trackId,
+    );
+
+    if (!visibleTrack || visibleTrack.type !== "track" || visibleTrack.locked) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (event.shiftKey) {
+      const startTimeMs = snapTimelineEditorTime(getTimeAtClientX(event.clientX), nudgeMs);
+      const nextRangeDragState = { startTimeMs, trackId };
+      mouseRangeDragStateRef.current = nextRangeDragState;
+      commitSelection({
+        ...selection,
+        itemIds: [],
+        anchorItemId: undefined,
+        trackIds: [trackId],
+        range: { startMs: startTimeMs, endMs: startTimeMs },
+      });
+      return;
+    }
+
+    mouseScrubbingRef.current = true;
+    commitCurrentTimeAtClientX(event.clientX);
+    commitSelection(defaultTimelineEditorSelection);
+  };
+
+  const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    const mouseRangeDragState = mouseRangeDragStateRef.current;
+
+    if (mouseRangeDragState) {
+      const timeMs = snapTimelineEditorTime(getTimeAtClientX(event.clientX), nudgeMs);
+      commitSelection({
+        ...selection,
+        itemIds: [],
+        anchorItemId: undefined,
+        trackIds: mouseRangeDragState.trackId ? [mouseRangeDragState.trackId] : undefined,
+        range: normalizeTimelineEditorDragRange(mouseRangeDragState.startTimeMs, timeMs),
+      });
+      return;
+    }
+
+    if (mouseScrubbingRef.current) {
+      commitCurrentTimeAtClientX(event.clientX);
+    }
+  };
+
+  const clearMouseInteraction = () => {
+    mouseRangeDragStateRef.current = null;
+    mouseScrubbingRef.current = false;
   };
 
   const handleNativeWheel = useCallback(
@@ -593,6 +767,87 @@ export function TimelineEditor<
     };
   }, [handleNativeWheel]);
 
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+
+    if (!scroller) {
+      return;
+    }
+
+    const handleNativeMouseDown = (event: MouseEvent) => {
+      const trackId = getTimelineEditorNativeEventTrackId(event);
+
+      if (event.defaultPrevented || event.button !== 0 || !trackId) {
+        return;
+      }
+
+      const visibleTrack = visibleTracks.find(
+        (entry) => entry.type === "track" && entry.track.id === trackId,
+      );
+
+      if (!visibleTrack || visibleTrack.type !== "track" || visibleTrack.locked) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (event.shiftKey) {
+        const startTimeMs = snapTimelineEditorTime(getTimeAtClientX(event.clientX), nudgeMs);
+        mouseRangeDragStateRef.current = { startTimeMs, trackId };
+        commitSelection({
+          ...selection,
+          itemIds: [],
+          anchorItemId: undefined,
+          trackIds: [trackId],
+          range: { startMs: startTimeMs, endMs: startTimeMs },
+        });
+        return;
+      }
+
+      mouseScrubbingRef.current = true;
+      commitCurrentTimeAtClientX(event.clientX);
+      commitSelection(defaultTimelineEditorSelection);
+    };
+
+    const handleNativeMouseMove = (event: MouseEvent) => {
+      const mouseRangeDragState = mouseRangeDragStateRef.current;
+
+      if (mouseRangeDragState) {
+        const timeMs = snapTimelineEditorTime(getTimeAtClientX(event.clientX), nudgeMs);
+        commitSelection({
+          ...selection,
+          itemIds: [],
+          anchorItemId: undefined,
+          trackIds: mouseRangeDragState.trackId ? [mouseRangeDragState.trackId] : undefined,
+          range: normalizeTimelineEditorDragRange(mouseRangeDragState.startTimeMs, timeMs),
+        });
+        return;
+      }
+
+      if (mouseScrubbingRef.current) {
+        commitCurrentTimeAtClientX(event.clientX);
+      }
+    };
+
+    scroller.addEventListener("mousedown", handleNativeMouseDown, true);
+    window.addEventListener("mousemove", handleNativeMouseMove);
+    window.addEventListener("mouseup", clearMouseInteraction);
+
+    return () => {
+      scroller.removeEventListener("mousedown", handleNativeMouseDown, true);
+      window.removeEventListener("mousemove", handleNativeMouseMove);
+      window.removeEventListener("mouseup", clearMouseInteraction);
+    };
+  }, [
+    commitSelection,
+    commitCurrentTimeAtClientX,
+    getTimeAtClientX,
+    nudgeMs,
+    selection,
+    visibleTracks,
+  ]);
+
   return (
     <div
       data-slot="timeline-editor"
@@ -606,9 +861,14 @@ export function TimelineEditor<
       }}
       tabIndex={0}
       onPointerMove={handlePointerMove}
+      onPointerDownCapture={handlePointerDownCapture}
       onPointerDown={handlePointerDown}
       onPointerUp={commitDrag}
       onPointerCancel={cancelDrag}
+      onMouseDownCapture={handleMouseDownCapture}
+      onMouseMove={handleMouseMove}
+      onMouseUp={clearMouseInteraction}
+      onMouseLeave={clearMouseInteraction}
       onKeyDown={handleKeyDown}
       onScroll={handleScroll}
       onWheel={onWheel}
@@ -622,6 +882,7 @@ export function TimelineEditor<
           getTimelineContextMenuContext={(event) => getTimelineContextMenuContext("ruler", event)}
           nudgeMs={nudgeMs}
           readOnly={readOnly}
+          selection={selection}
           setCurrentTime={setTimelineEditorCurrentTime}
           snapGuideMs={snapGuideMs}
           ticks={ticks}
@@ -646,6 +907,7 @@ export function TimelineEditor<
               originalTimeMs: marker.timeMs,
             });
           }}
+          onRangePointerDown={(event) => beginRangeSelection(event)}
           onScrubPointerDown={beginTimelineScrub}
         />
         <TimelineEditorTrackList
@@ -659,6 +921,7 @@ export function TimelineEditor<
           getTrackContextMenuItems={getTrackContextMenuItems}
           readOnly={readOnly}
           renderItem={renderItem}
+          renderTrackGroupHeader={renderTrackGroupHeader}
           renderTrackHeader={renderTrackHeader}
           selectedIds={selectedIds}
           selectedItems={selectedItems}
@@ -743,6 +1006,27 @@ export function TimelineEditor<
                 { excludeItemIds: activeSelectionIds },
               ),
             });
+          }}
+          onTrackLanePointerDown={(track, locked, event) => {
+            if (
+              locked ||
+              event.defaultPrevented ||
+              !isTimelineEditorPrimaryPointerButton(event) ||
+              (event.target instanceof Element &&
+                (event.target.closest("[data-slot='timeline-editor-clip']") ||
+                  event.target.closest("[data-slot='timeline-editor-track-header']")))
+            ) {
+              return;
+            }
+
+            if (event.shiftKey) {
+              beginRangeSelection(event, track.id);
+              return;
+            }
+
+            event.stopPropagation();
+            beginTimelineScrub(event);
+            commitSelection(defaultTimelineEditorSelection);
           }}
           onResizePointerDown={(edge, item, locked, event) => {
             if (locked || event.button !== 0) {
@@ -983,6 +1267,38 @@ function canMoveTimelineEditorItemsByTrackDelta<TTrackData, TItemData>(
   }
 
   return true;
+}
+
+function normalizeTimelineEditorDragRange(startMs: number, endMs: number) {
+  return startMs <= endMs ? { startMs, endMs } : { startMs: endMs, endMs: startMs };
+}
+
+function getTimelineEditorEventTrackId(event: React.MouseEvent<Element>) {
+  const target = event.target instanceof Element ? event.target : null;
+
+  if (
+    target?.closest("[data-slot='timeline-editor-ruler']") ||
+    target?.closest("[data-slot='timeline-editor-clip']") ||
+    target?.closest("[data-slot='timeline-editor-track-header']")
+  ) {
+    return undefined;
+  }
+
+  return target?.closest<HTMLElement>("[data-slot='timeline-editor-track']")?.dataset["trackId"];
+}
+
+function getTimelineEditorNativeEventTrackId(event: MouseEvent) {
+  const target = event.target instanceof Element ? event.target : null;
+
+  if (
+    target?.closest("[data-slot='timeline-editor-ruler']") ||
+    target?.closest("[data-slot='timeline-editor-clip']") ||
+    target?.closest("[data-slot='timeline-editor-track-header']")
+  ) {
+    return undefined;
+  }
+
+  return target?.closest<HTMLElement>("[data-slot='timeline-editor-track']")?.dataset["trackId"];
 }
 
 function getTimelineEditorResizeDragTracks<TTrackData, TItemData>(

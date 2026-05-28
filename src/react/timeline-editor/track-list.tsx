@@ -31,6 +31,7 @@ import type {
   TimelineEditorItemRenderContext,
   TimelineEditorTrackContextMenuContext,
   TimelineEditorTrackContextMenuItems,
+  TimelineEditorTrackGroupRenderContext,
   TimelineEditorTrackRenderContext,
   TimelineEditorTimelineContextMenuContext,
   TimelineEditorTimelineContextMenuItems,
@@ -70,10 +71,16 @@ type TimelineEditorTrackListProps<TTrackData extends Record<string, unknown>, TI
   getTimelineContextMenuItems?: TimelineEditorTimelineContextMenuItems<TTrackData, TItemData>;
   getTrackContextMenuItems?: TimelineEditorTrackContextMenuItems<TTrackData, TItemData>;
   renderItem?: (context: TimelineEditorItemRenderContext<TItemData>) => ReactNode;
+  renderTrackGroupHeader?: (context: TimelineEditorTrackGroupRenderContext) => ReactNode;
   renderTrackHeader?: (context: TimelineEditorTrackRenderContext<TTrackData>) => ReactNode;
   onClipContextMenu: (item: TimelineEditorItem<TItemData>) => void;
   onClipPointerDown: (
     item: TimelineEditorItem<TItemData>,
+    track: TimelineEditorTrack<TTrackData, TItemData>,
+    locked: boolean,
+    event: React.PointerEvent<HTMLDivElement>,
+  ) => void;
+  onTrackLanePointerDown: (
     track: TimelineEditorTrack<TTrackData, TItemData>,
     locked: boolean,
     event: React.PointerEvent<HTMLDivElement>,
@@ -104,9 +111,11 @@ export function TimelineEditorTrackList<TTrackData extends Record<string, unknow
   getTimelineContextMenuItems,
   getTrackContextMenuItems,
   renderItem,
+  renderTrackGroupHeader,
   renderTrackHeader,
   onClipContextMenu,
   onClipPointerDown,
+  onTrackLanePointerDown,
   onResizePointerDown,
 }: TimelineEditorTrackListProps<TTrackData, TItemData>) {
   const rows = getTimelineEditorTrackRows(visibleTracks);
@@ -142,7 +151,13 @@ export function TimelineEditorTrackList<TTrackData extends Record<string, unknow
         data-collapsed={row.entry.group.collapsed ? "true" : undefined}
         className="flex h-9 items-center border-b bg-muted/50 px-3 text-xs font-medium text-muted-foreground"
       >
-        {row.entry.group.label}
+        {renderTrackGroupHeader
+          ? renderTrackGroupHeader({
+              group: row.entry.group,
+              collapsed: Boolean(row.entry.group.collapsed),
+              locked: Boolean(row.entry.group.locked),
+            })
+          : row.entry.group.label}
       </div>
     ) : (
       <div key={row.entry.track.id} style={rowStyle}>
@@ -156,6 +171,7 @@ export function TimelineEditorTrackList<TTrackData extends Record<string, unknow
           getTrackContextMenuItems={getTrackContextMenuItems}
           readOnly={readOnly}
           renderItem={renderItem}
+          renderTrackGroupHeader={renderTrackGroupHeader}
           renderTrackHeader={renderTrackHeader}
           selectedIds={selectedIds}
           selectedItems={selectedItems}
@@ -165,6 +181,7 @@ export function TimelineEditorTrackList<TTrackData extends Record<string, unknow
           visibleRange={visibleRange}
           onClipContextMenu={onClipContextMenu}
           onClipPointerDown={onClipPointerDown}
+          onTrackLanePointerDown={onTrackLanePointerDown}
           onResizePointerDown={onResizePointerDown}
         />
       </div>
@@ -234,6 +251,7 @@ function TimelineEditorTrackRowComponent<TTrackData extends Record<string, unkno
   visibleRange,
   onClipContextMenu,
   onClipPointerDown,
+  onTrackLanePointerDown,
   onResizePointerDown,
 }: TimelineEditorTrackRowProps<TTrackData, TItemData>) {
   const trackContextMenuItems = getTrackContextMenuItems
@@ -248,7 +266,10 @@ function TimelineEditorTrackRowComponent<TTrackData extends Record<string, unkno
       } satisfies TimelineEditorTrackContextMenuContext<TTrackData, TItemData>)
     : [];
   const trackHeader = (
-    <div className="flex items-center border-r bg-muted/20 px-3 text-sm font-medium">
+    <div
+      data-slot="timeline-editor-track-header"
+      className="flex items-center border-r bg-muted/20 px-3 text-sm font-medium"
+    >
       {renderTrackHeader ? (
         renderTrackHeader({
           track: entry.track as TimelineEditorTrack<TTrackData, Record<string, unknown>>,
@@ -261,12 +282,24 @@ function TimelineEditorTrackRowComponent<TTrackData extends Record<string, unkno
     </div>
   );
   const trackLane = (
-    <div data-slot="timeline-editor-track-lane" className="relative">
+    <div
+      data-slot="timeline-editor-track-lane"
+      className="relative"
+      onPointerDown={(event) => onTrackLanePointerDown(entry.track, entry.locked, event)}
+    >
       <TimelineEditorTrackGrid
         durationMs={durationMs}
         ticks={ticks}
         timelineWidthPx={timelineWidthPx}
       />
+      {selection.range &&
+      (!selection.trackIds?.length || selection.trackIds.includes(entry.track.id)) ? (
+        <TimelineEditorRangeOverlay
+          durationMs={durationMs}
+          range={selection.range}
+          timelineWidthPx={timelineWidthPx}
+        />
+      ) : null}
       {getVisibleTimelineEditorItems(entry.track.items, visibleRange, selectedIds).map((item) => {
         const selected = selectedIds.has(item.id);
         const locked = Boolean(readOnly || entry.locked || item.locked);
@@ -308,6 +341,7 @@ function TimelineEditorTrackRowComponent<TTrackData extends Record<string, unkno
       data-slot="timeline-editor-track"
       data-track-id={entry.track.id}
       className="grid"
+      onPointerDownCapture={(event) => onTrackLanePointerDown(entry.track, entry.locked, event)}
       style={{
         gridTemplateColumns: `${timelineEditorTrackHeaderWidthPx}px ${timelineWidthPx}px`,
         minHeight: entry.track.height ?? timelineEditorDefaultTrackHeightPx,
@@ -354,6 +388,29 @@ function TimelineEditorTrackRowComponent<TTrackData extends Record<string, unkno
 const TimelineEditorTrackRow = memo(
   TimelineEditorTrackRowComponent,
 ) as typeof TimelineEditorTrackRowComponent;
+
+function TimelineEditorRangeOverlay({
+  durationMs,
+  range,
+  timelineWidthPx,
+}: {
+  durationMs: number;
+  range: { startMs: number; endMs: number };
+  timelineWidthPx: number;
+}) {
+  const startMs = Math.max(0, Math.min(range.startMs, range.endMs));
+  const endMs = Math.max(startMs, Math.max(range.startMs, range.endMs));
+  const leftPx = (startMs / durationMs) * timelineWidthPx;
+  const widthPx = Math.max(1, ((endMs - startMs) / durationMs) * timelineWidthPx);
+
+  return (
+    <div
+      data-slot="timeline-editor-range-overlay"
+      className="pointer-events-none absolute inset-y-0 z-10 border-x border-primary/60 bg-primary/15"
+      style={{ left: leftPx, width: widthPx }}
+    />
+  );
+}
 
 function TimelineEditorTrackGrid({
   durationMs,

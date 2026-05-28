@@ -17,6 +17,7 @@ type HarnessState = {
   changes: string[];
   document: TimelineEditorDocument;
   frameRate?: number;
+  range?: TimelineEditorSelection["range"];
   selectedItemId: string | null;
   selectedItemIds: string[];
 };
@@ -112,6 +113,7 @@ function App() {
       changes: changes.current,
       document,
       frameRate,
+      range: selection.range,
       selectedItemId: selection.itemIds[0] ?? null,
       selectedItemIds: selection.itemIds,
     };
@@ -174,6 +176,7 @@ function App() {
       onCurrentTimeChange={handleCurrentTimeChange}
       onSelectionChange={handleSelectionChange}
       onSelectedItemChange={handleSelectedItemChange}
+      onSnapChange={(nextSnap) => recordChange(`snap:${JSON.stringify(nextSnap)}`)}
       getTimelineContextMenuItems={
         timelineMenuFixture
           ? (context) => [

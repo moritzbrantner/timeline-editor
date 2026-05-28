@@ -1,6 +1,6 @@
 "use client";
 
-import type { KeyboardEvent, ReactNode } from "react";
+import type { ChangeEvent, KeyboardEvent, ReactNode } from "react";
 
 import {
   Badge,
@@ -20,6 +20,8 @@ import type {
   TimelineEditorClipboard,
   TimelineEditorDocument,
   TimelineEditorSelection,
+  TimelineEditorSnapOptions,
+  TimelineEditorSnapTarget,
   TimelineEditorTool,
   TimelineEditorViewport,
   TimelineEditorOverlap,
@@ -51,6 +53,7 @@ type TimelineWorkbenchToolbarProps<TTrackData, TItemData> = {
   readOnly: boolean;
   resolvedHotkeys: TimelineEditorHotkeys;
   resolvedSelection: TimelineEditorSelection;
+  resolvedSnap: Partial<TimelineEditorSnapOptions>;
   resolvedTool: TimelineEditorTool;
   resolvedViewport: TimelineEditorViewport;
   renderToolbarActions?: (context: TimelineWorkbenchInspectorContext<TItemData>) => ReactNode;
@@ -58,8 +61,11 @@ type TimelineWorkbenchToolbarProps<TTrackData, TItemData> = {
   onCopy: () => void;
   onCut: () => void;
   onDelete: () => void;
+  onDeleteRange: () => void;
   onDuplicate: () => void;
   onGroup: () => void;
+  onInsertGap: () => void;
+  onCloseGap: () => void;
   onRedo: () => void;
   onPaste: () => void;
   onSplit: () => void;
@@ -68,6 +74,7 @@ type TimelineWorkbenchToolbarProps<TTrackData, TItemData> = {
   onUndo: () => void;
   onViewportChange: (viewport: TimelineEditorViewport) => void;
   onToolChange: (tool: TimelineEditorTool) => void;
+  onSnapChange: (snap: Partial<TimelineEditorSnapOptions>) => void;
   onHotkeyChange: (id: TimelineWorkbenchHotkeyId, hotkey: string) => void;
   onHotkeysReset: () => void;
 };
@@ -88,6 +95,7 @@ export function TimelineWorkbenchToolbar<TTrackData, TItemData>({
   readOnly,
   resolvedHotkeys,
   resolvedSelection,
+  resolvedSnap,
   resolvedTool,
   resolvedViewport,
   renderToolbarActions,
@@ -95,8 +103,11 @@ export function TimelineWorkbenchToolbar<TTrackData, TItemData>({
   onCopy,
   onCut,
   onDelete,
+  onDeleteRange,
   onDuplicate,
   onGroup,
+  onInsertGap,
+  onCloseGap,
   onRedo,
   onPaste,
   onSplit,
@@ -105,9 +116,12 @@ export function TimelineWorkbenchToolbar<TTrackData, TItemData>({
   onUndo,
   onViewportChange,
   onToolChange,
+  onSnapChange,
   onHotkeyChange,
   onHotkeysReset,
 }: TimelineWorkbenchToolbarProps<TTrackData, TItemData>) {
+  const hasRange = Boolean(resolvedSelection.range);
+
   return (
     <WorkbenchToolbar className="min-h-9 justify-between gap-2 border-b border-border px-2 py-1">
       <div className="flex flex-wrap items-center gap-1.5">
@@ -201,6 +215,33 @@ export function TimelineWorkbenchToolbar<TTrackData, TItemData>({
         >
           Delete
         </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={readOnly || !hasRange}
+          onClick={onDeleteRange}
+        >
+          Delete Range
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={readOnly || !hasRange}
+          onClick={onInsertGap}
+        >
+          Insert Gap
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={readOnly || !hasRange}
+          onClick={onCloseGap}
+        >
+          Close Gap
+        </Button>
         <Button type="button" size="sm" variant="outline" disabled={readOnly} onClick={onAddMarker}>
           Marker
         </Button>
@@ -257,6 +298,7 @@ export function TimelineWorkbenchToolbar<TTrackData, TItemData>({
         </span>
       </div>
       <div className="flex min-w-44 items-center gap-2">
+        <TimelineWorkbenchSnapMenu snap={resolvedSnap} onSnapChange={onSnapChange} />
         <TimelineWorkbenchHotkeyMenu
           hotkeys={resolvedHotkeys}
           onHotkeyChange={onHotkeyChange}
@@ -286,6 +328,101 @@ type TimelineWorkbenchHotkeyMenuProps = {
   onHotkeyChange: (id: TimelineWorkbenchHotkeyId, hotkey: string) => void;
   onHotkeysReset: () => void;
 };
+
+type TimelineWorkbenchSnapMenuProps = {
+  snap: Partial<TimelineEditorSnapOptions>;
+  onSnapChange: (snap: Partial<TimelineEditorSnapOptions>) => void;
+};
+
+function TimelineWorkbenchSnapMenu({ snap, onSnapChange }: TimelineWorkbenchSnapMenuProps) {
+  const targets = snap.targets ?? [];
+  const intervalTarget = targets.find((target) => target.type === "interval");
+  const customTargetCount = targets.filter((target) => target.type === "custom").length;
+  const updateSnap = (patch: Partial<TimelineEditorSnapOptions>) =>
+    onSnapChange({ ...snap, ...patch });
+  const updateTarget = (
+    type: Exclude<TimelineEditorSnapTarget["type"], "custom">,
+    enabled: boolean,
+  ) => {
+    const nextTargets = targets.filter((target) => target.type !== type);
+
+    if (enabled) {
+      nextTargets.push(
+        type === "interval"
+          ? { type: "interval", intervalMs: getTimelineWorkbenchSnapIntervalMs(snap) }
+          : { type },
+      );
+    }
+
+    updateSnap({ targets: nextTargets });
+  };
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button type="button" size="sm" variant="outline">
+          Snap
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 p-0" data-slot="timeline-workbench-snap-menu">
+        <PopoverHeader className="border-b border-border">
+          <PopoverTitle>Snap</PopoverTitle>
+        </PopoverHeader>
+        <div className="grid gap-3 p-3 text-sm">
+          <label className="flex items-center justify-between gap-3">
+            <span>Enabled</span>
+            <input
+              type="checkbox"
+              checked={snap.enabled ?? true}
+              onChange={(event) => updateSnap({ enabled: event.currentTarget.checked })}
+            />
+          </label>
+          <label className="grid gap-1">
+            <span className="text-xs text-muted-foreground">Threshold px</span>
+            <Input
+              type="number"
+              min={0}
+              value={snap.thresholdPx ?? 8}
+              onChange={(event) => updateSnap({ thresholdPx: toPositiveNumber(event, 8) })}
+            />
+          </label>
+          <label className="grid gap-1">
+            <span className="text-xs text-muted-foreground">Interval ms</span>
+            <Input
+              type="number"
+              min={1}
+              value={getTimelineWorkbenchSnapIntervalMs(snap)}
+              onChange={(event) => {
+                const intervalMs = toPositiveNumber(event, 100);
+                updateSnap({
+                  targets: targets.map((target) =>
+                    target.type === "interval" ? { ...target, intervalMs } : target,
+                  ),
+                });
+              }}
+            />
+          </label>
+          {(["interval", "marker", "item-edge", "playhead"] as const).map((type) => (
+            <label key={type} className="flex items-center justify-between gap-3">
+              <span>{formatTimelineWorkbenchSnapTarget(type)}</span>
+              <input
+                type="checkbox"
+                checked={targets.some((target) => target.type === type)}
+                onChange={(event) => updateTarget(type, event.currentTarget.checked)}
+              />
+            </label>
+          ))}
+          {customTargetCount > 0 ? (
+            <div className="text-xs text-muted-foreground">{customTargetCount} custom targets</div>
+          ) : null}
+          {!intervalTarget ? (
+            <div className="text-xs text-muted-foreground">Interval target is disabled.</div>
+          ) : null}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 function TimelineWorkbenchHotkeyMenu({
   hotkeys,
@@ -379,6 +516,28 @@ function TimelineWorkbenchHotkeyMenu({
       </PopoverContent>
     </Popover>
   );
+}
+
+function getTimelineWorkbenchSnapIntervalMs(snap: Partial<TimelineEditorSnapOptions>) {
+  const intervalTarget = snap.targets?.find((target) => target.type === "interval");
+
+  return intervalTarget?.intervalMs ?? 100;
+}
+
+function formatTimelineWorkbenchSnapTarget(
+  target: Exclude<TimelineEditorSnapTarget["type"], "custom">,
+) {
+  if (target === "item-edge") {
+    return "Item edges";
+  }
+
+  return target[0]!.toUpperCase() + target.slice(1);
+}
+
+function toPositiveNumber(event: ChangeEvent<HTMLInputElement>, fallback: number) {
+  const value = Number(event.currentTarget.value);
+
+  return Number.isFinite(value) && value >= 0 ? value : fallback;
 }
 
 function handleTimelineWorkbenchHotkeyInputKeyDown(

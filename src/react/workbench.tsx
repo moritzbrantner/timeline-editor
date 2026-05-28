@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-import { type MenuActionItem, WorkbenchPanel, cn } from "@moritzbrantner/ui";
+import { Button, type MenuActionItem, WorkbenchPanel, cn } from "@moritzbrantner/ui";
 
 import {
   canPlaceTimelineEditorItemOnTrack,
@@ -18,7 +18,10 @@ import {
   type TimelineEditorClipboard,
   type TimelineEditorItem,
   type TimelineEditorItemKind,
+  type TimelineEditorMarker,
   type TimelineEditorSelection,
+  type TimelineEditorSnapOptions,
+  type TimelineEditorTimeRange,
   type TimelineEditorTool,
   type TimelineEditorTrack,
   type TimelineEditorTrackGroup,
@@ -107,6 +110,7 @@ export function TimelineWorkbench<
   onClipboardChange,
   hotkeys,
   onHotkeysChange,
+  onSnapChange,
   extensions = [],
   inspectorSchema,
   assets = [],
@@ -137,6 +141,7 @@ export function TimelineWorkbench<
     TimelineEditorClipboard<TItemData> | undefined
   >();
   const [internalTool, setInternalTool] = useState<TimelineEditorTool>(tool ?? "select");
+  const [internalSnap, setInternalSnap] = useState<Partial<TimelineEditorSnapOptions>>({});
   const [customHotkeys, setCustomHotkeys] = useState<
     Partial<typeof defaultTimelineWorkbenchHotkeys>
   >({});
@@ -150,6 +155,17 @@ export function TimelineWorkbench<
   const resolvedTool = tool ?? internalTool;
   const resolvedHotkeys = { ...defaultTimelineWorkbenchHotkeys, ...hotkeys, ...customHotkeys };
   const resolvedClipboard = clipboard ?? internalClipboard;
+  const defaultSnapTargets: TimelineEditorSnapOptions["targets"] = [
+    { type: "interval", intervalMs: resolvedSnapMs },
+    { type: "marker" },
+    { type: "item-edge" },
+    { type: "playhead" },
+  ];
+  const resolvedSnap: Partial<TimelineEditorSnapOptions> = {
+    enabled: snap?.enabled ?? internalSnap.enabled ?? resolvedSnapMs > 0,
+    thresholdPx: snap?.thresholdPx ?? internalSnap.thresholdPx ?? 8,
+    targets: snap?.targets ?? internalSnap.targets ?? defaultSnapTargets,
+  };
   const resolvedSelection = selection ?? {
     itemIds: selectedItemId ? [selectedItemId] : [],
     anchorItemId: selectedItemId ?? undefined,
@@ -178,9 +194,7 @@ export function TimelineWorkbench<
     () => getTimelineWorkbenchTrackKinds(document.tracks, assets, extensions),
     [assets, document.tracks, extensions],
   );
-  const hasTimelineContextMenuItems =
-    Boolean(getTimelineContextMenuItems) ||
-    extensions.some((extension) => Boolean(extension.timelineContextMenuItems));
+  const hasTimelineContextMenuItems = true;
 
   const commitSelection = (nextSelection: TimelineEditorSelection) => {
     onSelectionChange?.(nextSelection);
@@ -408,6 +422,25 @@ export function TimelineWorkbench<
     runCommand({ type: "add-marker", marker });
   };
 
+  const updateMarker = (markerId: string, patch: Partial<TimelineEditorMarker>) => {
+    if (readOnly) {
+      return;
+    }
+
+    runCommand({ type: "update-marker", markerId, patch });
+  };
+
+  const removeMarker = (markerId: string) => {
+    if (readOnly) {
+      return;
+    }
+
+    runCommand({ type: "remove-marker", markerId });
+    if (resolvedSelection.markerIds?.includes(markerId)) {
+      commitSelection({ ...resolvedSelection, markerIds: undefined });
+    }
+  };
+
   const addTrack = (kind?: TimelineEditorItemKind) => {
     if (readOnly) {
       return;
@@ -528,6 +561,74 @@ export function TimelineWorkbench<
     runCommand({ type: "ungroup-selection" }, selectionForItemIds(itemIds));
   };
 
+  const jumpCurrentTime = (timeMs: number) => {
+    if (readOnly) {
+      return;
+    }
+
+    const nextDocument = setTimelineEditorCurrentTime(document, timeMs, {
+      durationMs,
+      snapMs: frameStepMs,
+    });
+    onCurrentTimeChange?.(nextDocument.currentTimeMs ?? 0);
+    commitDocument(nextDocument);
+  };
+
+  const setRange = (range?: TimelineEditorTimeRange, trackIds?: string[]) => {
+    runTransientCommand({ type: "set-range", range }, { ...resolvedSelection, trackIds });
+  };
+
+  const deleteRange = (range?: TimelineEditorTimeRange) => {
+    if (readOnly) {
+      return;
+    }
+
+    runCommand({ type: "delete-range", range });
+  };
+
+  const insertGap = (trackId: string, startMs: number, gapDurationMs: number) => {
+    if (readOnly) {
+      return;
+    }
+
+    runCommand({ type: "insert-gap", trackId, startMs, durationMs: gapDurationMs });
+  };
+
+  const closeGap = (trackId: string, startMs: number, endMs: number) => {
+    if (readOnly) {
+      return;
+    }
+
+    runCommand({ type: "close-gap", trackId, startMs, endMs });
+  };
+
+  const getRangeTargetTrackId = () =>
+    resolvedSelection.trackIds?.[0] ??
+    selectedTrack?.id ??
+    document.tracks.find((track) => !track.locked)?.id;
+
+  const insertSelectedRangeGap = () => {
+    const range = normalizeTimelineWorkbenchRange(resolvedSelection.range);
+    const trackId = getRangeTargetTrackId();
+
+    if (!range || !trackId) {
+      return;
+    }
+
+    insertGap(trackId, range.startMs, range.endMs - range.startMs);
+  };
+
+  const closeSelectedRangeGap = () => {
+    const range = normalizeTimelineWorkbenchRange(resolvedSelection.range);
+    const trackId = getRangeTargetTrackId();
+
+    if (!range || !trackId) {
+      return;
+    }
+
+    closeGap(trackId, range.startMs, range.endMs);
+  };
+
   const inspectorContext = {
     document: document as TimelineEditorDocument<Record<string, unknown>, TItemData>,
     durationMs,
@@ -536,6 +637,14 @@ export function TimelineWorkbench<
     selectedItem,
     selectedItems,
     selectedTrack: selectedTrack as TimelineEditorTrack<Record<string, unknown>, TItemData>,
+    setCurrentTime: (timeMs = currentTimeMs) => jumpCurrentTime(timeMs),
+    addMarker,
+    updateMarker,
+    removeMarker,
+    setRange,
+    deleteRange,
+    insertGap,
+    closeGap,
     updateSelectedItem,
     updateSelectedItems,
   } satisfies TimelineWorkbenchInspectorContext<TItemData>;
@@ -785,6 +894,14 @@ export function TimelineWorkbench<
     onHotkeysChange?.({});
   };
 
+  const commitSnap = (nextSnap: Partial<TimelineEditorSnapOptions>) => {
+    if (!snap) {
+      setInternalSnap(nextSnap);
+    }
+
+    onSnapChange?.(nextSnap);
+  };
+
   const stepCurrentTimeByFrame = (direction: -1 | 1) => {
     if (readOnly || frameStepMs <= 0) {
       return;
@@ -796,19 +913,6 @@ export function TimelineWorkbench<
       { durationMs, snapMs: frameStepMs },
     );
 
-    onCurrentTimeChange?.(nextDocument.currentTimeMs ?? 0);
-    commitDocument(nextDocument);
-  };
-
-  const jumpCurrentTime = (timeMs: number) => {
-    if (readOnly) {
-      return;
-    }
-
-    const nextDocument = setTimelineEditorCurrentTime(document, timeMs, {
-      durationMs,
-      snapMs: frameStepMs,
-    });
     onCurrentTimeChange?.(nextDocument.currentTimeMs ?? 0);
     commitDocument(nextDocument);
   };
@@ -860,14 +964,73 @@ export function TimelineWorkbench<
     const extensionItems = extensions.flatMap(
       (extension) => extension.timelineContextMenuItems?.(workbenchContext) ?? [],
     );
+    const range = normalizeTimelineWorkbenchRange(resolvedSelection.range);
+    const rangeTrackId = getRangeTargetTrackId();
+    const builtInItems: MenuActionItem[] = [
+      {
+        id: "set-playhead-here",
+        label: "Set Playhead Here",
+        onSelect: () => jumpCurrentTime(context.snappedTimeMs),
+      },
+      {
+        id: "add-marker-here",
+        label: "Add Marker Here",
+        disabled: readOnly || context.locked,
+        onSelect: () => addMarker(context.snappedTimeMs),
+      },
+      { id: "timeline-range-separator", type: "separator" },
+      {
+        id: "delete-selected-range",
+        label: "Delete Selected Range",
+        disabled: readOnly || !range,
+        onSelect: () => deleteRange(range),
+      },
+      {
+        id: "insert-gap-from-selected-range",
+        label: "Insert Gap From Selected Range",
+        disabled: readOnly || !range || !rangeTrackId,
+        onSelect: () => {
+          if (range && rangeTrackId) {
+            insertGap(rangeTrackId, range.startMs, range.endMs - range.startMs);
+          }
+        },
+      },
+      {
+        id: "close-selected-gap",
+        label: "Close Selected Gap",
+        disabled: readOnly || !range || !rangeTrackId,
+        onSelect: () => {
+          if (range && rangeTrackId) {
+            closeGap(rangeTrackId, range.startMs, range.endMs);
+          }
+        },
+      },
+      ...(context.track
+        ? [
+            { id: "timeline-track-separator", type: "separator" as const },
+            {
+              id: "remove-track-from-timeline-menu",
+              label: "Remove Track",
+              description: context.track.label,
+              destructive: true,
+              disabled: readOnly || context.locked,
+              onSelect: () => removeTimeline(context.track?.id),
+            },
+          ]
+        : []),
+    ];
+    const extraItems =
+      consumerItems.length > 0 && extensionItems.length > 0
+        ? [
+            ...consumerItems,
+            { id: "timeline-actions-separator", type: "separator" as const },
+            ...extensionItems,
+          ]
+        : [...consumerItems, ...extensionItems];
 
-    return consumerItems.length > 0 && extensionItems.length > 0
-      ? [
-          ...consumerItems,
-          { id: "timeline-actions-separator", type: "separator" },
-          ...extensionItems,
-        ]
-      : [...consumerItems, ...extensionItems];
+    return extraItems.length > 0
+      ? [...builtInItems, { id: "timeline-extra-separator", type: "separator" }, ...extraItems]
+      : builtInItems;
   };
 
   const handleWorkbenchKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -1018,13 +1181,77 @@ export function TimelineWorkbench<
     }
   };
 
+  const renderTrackGroupHeader = (context: {
+    group: TimelineEditorTrackGroup;
+    locked: boolean;
+  }) => (
+    <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+      <div className="min-w-0">
+        <div className="truncate">{context.group.label}</div>
+        <div className="text-[10px] font-normal text-muted-foreground">
+          {context.group.trackIds.length} tracks
+        </div>
+      </div>
+      <div className="flex items-center gap-1">
+        <Button
+          type="button"
+          size="xs"
+          variant="ghost"
+          disabled={readOnly}
+          onClick={(event) => {
+            event.stopPropagation();
+            updateTrackGroup(context.group.id, { collapsed: !context.group.collapsed });
+          }}
+        >
+          {context.group.collapsed ? "Expand" : "Collapse"}
+        </Button>
+        <Button
+          type="button"
+          size="xs"
+          variant="ghost"
+          disabled={readOnly}
+          onClick={(event) => {
+            event.stopPropagation();
+            updateTrackGroup(context.group.id, { locked: !context.group.locked });
+          }}
+        >
+          {context.locked ? "Unlock" : "Lock"}
+        </Button>
+        <Button
+          type="button"
+          size="xs"
+          variant="ghost"
+          disabled={readOnly}
+          onClick={(event) => {
+            event.stopPropagation();
+            renameTrackGroup(context.group.id);
+          }}
+        >
+          Rename
+        </Button>
+        <Button
+          type="button"
+          size="xs"
+          variant="ghost"
+          disabled={readOnly}
+          onClick={(event) => {
+            event.stopPropagation();
+            removeTrackGroup(context.group.id);
+          }}
+        >
+          Remove
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
     <div
       data-slot="timeline-workbench"
       className={cn("grid overflow-hidden border border-border bg-background", className)}
       style={{
         gridTemplateRows: "auto minmax(0, 1fr) auto",
-        height: "auto",
+        height: "min(56rem, 100vh)",
         minHeight: "34rem",
         ...style,
       }}
@@ -1043,16 +1270,20 @@ export function TimelineWorkbench<
         pixelsPerSecond={pixelsPerSecond}
         readOnly={readOnly}
         resolvedHotkeys={resolvedHotkeys}
+        resolvedSnap={resolvedSnap}
         resolvedTool={resolvedTool}
         renderToolbarActions={renderToolbarActions}
         resolvedSelection={resolvedSelection}
         resolvedViewport={resolvedViewport}
         onAddMarker={() => addMarker()}
         onDelete={() => deleteItems()}
+        onDeleteRange={() => deleteRange(resolvedSelection.range)}
         onCopy={() => copyItems()}
         onCut={() => cutItems()}
         onDuplicate={() => duplicateItems()}
         onGroup={() => groupItems()}
+        onInsertGap={insertSelectedRangeGap}
+        onCloseGap={closeSelectedRangeGap}
         onPaste={pasteItems}
         onRedo={() => {
           const redo = redoTimelineEditorHistory(history);
@@ -1079,6 +1310,7 @@ export function TimelineWorkbench<
         onUngroup={() => ungroupItems()}
         onViewportChange={commitViewport}
         onToolChange={commitTool}
+        onSnapChange={commitSnap}
         onHotkeyChange={commitHotkey}
         onHotkeysReset={resetHotkeys}
       />
@@ -1091,6 +1323,8 @@ export function TimelineWorkbench<
         <TimelineWorkbenchAssetsPanel
           className="h-full min-w-0"
           assets={assets}
+          tracks={document.tracks as Array<TimelineEditorTrack<Record<string, unknown>, unknown>>}
+          selectedTrack={selectedTrack as TimelineEditorTrack<Record<string, unknown>, unknown>}
           readOnly={readOnly}
           renderAsset={renderAsset}
           onAssetDragEnd={() => setDraggedAssetId(null)}
@@ -1133,7 +1367,8 @@ export function TimelineWorkbench<
         tool={resolvedTool}
         minItemDurationMs={minItemDurationMs}
         renderTimelineItem={renderResolvedTimelineItem}
-        snap={snap}
+        renderTrackGroupHeader={renderTrackGroupHeader}
+        snap={resolvedSnap}
         resolvedSelection={resolvedSelection}
         resolvedSnapMs={resolvedSnapMs}
         resolvedViewport={resolvedViewport}
@@ -1190,6 +1425,17 @@ function areTimelineWorkbenchSelectionsEqual(
     (left.trackIds ?? []).every((trackId, index) => trackId === right.trackIds?.[index]) &&
     (left.markerIds ?? []).every((markerId, index) => markerId === right.markerIds?.[index])
   );
+}
+
+function normalizeTimelineWorkbenchRange(range: TimelineEditorTimeRange | undefined) {
+  if (!range) {
+    return undefined;
+  }
+
+  const startMs = Math.max(0, Math.min(range.startMs, range.endMs));
+  const endMs = Math.max(startMs, Math.max(range.startMs, range.endMs));
+
+  return startMs === endMs ? undefined : { startMs, endMs };
 }
 
 function getTimelineWorkbenchToolHotkey(

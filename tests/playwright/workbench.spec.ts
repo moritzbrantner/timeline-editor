@@ -5,6 +5,7 @@ type TimelineEditorHarnessState = {
   document: {
     currentTimeMs?: number;
     markers?: Array<{
+      color?: string;
       id: string;
       label: string;
       timeMs: number;
@@ -28,6 +29,7 @@ type TimelineEditorHarnessState = {
   };
   selectedItemId: string | null;
   selectedItemIds: string[];
+  range?: { startMs: number; endMs: number };
   frameRate?: number;
 };
 
@@ -38,7 +40,7 @@ async function getHarnessState(page: Page) {
 }
 
 function getClip(page: Page, name: string) {
-  return page.getByRole("button", { exact: true, name });
+  return page.locator(`[data-slot='timeline-editor-clip'][aria-label="${name}"]`);
 }
 
 function getTimelineEditor(page: Page) {
@@ -55,6 +57,13 @@ function getTimelineRulerLane(page: Page) {
 
 function getTimelineTrack(page: Page, label: string) {
   return page.locator("[data-slot='timeline-editor-track']").filter({ hasText: label }).last();
+}
+
+async function selectContextMenuItem(page: Page, label: string, role = "menuitem") {
+  const item = page.locator(`[role='${role}']`).filter({ hasText: label }).first();
+
+  await item.hover();
+  await page.keyboard.press("Enter");
 }
 
 async function getItem(page: Page, itemId: string) {
@@ -343,7 +352,7 @@ test("adds and removes whole tracks", async ({ page }) => {
       y: planningTrackBox!.height / 2,
     },
   });
-  await page.getByText("Remove Track", { exact: true }).click();
+  await selectContextMenuItem(page, "Remove Track");
 
   await expect.poll(async () => await getItem(page, "brief")).toBeUndefined();
   await expect
@@ -366,7 +375,7 @@ test("runs custom timeline context menu actions at the clicked time", async ({ p
       y: planningTrackBox!.height / 2,
     },
   });
-  await page.getByRole("menuitem", { name: "Record timeline time" }).click();
+  await selectContextMenuItem(page, "Record timeline time");
 
   await expect
     .poll(async () => (await getHarnessState(page)).changes)
@@ -387,7 +396,7 @@ test("changes frame rate through a custom timeline context menu", async ({ page 
       y: planningTrackBox!.height / 2,
     },
   });
-  await page.getByRole("menuitemradio", { name: "24 fps" }).click();
+  await selectContextMenuItem(page, "24 fps", "menuitemradio");
 
   await expect.poll(async () => (await getHarnessState(page)).frameRate).toBe(24);
   await expect.poll(async () => (await getHarnessState(page)).changes).toContain("frame-rate:24");
@@ -623,7 +632,7 @@ test("duplicates, deletes, undoes, and redoes from the toolbar", async ({ page }
       }),
     );
 
-  await page.getByRole("button", { name: "Delete" }).click();
+  await page.getByRole("button", { exact: true, name: "Delete" }).click();
 
   await expect.poll(async () => await getItem(page, "brief")).toBeUndefined();
   await expect.poll(async () => await getItem(page, "brief-copy")).toBeDefined();
@@ -779,6 +788,138 @@ test("deletes the selected clip by keyboard", async ({ page }) => {
   await page.keyboard.press("Delete");
 
   await expect.poll(async () => await getItem(page, "brief")).toBeUndefined();
+});
+
+test("edits, jumps to, and deletes a marker from the inspector", async ({ page }) => {
+  await page.goto("/");
+
+  await page.locator("[data-slot='timeline-editor-marker'][title='Handoff']").last().click();
+  const inspector = page.locator("[data-slot='timeline-workbench-marker-inspector']");
+  await expect(inspector).toBeVisible();
+
+  await inspector.locator("[data-slot='timeline-workbench-marker-label']").fill("QA handoff");
+  await inspector.locator("[data-slot='timeline-workbench-marker-time']").fill("5000");
+  await inspector.locator("[data-slot='timeline-workbench-marker-color']").fill("#ff0000");
+
+  await expect
+    .poll(async () => (await getHarnessState(page)).document.markers?.[0])
+    .toEqual(
+      expect.objectContaining({
+        color: "#ff0000",
+        label: "QA handoff",
+        timeMs: 5_000,
+      }),
+    );
+
+  await inspector.getByRole("button", { name: "Jump" }).click();
+  await expect.poll(async () => (await getHarnessState(page)).document.currentTimeMs).toBe(5_000);
+
+  await inspector.getByRole("button", { name: "Delete" }).click();
+  await expect.poll(async () => (await getHarnessState(page)).document.markers ?? []).toEqual([]);
+});
+
+test("updates snap settings from the toolbar menu", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Snap" }).click();
+  const menu = page.locator("[data-slot='timeline-workbench-snap-menu']");
+  await menu.getByLabel("Item edges").uncheck();
+  await menu.getByLabel("Playhead").uncheck();
+
+  await expect
+    .poll(async () =>
+      (await getHarnessState(page)).changes.filter((change) => change.startsWith("snap:")),
+    )
+    .toEqual(expect.arrayContaining([expect.stringContaining('"marker"')]));
+  await expect
+    .poll(async () => (await getHarnessState(page)).changes.at(-1) ?? "")
+    .not.toContain("item-edge");
+});
+
+test("selects a timeline range and deletes overlapping items", async ({ page }) => {
+  await page.goto("/");
+
+  const lane = getTimelineRulerLane(page);
+  const laneBox = await lane.boundingBox();
+  expect(laneBox).not.toBeNull();
+
+  await page.keyboard.down("Shift");
+  await page.mouse.move(laneBox!.x + laneBox!.width * 0.1, laneBox!.y + laneBox!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(laneBox!.x + laneBox!.width * 0.5, laneBox!.y + laneBox!.height / 2, {
+    steps: 4,
+  });
+  await page.mouse.up();
+  await page.keyboard.up("Shift");
+
+  await expect
+    .poll(async () => (await getHarnessState(page)).range)
+    .toEqual(expect.objectContaining({ startMs: 800, endMs: 4_000 }));
+  await expect(page.locator("[data-slot='timeline-editor-range-overlay']").first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Delete Range" }).click();
+  await expect.poll(async () => await getItem(page, "brief")).toBeUndefined();
+});
+
+test("inserts and closes a selected gap on the target track", async ({ page }) => {
+  await page.goto("/");
+
+  const planningTrack = getTimelineTrack(page, "Planning");
+  const trackBox = await planningTrack.boundingBox();
+  const laneBox = await getTimelineRulerLane(page).boundingBox();
+  expect(trackBox).not.toBeNull();
+  expect(laneBox).not.toBeNull();
+
+  await page.keyboard.down("Shift");
+  await page.mouse.move(laneBox!.x + 2, trackBox!.y + trackBox!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(laneBox!.x + 82, trackBox!.y + trackBox!.height / 2, { steps: 4 });
+  await page.mouse.up();
+  await page.keyboard.up("Shift");
+
+  await page.getByRole("button", { name: "Insert Gap" }).click();
+  await expect.poll(async () => (await getItem(page, "brief"))?.startMs).toBe(2_000);
+
+  await page.getByRole("button", { name: "Close Gap" }).click();
+  await expect.poll(async () => (await getItem(page, "brief"))?.startMs).toBe(1_000);
+});
+
+test("controls track groups from the group row", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Track Groups" }).click();
+  await page.getByRole("menuitem", { name: "Create Group From All Tracks" }).click();
+
+  const groupRow = page.locator("[data-slot='timeline-editor-track-group']").last();
+  await expect(groupRow).toContainText("2 tracks");
+
+  await groupRow.getByRole("button", { name: "Collapse" }).click();
+  await expect(getClip(page, "Brief")).toBeHidden();
+
+  await groupRow.getByRole("button", { name: "Expand" }).click();
+  await expect(getClip(page, "Brief")).toBeVisible();
+
+  await groupRow.getByRole("button", { name: "Lock" }).click();
+  await drag(getClip(page, "Brief"), 80);
+  await expect.poll(async () => (await getItem(page, "brief"))?.startMs).toBe(1_000);
+});
+
+test("filters assets and shows selected-track compatibility", async ({ page }) => {
+  await page.goto("/");
+
+  await expect(page.getByText("Uses another compatible track").first()).toBeVisible();
+  await getClip(page, "Brief").click();
+  await expect(page.getByText("Fits selected track").first()).toBeVisible();
+
+  await page.getByPlaceholder("Search assets").fill("Prototype");
+  await expect(page.getByRole("button", { name: /Prototype/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Handoff task/ })).toBeHidden();
+
+  await page.getByPlaceholder("Search assets").fill("");
+  await page.getByLabel("Compatible with selected track").check();
+  await page.locator("[data-slot='timeline-workbench-asset-kind-filter']").selectOption("task");
+  await expect(page.getByRole("button", { name: /Handoff task/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Prototype/ })).toBeHidden();
 });
 
 test("read-only mode prevents mutations", async ({ page }) => {

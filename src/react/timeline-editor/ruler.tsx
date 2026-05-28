@@ -3,7 +3,11 @@
 import type React from "react";
 
 import { clampTimelineEditorTime } from "../../time";
-import type { TimelineEditorDocument, TimelineEditorMarker } from "../../types";
+import type {
+  TimelineEditorDocument,
+  TimelineEditorMarker,
+  TimelineEditorSelection,
+} from "../../types";
 import {
   getTimelineEditorTimeFromPointer,
   getVisibleTimelineEditorTicks,
@@ -23,6 +27,7 @@ type TimelineEditorRulerProps<TTrackData extends Record<string, unknown>, TItemD
   durationMs: number;
   nudgeMs: number;
   readOnly: boolean;
+  selection: TimelineEditorSelection;
   getTimelineContextMenuContext?: (
     event: React.MouseEvent<Element>,
   ) => TimelineEditorTimelineContextMenuContext<TTrackData, TItemData>;
@@ -37,6 +42,7 @@ type TimelineEditorRulerProps<TTrackData extends Record<string, unknown>, TItemD
     marker: TimelineEditorMarker,
     event: React.PointerEvent<HTMLDivElement>,
   ) => void;
+  onRangePointerDown?: (event: React.PointerEvent<HTMLDivElement>) => void;
   onScrubPointerDown?: (event: React.PointerEvent<HTMLDivElement>) => void;
   setCurrentTime: (
     document: TimelineEditorDocument<TTrackData, TItemData>,
@@ -52,6 +58,7 @@ export function TimelineEditorRuler<TTrackData extends Record<string, unknown>, 
   getTimelineContextMenuItems,
   nudgeMs,
   readOnly,
+  selection,
   snapGuideMs,
   ticks,
   timelineWidthPx,
@@ -59,6 +66,7 @@ export function TimelineEditorRuler<TTrackData extends Record<string, unknown>, 
   onCurrentTimeChange,
   onDocumentChange,
   onMarkerPointerDown,
+  onRangePointerDown,
   onScrubPointerDown,
   setCurrentTime,
 }: TimelineEditorRulerProps<TTrackData, TItemData>) {
@@ -68,6 +76,11 @@ export function TimelineEditorRuler<TTrackData extends Record<string, unknown>, 
       className="relative"
       onPointerDown={(event) => {
         if (event.defaultPrevented || !isTimelineEditorPrimaryPointerButton(event)) {
+          return;
+        }
+
+        if (event.shiftKey) {
+          onRangePointerDown?.(event);
           return;
         }
 
@@ -92,6 +105,13 @@ export function TimelineEditorRuler<TTrackData extends Record<string, unknown>, 
           ) : null}
         </div>
       ))}
+      {selection.range ? (
+        <TimelineEditorRulerRangeOverlay
+          durationMs={durationMs}
+          range={selection.range}
+          timelineWidthPx={timelineWidthPx}
+        />
+      ) : null}
       {(document.markers ?? [])
         .filter((marker) => isTimelineEditorTimeVisible(marker.timeMs, visibleRange))
         .map((marker) => (
@@ -157,5 +177,28 @@ export function TimelineEditorRuler<TTrackData extends Record<string, unknown>, 
         />
       ) : null}
     </>
+  );
+}
+
+function TimelineEditorRulerRangeOverlay({
+  durationMs,
+  range,
+  timelineWidthPx,
+}: {
+  durationMs: number;
+  range: { startMs: number; endMs: number };
+  timelineWidthPx: number;
+}) {
+  const startMs = Math.max(0, Math.min(range.startMs, range.endMs));
+  const endMs = Math.max(startMs, Math.max(range.startMs, range.endMs));
+  const leftPx = (startMs / durationMs) * timelineWidthPx;
+  const widthPx = Math.max(1, ((endMs - startMs) / durationMs) * timelineWidthPx);
+
+  return (
+    <div
+      data-slot="timeline-editor-ruler-range-overlay"
+      className="pointer-events-none absolute inset-y-0 border-x border-primary/70 bg-primary/20"
+      style={{ left: leftPx, width: widthPx }}
+    />
   );
 }
