@@ -175,6 +175,8 @@ export function TimelineWorkbenchCanvas<
     }
 
     const allowed = canPlaceTimelineWorkbenchAssetOnTrack(asset, placement.track);
+    const scrollLeftPx = event.currentTarget.scrollLeft;
+    const scrollTopPx = event.currentTarget.scrollTop;
     event.preventDefault();
     event.dataTransfer.dropEffect = allowed ? "copy" : "none";
     setDropFeedback((currentFeedback) => {
@@ -182,8 +184,8 @@ export function TimelineWorkbenchCanvas<
         allowed,
         asset,
         durationMs: asset.durationMs,
-        scrollLeftPx: event.currentTarget.scrollLeft,
-        scrollTopPx: event.currentTarget.scrollTop,
+        scrollLeftPx,
+        scrollTopPx,
         timeMs: placement.timeMs,
         trackId: placement.track.id,
       };
@@ -259,7 +261,9 @@ export function TimelineWorkbenchCanvas<
           getTrackContextMenuItems={getTrackContextMenuItems}
           onDragEnter={updateAssetDropFeedback}
           onDragLeave={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            const relatedTarget = event.relatedTarget;
+
+            if (!(relatedTarget instanceof Node) || !event.currentTarget.contains(relatedTarget)) {
               setDropFeedback(null);
             }
           }}
@@ -269,6 +273,7 @@ export function TimelineWorkbenchCanvas<
               return;
             }
 
+            event.preventDefault();
             const asset = getDraggedAsset(event);
             const placement = getAssetDropPlacement(event);
             setDropFeedback(null);
@@ -281,7 +286,6 @@ export function TimelineWorkbenchCanvas<
               return;
             }
 
-            event.preventDefault();
             onDropAsset(asset, { trackId: placement.track.id, timeMs: placement.timeMs });
           }}
         />

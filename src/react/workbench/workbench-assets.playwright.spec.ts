@@ -1,4 +1,4 @@
-import { expect, type Locator, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 
 import {
   clickAsset,
@@ -72,6 +72,42 @@ test("drags an asset from panel to timeline", async ({ page }) => {
         trackId: "planning",
       }),
     );
+});
+
+test("drags an asset across timeline surfaces with real mouse events", async ({ page }) => {
+  const getPageProblems = recordPageProblems(page);
+  await page.goto("/");
+
+  const initialItemCount = await getItemCount(page);
+  const prototypeAsset = page.getByRole("button", { name: /Prototype/ });
+  const planningTrack = getTimelineTrack(page, "Planning");
+  const reviewTrack = getTimelineTrack(page, "Review");
+  const assetBox = await prototypeAsset.boundingBox();
+  const planningBox = await planningTrack.boundingBox();
+  const reviewBox = await reviewTrack.boundingBox();
+  expect(assetBox).not.toBeNull();
+  expect(planningBox).not.toBeNull();
+  expect(reviewBox).not.toBeNull();
+
+  await page.mouse.move(assetBox!.x + assetBox!.width / 2, assetBox!.y + assetBox!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(planningBox!.x + 24, planningBox!.y + planningBox!.height / 2, {
+    steps: 8,
+  });
+  await page.mouse.move(reviewBox!.x + 240, reviewBox!.y + reviewBox!.height / 2, {
+    steps: 8,
+  });
+  await expect(page.locator("[data-slot='timeline-workbench-drop-feedback']")).toHaveAttribute(
+    "data-allowed",
+    "true",
+  );
+  await page.mouse.move(planningBox!.x + 240, planningBox!.y + planningBox!.height / 2, {
+    steps: 8,
+  });
+  await page.mouse.up();
+
+  await expect.poll(async () => await getItemCount(page)).toBe(initialItemCount + 1);
+  expect(getPageProblems()).toEqual([]);
 });
 
 test("drops an asset at snapped frame timestamp", async ({ page }) => {
@@ -194,6 +230,56 @@ test("shows allowed and incompatible drop feedback", async ({ page }) => {
   );
 });
 
+test("consumes incompatible asset drops without mutating the document", async ({ page }) => {
+  const getPageProblems = recordPageProblems(page);
+  await page.goto("/");
+
+  const beforeItems = await getItems(page);
+  const reviewTrack = getTimelineTrack(page, "Review");
+  const dropped = await reviewTrack.evaluate((track) => {
+    const bounds = track.getBoundingClientRect();
+    const dataTransfer = new DataTransfer();
+    dataTransfer.setData("application/x-timeline-workbench-asset-id", "handoff-task");
+    dataTransfer.setData("text/plain", "Handoff task");
+
+    return !track.dispatchEvent(
+      new DragEvent("drop", {
+        bubbles: true,
+        cancelable: true,
+        clientX: bounds.left + 240,
+        clientY: bounds.top + bounds.height / 2,
+        dataTransfer,
+      }),
+    );
+  });
+
+  expect(dropped).toBe(true);
+  await expect.poll(async () => await getItems(page)).toEqual(beforeItems);
+  expect(getPageProblems()).toEqual([]);
+});
+
+test("ignores non-node drag leave targets", async ({ page }) => {
+  const getPageProblems = recordPageProblems(page);
+  await page.goto("/");
+
+  const editor = getTimelineEditor(page);
+  await editor.evaluate((element) => {
+    const dataTransfer = new DataTransfer();
+    dataTransfer.setData("application/x-timeline-workbench-asset-id", "prototype");
+
+    const event = new DragEvent("dragleave", {
+      bubbles: true,
+      cancelable: true,
+      dataTransfer,
+    });
+
+    Object.defineProperty(event, "relatedTarget", { value: window });
+    element.dispatchEvent(event);
+  });
+
+  expect(getPageProblems()).toEqual([]);
+});
+
 test("imports a file asset through host callback", async ({ page }) => {
   await page.goto("/?importAssets=true");
 
@@ -275,3 +361,16 @@ test("portal asset menu action does not click through into row", async ({ page }
     .poll(async () => (await getItems(page)).some((item) => item.label === "Prototype"))
     .toBe(false);
 });
+
+function recordPageProblems(page: Page) {
+  const problems: string[] = [];
+
+  page.on("pageerror", (error) => problems.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      problems.push(message.text());
+    }
+  });
+
+  return () => problems;
+}
