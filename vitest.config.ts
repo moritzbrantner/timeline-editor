@@ -17,6 +17,10 @@ export default defineConfig({
         replacement: path.resolve(rootDir, "src/react.tsx"),
       },
       {
+        find: "@moritzbrantner/timeline-editor/media-types",
+        replacement: path.resolve(rootDir, "src/media-types.ts"),
+      },
+      {
         find: "@moritzbrantner/timeline-editor/text",
         replacement: path.resolve(rootDir, "src/text.ts"),
       },

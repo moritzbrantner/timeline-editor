@@ -21,6 +21,7 @@ export function createTimelineAudioExtension(): TimelineEditorExtension<Timeline
   return {
     id: "timeline-audio",
     itemKinds: ["audio"],
+    mediaTypes: ["audio"],
     renderItem: ({ item }) =>
       createElement(
         "span",

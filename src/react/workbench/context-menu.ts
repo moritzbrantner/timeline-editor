@@ -5,6 +5,7 @@ import type {
   TimelineEditorItem,
   TimelineEditorSelection,
 } from "../../core";
+import { getTimelineMediaTypeForItem } from "../../media-types";
 import type { TimelineEditorItemContextMenuContext } from "../timeline-editor";
 import type { TimelineWorkbenchItemContextMenuContext } from "./types";
 
@@ -117,7 +118,8 @@ export function getTimelineWorkbenchContextMenuItems<
     durationMs: input.durationMs,
     item: context.item,
     itemIds,
-    mediaType: context.item.kind,
+    itemKind: context.item.kind,
+    mediaType: getTimelineMediaTypeForItem(context.item),
     readOnly: readOnlyContext,
     selection: menuSelection,
     selectedItems: contextSelectedItems,

@@ -31,6 +31,7 @@ export function createTimelineNumericDataExtension(): TimelineEditorExtension<Ti
   return {
     id: "timeline-numeric-data",
     itemKinds: ["data", "numeric-data"],
+    mediaTypes: ["numeric-data"],
     renderItem: ({ item }) =>
       createElement(
         "span",

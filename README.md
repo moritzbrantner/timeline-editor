@@ -28,7 +28,10 @@ this package.
 The core package stays media-agnostic. Items can represent any timed domain
 object through `kind` and `data`, while the shared editor owns generic timeline
 behavior: selection, ranges, move/resize/split/trim, grouping, markers, snapping,
-overlap policies, validation, serialization, and history.
+overlap policies, validation, serialization, and history. `item.kind` is the
+canonical field for track compatibility and exact extension matching.
+`data.mediaType`, when present, identifies one of the built-in media data
+families: `audio`, `video`, `image`, `text`, or `numeric-data`.
 
 Clipboard commands are available through `TimelineEditorCommand`:
 
@@ -73,6 +76,9 @@ Use `onHotkeysChange` when the host app should persist the user overrides.
 Media-specific behavior belongs in extensions rather than the generic core.
 An extension can contribute item rendering, preview rendering, inspector
 sections, toolbar actions, context menu items, and pure operations.
+`TimelineWorkbench` resolves item renderers by exact `extension.itemKinds` first,
+then by normalized `extension.mediaTypes`, then by the consumer
+`renderTimelineItem` fallback.
 
 ```tsx
 import { createTimelineAudioExtension } from "@moritzbrantner/timeline-editor/audio";
@@ -92,6 +98,7 @@ import { createTimelineVideoExtension } from "@moritzbrantner/timeline-editor/vi
 Built-in display-only media foundations are available from media-specific
 subpaths:
 
+- `@moritzbrantner/timeline-editor/media-types` for media type normalization and media-specific validation helpers.
 - `@moritzbrantner/timeline-editor/text` for ASS-like timed text cues.
 - `@moritzbrantner/timeline-editor/audio` for source metadata, volume/mute state, and waveform display.
 - `@moritzbrantner/timeline-editor/video` for source metadata, poster, and thumbnail strips.
@@ -124,6 +131,10 @@ import {
   createTimelineVideoExtension,
   type TimelineVideoItemData,
 } from "@moritzbrantner/timeline-editor/video";
+import {
+  getTimelineMediaTypeForItem,
+  validateTimelineEditorMediaTypes,
+} from "@moritzbrantner/timeline-editor/media-types";
 
 type MediaItemData =
   | TimelineTextItemData
@@ -245,6 +256,9 @@ const document: TimelineEditorDocument<Record<string, unknown>, MediaItemData> =
     createTimelineNumericDataExtension(),
   ]}
 />;
+
+const mediaType = getTimelineMediaTypeForItem(document.tracks[0]!.items[0]!);
+const mediaIssues = validateTimelineEditorMediaTypes(document);
 ```
 
 The private packages under `packages/audio`, `packages/video`, and
@@ -453,6 +467,12 @@ Timeline items, workbench assets, and tracks can declare a `kind`. A typed track
 only accepts items and assets with the same kind. Untyped tracks can still limit
 placement with `acceptsItemKinds`. Workbench asset insertion respects those
 limits, including when the currently selected track rejects the asset kind.
+Workbench assets can also expose `mediaType` as normalized descriptive metadata;
+placement still uses `kind`.
+
+Context menus receive both `itemKind` and normalized `mediaType`. Use
+`itemKind` when exact aliases matter, such as `subtitle`; use `mediaType` when
+handling a built-in family such as all text-like items.
 
 ```tsx
 <TimelineWorkbench
@@ -463,12 +483,30 @@ limits, including when the currently selected track rejects the asset kind.
     ],
   }}
   frameRate={24}
-  assets={[{ id: "scene", label: "Scene", kind: "video", durationMs: 2_000 }]}
-  getItemContextMenuItems={(context) =>
-    context.mediaType === "video"
-      ? [{ id: "transcode", label: "Transcode", onSelect: () => transcode(context.item) }]
-      : []
-  }
+  assets={[
+    {
+      id: "scene",
+      label: "Scene",
+      kind: "video",
+      mediaType: "video",
+      durationMs: 2_000,
+      data: {
+        mediaType: "video",
+        source: { label: "scene.mp4", mimeType: "video/mp4" },
+      },
+    },
+  ]}
+  getItemContextMenuItems={(context) => {
+    if (context.mediaType === "video") {
+      return [{ id: "transcode", label: "Transcode", onSelect: () => transcode(context.item) }];
+    }
+
+    if (context.itemKind === "subtitle") {
+      return [{ id: "edit-subtitle", label: "Edit Subtitle", onSelect: () => edit(context.item) }];
+    }
+
+    return [];
+  }}
 />
 ```
 

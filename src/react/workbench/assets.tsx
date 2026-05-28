@@ -4,7 +4,17 @@ import type { ReactNode } from "react";
 
 import { Badge, Button, WorkbenchPanel, cn } from "@moritzbrantner/ui";
 
-import { formatTimelineEditorTimeMs, type TimelineEditorTrack } from "../../core";
+import {
+  formatTimelineEditorTimeMs,
+  type TimelineEditorItem,
+  type TimelineEditorTrack,
+} from "../../core";
+import {
+  getTimelineMediaTypeForAsset,
+  isTimelineMediaType,
+  type TimelineMediaType,
+} from "../../media-types";
+import { createTimelineWorkbenchItemId } from "./ids";
 import type { TimelineWorkbenchAsset } from "./types";
 
 export const timelineWorkbenchAssetDragDataType = "application/x-timeline-workbench-asset-id";
@@ -27,16 +37,53 @@ export function canPlaceTimelineWorkbenchAssetOnTrack<TTrackData, TItemData, TAs
 export function getTimelineWorkbenchAssetBrowserItems<TAssetData>(
   assets: Array<TimelineWorkbenchAsset<TAssetData>>,
 ) {
-  return assets.map((asset) => ({
-    id: asset.id,
-    name: asset.label,
-    type: "file",
-    description: asset.description ?? asset.kind,
-    metadata: {
-      Duration: formatTimelineEditorTimeMs(asset.durationMs),
-      Kind: asset.kind ?? "item",
-    },
-  }));
+  return assets.map((asset) => {
+    const mediaType = getTimelineMediaTypeForAsset(asset);
+
+    return {
+      id: asset.id,
+      name: asset.label,
+      type: "file",
+      description: asset.description ?? mediaType ?? asset.kind,
+      metadata: {
+        Duration: formatTimelineEditorTimeMs(asset.durationMs),
+        Kind: asset.kind ?? "item",
+        ...(mediaType ? { "Media Type": mediaType } : {}),
+      },
+    };
+  });
+}
+
+export function createTimelineWorkbenchItemFromAsset<TItemData, TAssetData>(
+  asset: TimelineWorkbenchAsset<TAssetData>,
+  placement: { trackId: string; timeMs: number },
+  options: {
+    createItemId?: (asset: TimelineWorkbenchAsset<TAssetData>) => string;
+  } = {},
+): TimelineEditorItem<TItemData> {
+  const mediaType = isTimelineMediaType(asset.mediaType) ? asset.mediaType : undefined;
+
+  return {
+    id: createTimelineWorkbenchItemId(asset, options.createItemId),
+    trackId: placement.trackId,
+    label: asset.label,
+    startMs: placement.timeMs,
+    durationMs: asset.durationMs,
+    kind: asset.kind,
+    color: asset.color,
+    data: getTimelineWorkbenchAssetData<TItemData, TAssetData>(asset, mediaType),
+  };
+}
+
+function getTimelineWorkbenchAssetData<TItemData, TAssetData>(
+  asset: TimelineWorkbenchAsset<TAssetData>,
+  mediaType?: TimelineMediaType,
+): TItemData | undefined {
+  if (asset.data !== undefined) {
+    return asset.data as unknown as TItemData;
+  }
+
+  return mediaType ? ({ mediaType } as TItemData) : undefined;
 }
 
 type TimelineWorkbenchAssetsPanelProps<TAssetData> = {

@@ -19,6 +19,7 @@ export function createTimelineImageExtension(): TimelineEditorExtension<Timeline
   return {
     id: "timeline-image",
     itemKinds: ["image"],
+    mediaTypes: ["image"],
     renderItem: ({ item }) => {
       const imageSrc = item.data?.thumbnail ?? item.data?.src;
 

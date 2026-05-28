@@ -25,6 +25,7 @@ import {
   type TimelineEditorViewport,
 } from "../core";
 import type { TimelineEditorCommand } from "../commands";
+import { getTimelineMediaTypeForItem } from "../media-types";
 import {
   applyTimelineEditorCommandWithHistory,
   createTimelineEditorHistory,
@@ -42,12 +43,12 @@ import type {
 import type { TimelineWorkbenchHotkeyId } from "./workbench/hotkeys";
 import {
   canPlaceTimelineWorkbenchAssetOnTrack,
+  createTimelineWorkbenchItemFromAsset,
   TimelineWorkbenchAssetsPanel,
 } from "./workbench/assets";
 import { TimelineWorkbenchCanvas } from "./workbench/canvas";
 import { getTimelineWorkbenchContextMenuItems } from "./workbench/context-menu";
 import {
-  createTimelineWorkbenchItemId,
   createTimelineWorkbenchMarkerId,
   createTimelineWorkbenchTrack,
   createTimelineWorkbenchTrackGroupId,
@@ -165,7 +166,12 @@ export function TimelineWorkbench<
   const hasSelectedItemGroup = hasItemGroup(resolvedSelection.itemIds);
   const overlaps = useMemo(() => detectTimelineEditorOverlaps(document.tracks), [document.tracks]);
   const extensionItems = useMemo(
-    () => extensions.filter((extension) => extension.itemKinds && extension.itemKinds.length > 0),
+    () =>
+      extensions.filter(
+        (extension) =>
+          (extension.itemKinds && extension.itemKinds.length > 0) ||
+          (extension.mediaTypes && extension.mediaTypes.length > 0),
+      ),
     [extensions],
   );
   const trackKinds = useMemo(
@@ -545,9 +551,7 @@ export function TimelineWorkbench<
   );
 
   const renderResolvedTimelineItem = (context: TimelineEditorItemRenderContext<TItemData>) => {
-    const extension = extensionItems.find((candidate) =>
-      context.item.kind ? candidate.itemKinds?.includes(context.item.kind) : false,
-    );
+    const extension = getTimelineWorkbenchItemRenderExtension(context.item, extensionItems);
 
     return extension?.renderItem?.(context) ?? renderTimelineItem?.(context);
   };
@@ -581,16 +585,11 @@ export function TimelineWorkbench<
       return;
     }
 
-    const item = {
-      id: createTimelineWorkbenchItemId(asset, createItemId),
-      trackId: targetTrack.id,
-      label: asset.label,
-      startMs: placement.timeMs,
-      durationMs: asset.durationMs,
-      kind: asset.kind,
-      color: asset.color,
-      data: asset.data as TItemData | undefined,
-    };
+    const item = createTimelineWorkbenchItemFromAsset<TItemData, TAssetData>(
+      asset,
+      { trackId: targetTrack.id, timeMs: placement.timeMs },
+      { createItemId },
+    );
 
     runCommand({ type: "insert-item", item });
   };
@@ -1209,6 +1208,34 @@ function getTimelineWorkbenchToolHotkey(
     const hotkey = hotkeys[hotkeyId];
     return hotkey ? matchesHotkey(event, hotkey) : false;
   })?.[1];
+}
+
+function getTimelineWorkbenchItemRenderExtension<
+  TTrackData extends Record<string, unknown>,
+  TItemData,
+  TAssetData,
+>(
+  item: TimelineEditorItem<TItemData>,
+  extensions: Array<TimelineEditorExtension<TItemData, TTrackData, TAssetData>>,
+) {
+  const itemKind = item.kind;
+  const itemKindExtension = itemKind
+    ? extensions.find(
+        (extension) => extension.renderItem && extension.itemKinds?.includes(itemKind),
+      )
+    : undefined;
+
+  if (itemKindExtension) {
+    return itemKindExtension;
+  }
+
+  const mediaType = getTimelineMediaTypeForItem(item);
+
+  return mediaType
+    ? extensions.find(
+        (extension) => extension.renderItem && extension.mediaTypes?.includes(mediaType),
+      )
+    : undefined;
 }
 
 function getTimelineWorkbenchTrackKinds<

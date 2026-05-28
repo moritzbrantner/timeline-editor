@@ -14,6 +14,7 @@ import type {
   TimelineEditorTrack,
   TimelineEditorViewport,
 } from "../../core";
+import type { TimelineMediaType } from "../../media-types";
 import type {
   TimelineEditorHotkeys,
   TimelineEditorItemRenderContext,
@@ -25,6 +26,7 @@ export type TimelineWorkbenchAsset<TData = Record<string, unknown>> = {
   id: string;
   label: string;
   kind?: TimelineEditorItemKind;
+  mediaType?: TimelineMediaType;
   durationMs: number;
   color?: string;
   description?: string;
@@ -114,6 +116,7 @@ export type TimelineEditorExtension<
 > = {
   id: string;
   itemKinds?: string[];
+  mediaTypes?: TimelineMediaType[];
   trackKinds?: string[];
   renderItem?: (context: TimelineEditorItemRenderContext<TItemData>) => ReactNode;
   renderPreview?: (context: TimelinePreviewContext<TItemData>) => ReactNode;
@@ -145,7 +148,8 @@ export type TimelineWorkbenchItemContextMenuContext<
   durationMs: number;
   item: TimelineEditorItem<TItemData>;
   itemIds: string[];
-  mediaType?: TimelineEditorItemKind;
+  itemKind?: TimelineEditorItemKind;
+  mediaType?: TimelineMediaType;
   readOnly: boolean;
   selection: TimelineEditorSelection;
   selectedItems: Array<TimelineEditorItem<TItemData>>;

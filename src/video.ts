@@ -30,6 +30,7 @@ export function createTimelineVideoExtension(): TimelineEditorExtension<Timeline
   return {
     id: "timeline-video",
     itemKinds: ["video"],
+    mediaTypes: ["video"],
     renderItem: ({ item }) =>
       createElement(
         "span",

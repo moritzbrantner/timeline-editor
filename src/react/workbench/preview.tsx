@@ -8,6 +8,7 @@ import {
   type TimelineEditorDocument,
   type TimelineEditorItem,
 } from "../../core";
+import { getTimelineMediaTypeForItem } from "../../media-types";
 import type { TimelineEditorExtension } from "./types";
 
 type TimelineWorkbenchPreviewProps<
@@ -50,19 +51,16 @@ export function TimelineWorkbenchPreview<
       : activeItems;
   const progress =
     durationMs > 0 ? Math.min(100, Math.max(0, (currentTimeMs / durationMs) * 100)) : 0;
-  const extensionPreview = extensions
-    .find((extension) =>
-      previewItems.some(({ item }) =>
-        item.kind ? extension.itemKinds?.includes(item.kind) && extension.renderPreview : false,
-      ),
-    )
-    ?.renderPreview?.({
-      currentTimeMs,
-      document: document as TimelineEditorDocument<Record<string, unknown>, TItemData>,
-      durationMs,
-      items: previewItems.map(({ item }) => item),
-      selectedItems,
-    });
+  const extensionPreview = getTimelineWorkbenchPreviewExtension(
+    previewItems.map(({ item }) => item),
+    extensions,
+  )?.renderPreview?.({
+    currentTimeMs,
+    document: document as TimelineEditorDocument<Record<string, unknown>, TItemData>,
+    durationMs,
+    items: previewItems.map(({ item }) => item),
+    selectedItems,
+  });
 
   return (
     <WorkbenchPanel
@@ -104,5 +102,34 @@ export function TimelineWorkbenchPreview<
         </div>
       </div>
     </WorkbenchPanel>
+  );
+}
+
+function getTimelineWorkbenchPreviewExtension<
+  TItemData,
+  TTrackData extends Record<string, unknown>,
+  TAssetData,
+>(
+  items: Array<TimelineEditorItem<TItemData>>,
+  extensions: Array<TimelineEditorExtension<TItemData, TTrackData, TAssetData>>,
+) {
+  const itemKindExtension = extensions.find(
+    (extension) =>
+      extension.renderPreview &&
+      items.some((item) => (item.kind ? extension.itemKinds?.includes(item.kind) : false)),
+  );
+
+  if (itemKindExtension) {
+    return itemKindExtension;
+  }
+
+  return extensions.find(
+    (extension) =>
+      extension.renderPreview &&
+      items.some((item) => {
+        const mediaType = getTimelineMediaTypeForItem(item);
+
+        return mediaType ? extension.mediaTypes?.includes(mediaType) : false;
+      }),
   );
 }

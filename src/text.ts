@@ -85,6 +85,7 @@ export function createTimelineTextExtension(): TimelineEditorExtension<TimelineT
   return {
     id: "timeline-text",
     itemKinds: ["text", "caption", "subtitle"],
+    mediaTypes: ["text"],
     renderItem: ({ item }) =>
       createElement(
         "span",

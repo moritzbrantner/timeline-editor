@@ -53,6 +53,13 @@ import {
   type TimelineImageItemData,
 } from "@moritzbrantner/timeline-editor/image";
 import {
+  assertTimelineMediaKindMatchesData,
+  getTimelineMediaTypeForItem,
+  getTimelineMediaTypeForKind,
+  getTimelineMediaTypeFromData,
+  validateTimelineEditorMediaTypes,
+} from "@moritzbrantner/timeline-editor/media-types";
+import {
   createTimelineTextExtension,
   type TimelineTextItemData,
 } from "@moritzbrantner/timeline-editor/text";
@@ -265,6 +272,88 @@ describe("@moritzbrantner/timeline-editor core", () => {
       serializeTimelineEditorDocument({ tracks: withVideo }),
     );
     expect(restored.tracks[0]?.kind).toBe("video");
+  });
+
+  test("normalizes built-in media types without changing core validation", () => {
+    expect(getTimelineMediaTypeForKind("caption")).toBe("text");
+    expect(getTimelineMediaTypeForKind("subtitle")).toBe("text");
+    expect(getTimelineMediaTypeForKind("data")).toBe("numeric-data");
+    expect(getTimelineMediaTypeForKind("annotation")).toBeUndefined();
+    expect(getTimelineMediaTypeFromData({ mediaType: "video" })).toBe("video");
+    expect(
+      getTimelineMediaTypeForItem({
+        id: "scene",
+        trackId: "video",
+        label: "Scene",
+        startMs: 0,
+        durationMs: 1_000,
+        data: { mediaType: "image" },
+      }),
+    ).toBe("image");
+
+    const mismatch = assertTimelineMediaKindMatchesData({
+      id: "voice",
+      trackId: "audio",
+      label: "Voice",
+      kind: "audio",
+      startMs: 0,
+      durationMs: 1_000,
+      data: { mediaType: "video" },
+    });
+
+    expect(mismatch).toEqual(
+      expect.objectContaining({
+        code: "mismatched_media_type",
+        severity: "error",
+      }),
+    );
+    expect(
+      validateTimelineEditorMediaTypes({
+        tracks: [
+          {
+            id: "audio",
+            label: "Audio",
+            items: [
+              {
+                id: "voice",
+                trackId: "audio",
+                label: "Voice",
+                kind: "audio",
+                startMs: 0,
+                durationMs: 1_000,
+                data: { mediaType: "video" },
+              },
+            ],
+          },
+        ],
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        path: "tracks[0].items[0].data.mediaType",
+        code: "mismatched_media_type",
+      }),
+    ]);
+    expect(
+      validateTimelineEditorMediaTypes({
+        tracks: [
+          {
+            id: "custom",
+            label: "Custom",
+            items: [
+              {
+                id: "annotation",
+                trackId: "custom",
+                label: "Annotation",
+                kind: "annotation",
+                startMs: 0,
+                durationMs: 1_000,
+                data: { mediaType: "annotation" },
+              },
+            ],
+          },
+        ],
+      }),
+    ).toEqual([expect.objectContaining({ code: "invalid_media_type" })]);
   });
 
   test("resizes, splits, duplicates, removes, and detects overlaps", () => {
@@ -1647,6 +1736,7 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
             id: "music",
             label: "Music",
             kind: "audio",
+            mediaType: "audio",
             durationMs: 2_000,
             data: {
               mediaType: "audio",
@@ -1688,6 +1778,176 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
             ]),
           }),
         ]),
+      }),
+    );
+  });
+
+  test("passes exact item kind and normalized media type to workbench context menus", async () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks: [
+        {
+          id: "subtitles",
+          label: "Subtitles",
+          acceptsItemKinds: ["subtitle"],
+          items: [
+            {
+              id: "line",
+              trackId: "subtitles",
+              label: "Line",
+              kind: "subtitle",
+              startMs: 1_000,
+              durationMs: 1_000,
+              data: { mediaType: "text" },
+            },
+          ],
+        },
+      ],
+    };
+    const handleContext = vi.fn();
+
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        selectedItemId="line"
+        getItemContextMenuItems={(context) => {
+          handleContext(context.itemKind, context.mediaType);
+
+          return [{ id: "edit-subtitle", label: "Edit Subtitle" }];
+        }}
+      />,
+    );
+
+    fireEvent.contextMenu(container.querySelector("[data-slot='timeline-editor-clip']")!);
+
+    expect(await screen.findByRole("menuitem", { name: "Edit Subtitle" })).toBeTruthy();
+    expect(handleContext).toHaveBeenCalledWith("subtitle", "text");
+  });
+
+  test("resolves workbench extensions by exact item kind before media type", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks: [
+        {
+          id: "subtitles",
+          label: "Subtitles",
+          acceptsItemKinds: ["subtitle"],
+          items: [
+            {
+              id: "line",
+              trackId: "subtitles",
+              label: "Line",
+              kind: "subtitle",
+              startMs: 0,
+              durationMs: 1_000,
+              data: { mediaType: "text" },
+            },
+          ],
+        },
+      ],
+    };
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        extensions={[
+          {
+            id: "text-media",
+            mediaTypes: ["text"],
+            renderItem: () => <span>Media renderer</span>,
+          },
+          {
+            id: "subtitle",
+            itemKinds: ["subtitle"],
+            renderItem: () => <span>Exact renderer</span>,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Exact renderer")).toBeTruthy();
+    expect(screen.queryByText("Media renderer")).toBeNull();
+  });
+
+  test("resolves workbench extensions by normalized media type as a fallback", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks: [
+        {
+          id: "transcript",
+          label: "Transcript",
+          acceptsItemKinds: ["transcript"],
+          items: [
+            {
+              id: "line",
+              trackId: "transcript",
+              label: "Line",
+              kind: "transcript",
+              startMs: 0,
+              durationMs: 1_000,
+              data: { mediaType: "text" },
+            },
+          ],
+        },
+      ],
+    };
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        extensions={[
+          {
+            id: "text-media",
+            mediaTypes: ["text"],
+            renderItem: () => <span>Media fallback</span>,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Media fallback")).toBeTruthy();
+  });
+
+  test("asset insertion preserves media data and asset media type metadata", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks: [{ id: "clips", label: "Clips", acceptsItemKinds: ["clip"], items: [] }],
+    };
+    const handleDocumentChange = vi.fn();
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        assets={[
+          {
+            id: "b-roll",
+            label: "B-roll",
+            kind: "clip",
+            mediaType: "video",
+            durationMs: 1_000,
+          },
+        ]}
+        createItemId={() => "b-roll-item"}
+        onDocumentChange={handleDocumentChange}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: /B-roll/ })[0]!);
+
+    expect(handleDocumentChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tracks: [
+          expect.objectContaining({
+            id: "clips",
+            items: [
+              expect.objectContaining({
+                id: "b-roll-item",
+                kind: "clip",
+                data: { mediaType: "video" },
+              }),
+            ],
+          }),
+        ],
       }),
     );
   });

@@ -105,9 +105,14 @@ const assets = [
     id: "b-roll",
     label: "B-roll clip",
     kind: "video",
+    mediaType: "video",
     durationMs: 3_000,
     color: "#0f766e",
     description: "Video insert",
+    data: {
+      mediaType: "video",
+      source: { label: "b-roll.mp4", mimeType: "video/mp4" },
+    },
   },
   {
     id: "caption",
