@@ -3,11 +3,12 @@
 import { memo } from "react";
 import type { ReactNode } from "react";
 
-import { ContextActionMenu, cn, type MenuActionItem } from "@moritzbrantner/ui";
+import { cn, type MenuActionItem } from "@moritzbrantner/ui";
 
 import type { TimelineEditorItem } from "../../types";
 import { formatTimelineEditorTimeMs } from "../../time";
 import { getTimelineEditorItemStyle } from "../timeline-rendering";
+import { TimelineEditorContextActionMenu } from "./context-menu-items";
 import type { TimelineEditorItemRenderContext } from "./types";
 
 type TimelineEditorClipProps<TItemData> = {
@@ -86,12 +87,12 @@ function TimelineEditorClipComponent<TItemData>({
   }
 
   return (
-    <ContextActionMenu
+    <TimelineEditorContextActionMenu
       items={contextMenuItems}
       contentProps={{ "data-slot": "timeline-editor-clip-menu" }}
     >
       {clip}
-    </ContextActionMenu>
+    </TimelineEditorContextActionMenu>
   );
 }
 

@@ -3,8 +3,6 @@
 import { memo } from "react";
 import type { ReactNode } from "react";
 
-import { ContextActionMenu } from "@moritzbrantner/ui";
-
 import type {
   TimelineEditorDocument,
   TimelineEditorItem,
@@ -13,6 +11,7 @@ import type {
   TimelineEditorTrack,
 } from "../../types";
 import { TimelineEditorContextMenuTarget } from "./context-menu";
+import { TimelineEditorContextActionMenu } from "./context-menu-items";
 import {
   getVisibleTimelineEditorItems,
   type TimelineEditorMeasuredViewport,
@@ -348,12 +347,12 @@ function TimelineEditorTrackRowComponent<TTrackData extends Record<string, unkno
       }}
     >
       {timelineMenuEnabled && trackContextMenuItems.length > 0 ? (
-        <ContextActionMenu
+        <TimelineEditorContextActionMenu
           items={trackContextMenuItems}
           contentProps={{ "data-slot": "timeline-editor-track-menu" }}
         >
           {trackHeader}
-        </ContextActionMenu>
+        </TimelineEditorContextActionMenu>
       ) : (
         trackHeader
       )}
@@ -376,12 +375,12 @@ function TimelineEditorTrackRowComponent<TTrackData extends Record<string, unkno
   }
 
   return (
-    <ContextActionMenu
+    <TimelineEditorContextActionMenu
       items={trackContextMenuItems}
       contentProps={{ "data-slot": "timeline-editor-track-menu" }}
     >
       {track}
-    </ContextActionMenu>
+    </TimelineEditorContextActionMenu>
   );
 }
 

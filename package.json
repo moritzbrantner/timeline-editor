@@ -121,7 +121,9 @@
     "test": "vitest run --project=unit",
     "test:package": "bun run build && node ./tests/package/smoke.mjs",
     "test:playwright": "playwright test",
+    "test:regression": "playwright test src/react/workbench/workbench-basic-regressions.playwright.spec.ts",
     "test:storybook": "vitest run --project=storybook",
-    "verify": "bun run format:check && bun run lint && bun run check-types && bun run test && bun run test:storybook && bun run build-storybook && bun run build && bun run check-examples && bun run test:package"
+    "verify": "bun run format:check && bun run lint && bun run check-types && bun run test && bun run test:storybook && bun run build-storybook && bun run build && bun run check-examples && bun run test:package",
+    "verify:quick": "bun run check-types && bun run test && bun run test:regression"
   }
 }

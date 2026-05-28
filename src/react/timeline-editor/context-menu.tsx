@@ -4,7 +4,9 @@ import { cloneElement, useState } from "react";
 import type { ReactElement } from "react";
 import { flushSync } from "react-dom";
 
-import { ContextActionMenu, type MenuActionItem } from "@moritzbrantner/ui";
+import type { MenuActionItem } from "@moritzbrantner/ui";
+
+import { TimelineEditorContextActionMenu } from "./context-menu-items";
 
 type TimelineEditorContextMenuTargetProps<TContext> = {
   children: ReactElement<{ onContextMenu?: (event: React.MouseEvent<HTMLElement>) => void }>;
@@ -26,7 +28,7 @@ export function TimelineEditorContextMenuTarget<TContext>({
   }
 
   return (
-    <ContextActionMenu items={items} contentProps={contentProps}>
+    <TimelineEditorContextActionMenu items={items} contentProps={contentProps}>
       {cloneElement(children, {
         onContextMenu: (event) => {
           children.props.onContextMenu?.(event);
@@ -48,6 +50,6 @@ export function TimelineEditorContextMenuTarget<TContext>({
           flushSync(() => setItems(nextItems));
         },
       })}
-    </ContextActionMenu>
+    </TimelineEditorContextActionMenu>
   );
 }

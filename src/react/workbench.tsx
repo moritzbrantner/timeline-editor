@@ -1088,6 +1088,10 @@ export function TimelineWorkbench<
   };
 
   const handleWorkbenchKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.defaultPrevented) {
+      return;
+    }
+
     if (isKeyboardEventFromEditableTarget(event)) {
       return;
     }
@@ -1122,6 +1126,15 @@ export function TimelineWorkbench<
           commitSelection(redo.selection);
         }
       }
+      return;
+    }
+
+    if (
+      (resolvedHotkeys.delete && matchesHotkey(event, resolvedHotkeys.delete)) ||
+      event.key === "Backspace"
+    ) {
+      event.preventDefault();
+      deleteItems();
       return;
     }
 
