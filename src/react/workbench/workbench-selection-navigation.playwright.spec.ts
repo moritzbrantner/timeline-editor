@@ -102,7 +102,9 @@ test("zooms with ctrl mousewheel", async ({ page }) => {
     .toBeGreaterThan(initialBox!.width);
 });
 
-test("maps normal and shift mousewheel to horizontal scroll", async ({ page }) => {
+test("maps normal mousewheel to horizontal scroll and shift mousewheel to vertical scroll", async ({
+  page,
+}) => {
   await page.goto("/?fixture=large");
 
   const normalScrollState = await getTimelineEditor(page).evaluate((editor) => {
@@ -128,6 +130,7 @@ test("maps normal and shift mousewheel to horizontal scroll", async ({ page }) =
 
   const shiftScrollState = await getTimelineEditor(page).evaluate((editor) => {
     editor.scrollLeft = 0;
+    editor.scrollTop = 0;
     const defaultAllowed = editor.dispatchEvent(
       new WheelEvent("wheel", {
         bubbles: true,
@@ -145,8 +148,8 @@ test("maps normal and shift mousewheel to horizontal scroll", async ({ page }) =
   });
 
   expect(shiftScrollState.defaultAllowed).toBe(false);
-  expect(shiftScrollState.scrollLeft).toBe(160);
-  expect(shiftScrollState.scrollTop).toBe(0);
+  expect(shiftScrollState.scrollLeft).toBe(0);
+  expect(shiftScrollState.scrollTop).toBe(160);
 });
 
 test("keeps horizontal timeline scroll on the editor scroller", async ({ page }) => {

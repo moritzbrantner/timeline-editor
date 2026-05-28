@@ -709,6 +709,19 @@ export function TimelineEditor<
       if (!event.ctrlKey) {
         const deltaX = getTimelineEditorWheelDeltaPx(event.deltaX, event.deltaMode, scroller);
         const deltaY = getTimelineEditorWheelDeltaPx(event.deltaY, event.deltaMode, scroller);
+
+        if (event.shiftKey) {
+          const verticalDeltaPx = deltaY || deltaX;
+
+          if (verticalDeltaPx === 0) {
+            return;
+          }
+
+          event.preventDefault();
+          scroller.scrollTop += verticalDeltaPx;
+          return;
+        }
+
         const horizontalDeltaPx = deltaX + deltaY;
 
         if (horizontalDeltaPx === 0) {
