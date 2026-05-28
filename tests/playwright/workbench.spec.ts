@@ -27,6 +27,13 @@ type TimelineEditorHarnessState = {
       }>;
     }>;
   };
+  imports: Array<{
+    fileName?: string;
+    label?: string;
+    mimeType?: string;
+    size?: number;
+    type: string;
+  }>;
   selectedItemId: string | null;
   selectedItemIds: string[];
   range?: { startMs: number; endMs: number };
@@ -315,6 +322,55 @@ test("drags an asset from the asset panel onto the timeline", async ({ page }) =
         trackId: "planning",
       }),
     );
+});
+
+test("hides asset import controls without a host importer", async ({ page }) => {
+  await page.goto("/");
+
+  await expect(page.getByRole("button", { name: "Import files" })).toBeHidden();
+});
+
+test("imports a file asset through the host callback and inserts it", async ({ page }) => {
+  await page.goto("/?importAssets=true");
+
+  await page.locator("[data-slot='timeline-workbench-file-import']").setInputFiles({
+    name: "screen-recording.mp4",
+    mimeType: "video/mp4",
+    buffer: Buffer.from("fake video"),
+  });
+
+  await expect
+    .poll(async () => (await getHarnessState(page)).imports)
+    .toEqual([
+      expect.objectContaining({
+        fileName: "screen-recording.mp4",
+        label: "screen-recording.mp4",
+        mimeType: "video/mp4",
+        type: "file",
+      }),
+    ]);
+  await expect(page.getByRole("button", { name: /screen-recording\.mp4/ })).toBeVisible();
+
+  await page.getByRole("button", { name: /screen-recording\.mp4/ }).click();
+
+  await expect(getClip(page, "screen-recording.mp4")).toBeVisible();
+  await expect
+    .poll(async () => (await getItems(page)).find((item) => item.label === "screen-recording.mp4"))
+    .toEqual(
+      expect.objectContaining({
+        durationMs: 750,
+        label: "screen-recording.mp4",
+        startMs: 1_000,
+        trackId: "planning",
+      }),
+    );
+});
+
+test("read-only mode disables asset import", async ({ page }) => {
+  await page.goto("/?importAssets=true&readOnly=true");
+
+  await expect(page.getByRole("button", { name: "Import files" })).toBeDisabled();
+  await expect(page.locator("[data-slot='timeline-workbench-file-import']")).toBeDisabled();
 });
 
 test("adds and removes whole tracks", async ({ page }) => {

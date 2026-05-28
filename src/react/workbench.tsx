@@ -68,6 +68,8 @@ import { TimelineWorkbenchPreview } from "./workbench/preview";
 import type {
   TimelineEditorExtension,
   TimelineWorkbenchAsset,
+  TimelineWorkbenchImportSource,
+  TimelineWorkbenchImportState,
   TimelineWorkbenchInspectorContext,
   TimelineWorkbenchProps,
   TimelineWorkbenchTimelineContextMenuContext,
@@ -77,6 +79,9 @@ export { defaultTimelineWorkbenchHotkeys } from "./workbench/toolbar";
 export type {
   TimelineWorkbenchAsset,
   TimelineEditorExtension,
+  TimelineWorkbenchImportResult,
+  TimelineWorkbenchImportSource,
+  TimelineWorkbenchImportState,
   TimelineWorkbenchInspectorContext,
   TimelineWorkbenchInspectorSchema,
   TimelineWorkbenchItemContextMenuContext,
@@ -114,6 +119,8 @@ export function TimelineWorkbench<
   extensions = [],
   inspectorSchema,
   assets = [],
+  onImportAssets,
+  acceptedImportTypes,
   className,
   style,
   createItemId,
@@ -146,6 +153,13 @@ export function TimelineWorkbench<
     Partial<typeof defaultTimelineWorkbenchHotkeys>
   >({});
   const [draggedAssetId, setDraggedAssetId] = useState<string | null>(null);
+  const [importedAssets, setImportedAssets] = useState<Array<TimelineWorkbenchAsset<TAssetData>>>(
+    [],
+  );
+  const [importState, setImportState] = useState<TimelineWorkbenchImportState>({
+    status: "idle",
+  });
+  const resolvedAssets = useMemo(() => assets.concat(importedAssets), [assets, importedAssets]);
   const resolvedViewport = viewport ?? internalViewport;
   const durationMs = document.durationMs ?? getTimelineEditorDurationMs(document.tracks, 30_000);
   const frameDurationMs = getTimelineEditorFrameDurationMs(frameRate);
@@ -191,8 +205,8 @@ export function TimelineWorkbench<
     [extensions],
   );
   const trackKinds = useMemo(
-    () => getTimelineWorkbenchTrackKinds(document.tracks, assets, extensions),
-    [assets, document.tracks, extensions],
+    () => getTimelineWorkbenchTrackKinds(document.tracks, resolvedAssets, extensions),
+    [document.tracks, extensions, resolvedAssets],
   );
   const hasTimelineContextMenuItems = true;
 
@@ -600,6 +614,46 @@ export function TimelineWorkbench<
     }
 
     runCommand({ type: "close-gap", trackId, startMs, endMs });
+  };
+
+  const importAssets = async (sources: TimelineWorkbenchImportSource[]) => {
+    if (readOnly || sources.length === 0) {
+      return;
+    }
+
+    const sourceLabel = getTimelineWorkbenchImportSourceLabel(sources);
+
+    if (!onImportAssets) {
+      setImportState({
+        status: "failed",
+        sourceLabel,
+        error: "Import is not configured for this workbench.",
+      });
+      return;
+    }
+
+    setImportState({ status: "importing", sourceLabel });
+
+    try {
+      const results = await onImportAssets(sources);
+      const resultAssets = results.map((result) => result.asset);
+
+      if (resultAssets.length > 0) {
+        setImportedAssets((currentAssets) =>
+          currentAssets.concat(
+            uniquifyTimelineWorkbenchImportedAssets(assets.concat(currentAssets), resultAssets),
+          ),
+        );
+      }
+
+      setImportState({ status: "ready", sourceLabel });
+    } catch (error) {
+      setImportState({
+        status: "failed",
+        sourceLabel,
+        error: getTimelineWorkbenchImportErrorMessage(error),
+      });
+    }
   };
 
   const getRangeTargetTrackId = () =>
@@ -1322,11 +1376,15 @@ export function TimelineWorkbench<
       >
         <TimelineWorkbenchAssetsPanel
           className="h-full min-w-0"
-          assets={assets}
+          assets={resolvedAssets}
           tracks={document.tracks as Array<TimelineEditorTrack<Record<string, unknown>, unknown>>}
           selectedTrack={selectedTrack as TimelineEditorTrack<Record<string, unknown>, unknown>}
           readOnly={readOnly}
+          acceptedImportTypes={acceptedImportTypes}
+          importState={importState}
           renderAsset={renderAsset}
+          onImportAssets={onImportAssets ? importAssets : undefined}
+          onImportStateClear={() => setImportState({ status: "idle" })}
           onAssetDragEnd={() => setDraggedAssetId(null)}
           onAssetDragStart={(asset) => setDraggedAssetId(asset.id)}
           onInsertAsset={insertAsset}
@@ -1352,7 +1410,7 @@ export function TimelineWorkbench<
         </WorkbenchPanel>
       </div>
       <TimelineWorkbenchCanvas
-        assets={assets}
+        assets={resolvedAssets}
         draggedAssetId={draggedAssetId}
         document={document}
         editPolicy={editPolicy}
@@ -1520,4 +1578,43 @@ function getTimelineWorkbenchTrackKinds<
   return [...kinds].sort((left, right) =>
     formatTimelineWorkbenchTrackKind(left).localeCompare(formatTimelineWorkbenchTrackKind(right)),
   );
+}
+
+function getTimelineWorkbenchImportSourceLabel(sources: TimelineWorkbenchImportSource[]) {
+  if (sources.length !== 1) {
+    return `${sources.length} sources`;
+  }
+
+  const source = sources[0];
+
+  return source?.label ?? source?.file?.name ?? source?.url ?? "reference";
+}
+
+function getTimelineWorkbenchImportErrorMessage(error: unknown) {
+  return error instanceof Error && error.message ? error.message : "Import failed.";
+}
+
+function uniquifyTimelineWorkbenchImportedAssets<TAssetData>(
+  existingAssets: Array<TimelineWorkbenchAsset<TAssetData>>,
+  importedAssets: Array<TimelineWorkbenchAsset<TAssetData>>,
+) {
+  const usedIds = new Set(existingAssets.map((asset) => asset.id));
+
+  return importedAssets.map((asset) => {
+    if (!usedIds.has(asset.id)) {
+      usedIds.add(asset.id);
+      return asset;
+    }
+
+    let index = 2;
+    let id = `${asset.id}-import-${index}`;
+
+    while (usedIds.has(id)) {
+      index += 1;
+      id = `${asset.id}-import-${index}`;
+    }
+
+    usedIds.add(id);
+    return { ...asset, id };
+  });
 }

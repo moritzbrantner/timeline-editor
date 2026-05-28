@@ -35,6 +35,34 @@ export type TimelineWorkbenchAsset<TData = Record<string, unknown>> = {
   data?: TData;
 };
 
+export type TimelineWorkbenchImportSource<
+  TReference = unknown,
+  TMetadata = Record<string, unknown>,
+> = {
+  type: "file" | "url" | "reference";
+  file?: File;
+  url?: string;
+  reference?: TReference;
+  label?: string;
+  kind?: TimelineEditorItemKind;
+  mediaType?: TimelineMediaType;
+  durationMs?: number;
+  metadata?: TMetadata;
+};
+
+export type TimelineWorkbenchImportResult<TAssetData = Record<string, unknown>> = {
+  asset: TimelineWorkbenchAsset<TAssetData>;
+  warnings?: string[];
+  errors?: string[];
+  metadata?: Record<string, unknown>;
+};
+
+export type TimelineWorkbenchImportState = {
+  status: "idle" | "importing" | "ready" | "failed";
+  sourceLabel?: string;
+  error?: string;
+};
+
 export type TimelineWorkbenchSelection<TData = Record<string, unknown>> = {
   item?: TimelineEditorItem<TData>;
   itemId?: string;
@@ -199,6 +227,13 @@ export type TimelineWorkbenchProps<
   extensions?: Array<TimelineEditorExtension<TItemData, TTrackData, TAssetData>>;
   inspectorSchema?: TimelineWorkbenchInspectorSchema<TItemData>;
   assets?: Array<TimelineWorkbenchAsset<TAssetData>>;
+  onImportAssets?: (
+    sources: TimelineWorkbenchImportSource[],
+  ) =>
+    | Promise<Array<TimelineWorkbenchImportResult<TAssetData>>>
+    | Array<TimelineWorkbenchImportResult<TAssetData>>;
+  acceptedImportTypes?: string[];
+  allowUrlImport?: boolean;
   className?: string;
   style?: CSSProperties;
   createItemId?: (asset: TimelineWorkbenchAsset<TAssetData>) => string;

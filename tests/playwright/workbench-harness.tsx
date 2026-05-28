@@ -10,6 +10,7 @@ import {
   type TimelineEditorSelection,
   type TimelineEditorTrack,
   type TimelineWorkbenchAsset,
+  type TimelineWorkbenchImportSource,
   type TimelineWorkbenchSelection,
 } from "@moritzbrantner/timeline-editor";
 
@@ -17,6 +18,13 @@ type HarnessState = {
   changes: string[];
   document: TimelineEditorDocument;
   frameRate?: number;
+  imports: Array<{
+    fileName?: string;
+    label?: string;
+    size?: number;
+    type: string;
+    mimeType?: string;
+  }>;
   range?: TimelineEditorSelection["range"];
   selectedItemId: string | null;
   selectedItemIds: string[];
@@ -99,6 +107,7 @@ function App() {
   const readOnly = searchParams.get("readOnly") === "true";
   const largeFixture = searchParams.get("fixture") === "large";
   const timelineMenuFixture = searchParams.get("timelineMenu") === "true";
+  const importAssetsFixture = searchParams.get("importAssets") === "true";
   const frameRateParam = searchParams.get("frameRate");
   const initialFrameRate = frameRateParam ? Number(frameRateParam) : undefined;
   const [frameRate, setFrameRate] = useState<number | undefined>(initialFrameRate);
@@ -107,12 +116,14 @@ function App() {
   );
   const [selection, setSelection] = useState<TimelineEditorSelection>({ itemIds: [] });
   const changes = useRef<string[]>([]);
+  const imports = useRef<HarnessState["imports"]>([]);
 
   useEffect(() => {
     window["__timelineEditorHarness"] = {
       changes: changes.current,
       document,
       frameRate,
+      imports: imports.current,
       range: selection.range,
       selectedItemId: selection.itemIds[0] ?? null,
       selectedItemIds: selection.itemIds,
@@ -146,6 +157,49 @@ function App() {
     recordChange(`selected:${selection.itemId ?? ""}`);
   };
 
+  const handleImportAssets = (sources: TimelineWorkbenchImportSource[]) => {
+    const nextImports = sources.map((source) => ({
+      type: source.type,
+      label: source.label,
+      fileName: source.file?.name,
+      size: source.file?.size,
+      mimeType: source.file?.type,
+    }));
+    imports.current = [...imports.current, ...nextImports];
+
+    if (window["__timelineEditorHarness"]) {
+      window["__timelineEditorHarness"].imports = imports.current;
+    }
+
+    recordChange(
+      `import:${nextImports.map((source) => source.fileName ?? source.label).join(",")}`,
+    );
+
+    return sources.map((source) => {
+      const label = source.label ?? source.file?.name ?? "Imported asset";
+
+      return {
+        asset: {
+          id: `imported-${label
+            .toLowerCase()
+            .replaceAll(/[^a-z0-9]+/g, "-")
+            .replaceAll(/^-|-$/g, "")}`,
+          label,
+          kind: "task",
+          mediaType: "video",
+          durationMs: 750,
+          color: "#f59e0b",
+          description: "Imported file",
+          data: {
+            fileName: source.file?.name,
+            imported: true,
+            mediaType: "video",
+          },
+        } satisfies TimelineWorkbenchAsset,
+      };
+    });
+  };
+
   if (largeFixture) {
     return (
       <div className="p-4">
@@ -172,6 +226,8 @@ function App() {
       frameRate={frameRate}
       snapMs={100}
       assets={timelineAssets}
+      acceptedImportTypes={["video/*"]}
+      onImportAssets={importAssetsFixture ? handleImportAssets : undefined}
       onDocumentChange={handleDocumentChange}
       onCurrentTimeChange={handleCurrentTimeChange}
       onSelectionChange={handleSelectionChange}

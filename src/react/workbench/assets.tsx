@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type DragEvent, type MouseEvent, type ReactNode } from "react";
+import { useMemo, useRef, useState, type DragEvent, type MouseEvent, type ReactNode } from "react";
 
 import { Badge, Button, Input, WorkbenchPanel, cn } from "@moritzbrantner/ui";
 
@@ -15,7 +15,11 @@ import {
   type TimelineMediaType,
 } from "../../media-types";
 import { createTimelineWorkbenchItemId } from "./ids";
-import type { TimelineWorkbenchAsset } from "./types";
+import type {
+  TimelineWorkbenchAsset,
+  TimelineWorkbenchImportSource,
+  TimelineWorkbenchImportState,
+} from "./types";
 
 export const timelineWorkbenchAssetDragDataType = "application/x-timeline-workbench-asset-id";
 
@@ -92,8 +96,12 @@ type TimelineWorkbenchAssetsPanelProps<TAssetData> = {
   tracks: Array<TimelineEditorTrack<Record<string, unknown>, unknown>>;
   selectedTrack?: TimelineEditorTrack<Record<string, unknown>, unknown>;
   readOnly: boolean;
+  acceptedImportTypes?: string[];
+  importState?: TimelineWorkbenchImportState;
   renderAsset?: (asset: TimelineWorkbenchAsset<TAssetData>) => ReactNode;
   onMinimize?: () => void;
+  onImportAssets?: (sources: TimelineWorkbenchImportSource[]) => void | Promise<void>;
+  onImportStateClear?: () => void;
   onInsertAsset: (asset: TimelineWorkbenchAsset<TAssetData>) => void;
   onAssetDragEnd?: () => void;
   onAssetDragStart?: (asset: TimelineWorkbenchAsset<TAssetData>) => void;
@@ -105,8 +113,12 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
   tracks,
   selectedTrack,
   readOnly,
+  acceptedImportTypes,
+  importState = { status: "idle" },
   renderAsset,
   onMinimize,
+  onImportAssets,
+  onImportStateClear,
   onInsertAsset,
   onAssetDragEnd,
   onAssetDragStart,
@@ -115,6 +127,7 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
   const [kindFilter, setKindFilter] = useState("");
   const [mediaTypeFilter, setMediaTypeFilter] = useState("");
   const [compatibleOnly, setCompatibleOnly] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const filterOptions = useMemo(
     () => ({
       kinds: [...new Set(assets.map((asset) => asset.kind).filter(Boolean))].sort(),
@@ -150,6 +163,26 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
     setMediaTypeFilter("");
     setCompatibleOnly(false);
   };
+  const handleFileImport = (files: FileList | null) => {
+    const selectedFiles = Array.from(files ?? []);
+
+    if (selectedFiles.length === 0 || !onImportAssets) {
+      return;
+    }
+
+    void onImportAssets(
+      selectedFiles.map((file) => ({
+        type: "file",
+        file,
+        label: file.name,
+        metadata: {
+          lastModified: file.lastModified,
+          mimeType: file.type,
+          size: file.size,
+        },
+      })),
+    );
+  };
 
   return (
     <WorkbenchPanel side="left" className={cn("min-w-64 p-0", className)}>
@@ -165,6 +198,49 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
             ) : null}
           </div>
         </div>
+        {onImportAssets ? (
+          <div className="grid gap-2">
+            <input
+              ref={fileInputRef}
+              data-slot="timeline-workbench-file-import"
+              hidden
+              type="file"
+              multiple
+              disabled={readOnly || importState.status === "importing"}
+              accept={acceptedImportTypes?.join(",")}
+              onChange={(event) => {
+                handleFileImport(event.currentTarget.files);
+                event.currentTarget.value = "";
+              }}
+            />
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={readOnly || importState.status === "importing"}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {importState.status === "importing" ? "Importing..." : "Import files"}
+              </Button>
+              {importState.status === "ready" && importState.sourceLabel ? (
+                <span className="truncate text-xs text-muted-foreground">
+                  Imported {importState.sourceLabel}
+                </span>
+              ) : null}
+            </div>
+            {importState.status === "failed" ? (
+              <div className="flex items-center justify-between gap-2 rounded border border-destructive/40 bg-background px-2 py-1 text-xs text-destructive">
+                <span className="min-w-0 truncate">{importState.error ?? "Import failed."}</span>
+                {onImportStateClear ? (
+                  <Button type="button" size="sm" variant="ghost" onClick={onImportStateClear}>
+                    Clear
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {assets.length > 0 ? (
           <div className="grid gap-2">
             <Input
