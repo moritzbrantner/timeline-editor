@@ -2,11 +2,13 @@ import "@moritzbrantner/ui/styles.css";
 
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { ActionMenu, Button } from "@moritzbrantner/ui";
 
 import {
   TimelineEditor,
   TimelineWorkbench,
   type TimelineEditorDocument,
+  type TimelineEditorEditPolicy,
   type TimelineEditorSelection,
   type TimelineEditorTrack,
   type TimelineWorkbenchAsset,
@@ -66,6 +68,39 @@ const createDocument = (): TimelineEditorDocument => ({
   markers: [{ id: "handoff", timeMs: 4_000, label: "Handoff" }],
 });
 
+const createOverlapPreventDocument = (): TimelineEditorDocument => ({
+  tracks: [
+    {
+      id: "planning",
+      label: "Planning",
+      acceptsItemKinds: ["task", "review"],
+      items: [
+        {
+          id: "first",
+          trackId: "planning",
+          label: "First",
+          kind: "task",
+          startMs: 1_000,
+          durationMs: 2_000,
+          color: "#2563eb",
+        },
+        {
+          id: "second",
+          trackId: "planning",
+          label: "Second",
+          kind: "task",
+          startMs: 3_500,
+          durationMs: 1_500,
+          color: "#16a34a",
+        },
+      ],
+    },
+  ] satisfies TimelineEditorTrack[],
+  durationMs: 8_000,
+  currentTimeMs: 1_000,
+  markers: [{ id: "handoff", timeMs: 4_000, label: "Handoff" }],
+});
+
 const createLargeDocument = (): TimelineEditorDocument => ({
   durationMs: 10 * 60_000,
   currentTimeMs: 0,
@@ -105,15 +140,19 @@ const timelineAssets = [
 function App() {
   const searchParams = new URLSearchParams(window.location.search);
   const readOnly = searchParams.get("readOnly") === "true";
-  const largeFixture = searchParams.get("fixture") === "large";
+  const fixture = searchParams.get("fixture") ?? "basic";
+  const largeFixture = fixture === "large";
   const timelineMenuFixture = searchParams.get("timelineMenu") === "true";
   const importAssetsFixture = searchParams.get("importAssets") === "true";
+  const assetActionsFixture = searchParams.get("assetActions") === "true";
+  const editPolicy: Partial<TimelineEditorEditPolicy> | undefined =
+    searchParams.get("editPolicy") === "prevent"
+      ? { overlap: "prevent", ripple: false }
+      : undefined;
   const frameRateParam = searchParams.get("frameRate");
   const initialFrameRate = frameRateParam ? Number(frameRateParam) : undefined;
   const [frameRate, setFrameRate] = useState<number | undefined>(initialFrameRate);
-  const [document, setDocument] = useState(() =>
-    largeFixture ? createLargeDocument() : createDocument(),
-  );
+  const [document, setDocument] = useState(() => createFixtureDocument(fixture));
   const [selection, setSelection] = useState<TimelineEditorSelection>({ itemIds: [] });
   const changes = useRef<string[]>([]);
   const imports = useRef<HarnessState["imports"]>([]);
@@ -208,6 +247,7 @@ function App() {
           document={document}
           selection={selection}
           readOnly={readOnly}
+          editPolicy={editPolicy}
           viewport={{ pixelsPerSecond: 80 }}
           virtualization={{ rows: true, rowOverscanPx: 80 }}
           onDocumentChange={handleDocumentChange}
@@ -222,6 +262,7 @@ function App() {
       document={document}
       selection={selection}
       readOnly={readOnly}
+      editPolicy={editPolicy}
       pixelsPerSecond={80}
       frameRate={frameRate}
       snapMs={100}
@@ -261,14 +302,68 @@ function App() {
             ]
           : undefined
       }
-      renderAsset={(asset) => (
-        <div>
-          <div>{asset.label}</div>
-          <div className="text-xs text-muted-foreground">{asset.description}</div>
-        </div>
-      )}
+      renderAsset={(asset) =>
+        assetActionsFixture ? (
+          <div className="flex w-full items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div>{asset.label}</div>
+              <div className="text-xs text-muted-foreground">{asset.description}</div>
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                aria-label={`Delete ${asset.label}`}
+                data-timeline-workbench-asset-action=""
+                onClick={() => recordChange(`asset-action:delete:${asset.id}`)}
+              >
+                Delete
+              </Button>
+              <ActionMenu
+                label={`${asset.label} actions`}
+                trigger={
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    aria-label={`${asset.label} menu`}
+                    data-timeline-workbench-asset-action=""
+                  >
+                    More
+                  </Button>
+                }
+                items={[
+                  {
+                    id: `delete-${asset.id}`,
+                    label: `Delete ${asset.label} from menu`,
+                    onSelect: () => recordChange(`asset-action:delete-menu:${asset.id}`),
+                  },
+                ]}
+              />
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div>{asset.label}</div>
+            <div className="text-xs text-muted-foreground">{asset.description}</div>
+          </div>
+        )
+      }
     />
   );
+}
+
+function createFixtureDocument(fixture: string): TimelineEditorDocument {
+  if (fixture === "large") {
+    return createLargeDocument();
+  }
+
+  if (fixture === "overlap-prevent") {
+    return createOverlapPreventDocument();
+  }
+
+  return createDocument();
 }
 
 const root = document.getElementById("root");
