@@ -114,16 +114,11 @@ export function TimelineWorkbenchCanvas<
     allowed: boolean;
     asset: TimelineWorkbenchAsset<TAssetData>;
     durationMs: number;
+    scrollLeftPx: number;
+    scrollTopPx: number;
     timeMs: number;
     trackId: string;
   } | null>(null);
-  const timelineMinHeightPx =
-    timelineEditorRulerHeightPx +
-    document.tracks.reduce(
-      (heightPx, track) => heightPx + (track.height ?? timelineEditorDefaultTrackHeightPx),
-      0,
-    ) +
-    (document.groups?.length ?? 0) * timelineEditorTrackGroupHeightPx;
 
   const getAssetDropPlacement = (event: React.DragEvent<HTMLDivElement>) => {
     const target = event.target instanceof Element ? event.target : null;
@@ -187,6 +182,8 @@ export function TimelineWorkbenchCanvas<
         allowed,
         asset,
         durationMs: asset.durationMs,
+        scrollLeftPx: event.currentTarget.scrollLeft,
+        scrollTopPx: event.currentTarget.scrollTop,
         timeMs: placement.timeMs,
         trackId: placement.track.id,
       };
@@ -195,6 +192,8 @@ export function TimelineWorkbenchCanvas<
         currentFeedback.allowed === nextFeedback.allowed &&
         currentFeedback.asset.id === nextFeedback.asset.id &&
         currentFeedback.durationMs === nextFeedback.durationMs &&
+        currentFeedback.scrollLeftPx === nextFeedback.scrollLeftPx &&
+        currentFeedback.scrollTopPx === nextFeedback.scrollTopPx &&
         currentFeedback.timeMs === nextFeedback.timeMs &&
         currentFeedback.trackId === nextFeedback.trackId
         ? currentFeedback
@@ -222,7 +221,7 @@ export function TimelineWorkbenchCanvas<
       className="grid min-h-0 overflow-hidden p-3"
       style={{
         gridTemplateRows: "minmax(0, 1fr) auto",
-        minHeight: timelineMinHeightPx + 84,
+        height: "18rem",
       }}
     >
       <div className="relative min-h-0">
@@ -342,13 +341,18 @@ function TimelineWorkbenchDropFeedback<TTrackData, TItemData, TAssetData>({
     allowed: boolean;
     asset: TimelineWorkbenchAsset<TAssetData>;
     durationMs: number;
+    scrollLeftPx: number;
+    scrollTopPx: number;
     timeMs: number;
     trackId: string;
   };
   pixelsPerSecond: number;
 }) {
   const topPx = getTimelineWorkbenchTrackTopPx(document, feedback.trackId);
-  const leftPx = timelineEditorTrackHeaderWidthPx + (feedback.timeMs / 1_000) * pixelsPerSecond;
+  const leftPx =
+    timelineEditorTrackHeaderWidthPx +
+    (feedback.timeMs / 1_000) * pixelsPerSecond -
+    feedback.scrollLeftPx;
   const widthPx = Math.max(24, (feedback.durationMs / 1_000) * pixelsPerSecond);
 
   return (
@@ -382,7 +386,7 @@ function TimelineWorkbenchDropFeedback<TTrackData, TItemData, TAssetData>({
         }`}
         style={{
           left: leftPx,
-          top: timelineEditorRulerHeightPx + topPx + 8,
+          top: timelineEditorRulerHeightPx + topPx - feedback.scrollTopPx + 8,
           width: widthPx,
           height: Math.max(24, timelineEditorDefaultTrackHeightPx - 16),
         }}

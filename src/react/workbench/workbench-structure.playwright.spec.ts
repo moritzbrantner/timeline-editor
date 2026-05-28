@@ -18,7 +18,8 @@ import {
 test("adds and removes whole tracks", async ({ page }) => {
   await page.goto("/");
 
-  const initialEditorHeight = (await getTimelineEditor(page).boundingBox())?.height ?? 0;
+  const initialEditorBox = await getTimelineEditor(page).boundingBox();
+  expect(initialEditorBox).not.toBeNull();
 
   await page.getByRole("button", { name: "Add Track" }).click();
   await page.getByRole("menuitem", { name: "Review Track" }).click();
@@ -30,12 +31,65 @@ test("adds and removes whole tracks", async ({ page }) => {
       .last(),
   ).toBeVisible();
   await expect
-    .poll(async () => (await getTimelineEditor(page).boundingBox())?.height ?? 0)
-    .toBeGreaterThan(initialEditorHeight);
-  await expect
     .poll(async () => (await getHarnessState(page)).document.tracks.map((track) => track.id))
     .toEqual(["planning", "review", "review-track-3"]);
 
+  await page.getByRole("button", { name: "Add Track" }).click();
+  await page.getByRole("menuitem", { name: "Review Track" }).click();
+  await page.getByRole("button", { name: "Add Track" }).click();
+  await page.getByRole("menuitem", { name: "Review Track" }).click();
+  await page.getByRole("button", { name: "Add Track" }).click();
+  await page.getByRole("menuitem", { name: "Review Track" }).click();
+
+  await expect
+    .poll(async () => (await getHarnessState(page)).document.tracks.map((track) => track.id))
+    .toEqual([
+      "planning",
+      "review",
+      "review-track-3",
+      "review-track-4",
+      "review-track-5",
+      "review-track-6",
+    ]);
+
+  await expect
+    .poll(async () => Math.round((await getTimelineEditor(page).boundingBox())?.height ?? 0))
+    .toBe(Math.round(initialEditorBox!.height));
+
+  await expect
+    .poll(() =>
+      getTimelineEditor(page).evaluate((editor) => editor.scrollHeight > editor.clientHeight),
+    )
+    .toBe(true);
+
+  const trackRows = await page
+    .locator("[data-slot='timeline-editor-track']")
+    .evaluateAll((tracks) =>
+      tracks.map((track) => ({
+        label: track.textContent ?? "",
+        top: (track.parentElement as HTMLElement | null)?.offsetTop ?? 0,
+      })),
+    );
+  const planningRow = trackRows.find((track) => track.label.includes("Planning"));
+  const reviewRow = trackRows.find((track) => track.label === "Review");
+  const lastReviewRow = trackRows.find((track) => track.label.includes("Review Track 6"));
+  expect(planningRow).toBeTruthy();
+  expect(reviewRow?.top).toBeGreaterThan(planningRow!.top);
+  expect(lastReviewRow?.top).toBeGreaterThan(reviewRow!.top);
+
+  await getTimelineEditor(page).evaluate((editor) => {
+    editor.scrollTop = editor.scrollHeight;
+  });
+  await expect(
+    page
+      .locator("[data-slot='timeline-editor-track']")
+      .filter({ hasText: "Review Track 6" })
+      .last(),
+  ).toBeVisible();
+
+  await getTimelineEditor(page).evaluate((editor) => {
+    editor.scrollTop = 0;
+  });
   const planningTrack = getTimelineTrack(page, "Planning");
   const planningTrackBox = await planningTrack.boundingBox();
   expect(planningTrackBox).not.toBeNull();
@@ -52,7 +106,7 @@ test("adds and removes whole tracks", async ({ page }) => {
   await expectNoItem(page, "brief");
   await expect
     .poll(async () => (await getHarnessState(page)).document.tracks.map((track) => track.id))
-    .toEqual(["review", "review-track-3"]);
+    .toEqual(["review", "review-track-3", "review-track-4", "review-track-5", "review-track-6"]);
   await expect.poll(async () => (await getHarnessState(page)).selectedItemIds).toEqual([]);
 });
 
