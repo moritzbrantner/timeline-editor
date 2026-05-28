@@ -5,15 +5,17 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
-import unitConfig, { timelineEditorTestAlias } from "./vitest.config";
+import { timelineEditorTestAlias } from "./vitest.config";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const storybookPlugins = await storybookTest({ configDir: path.join(dirname, ".storybook") });
 
 export default defineConfig({
+  resolve: {
+    alias: timelineEditorTestAlias,
+  },
   test: {
     projects: [
-      unitConfig,
       {
         extends: true,
         plugins: storybookPlugins,

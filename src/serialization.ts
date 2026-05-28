@@ -22,6 +22,8 @@ export type SerializedTimelineEditorDocument<
   document: TimelineEditorDocument<TTrackData, TItemData, TGroupData, TTransformValues>;
 };
 
+export const currentTimelineEditorSchemaVersion = 1;
+
 export class TimelineEditorParseError extends Error {
   issues: Array<{ path: string; message: string }>;
 
@@ -41,7 +43,7 @@ export function serializeTimelineEditorDocument<
   document: TimelineEditorDocument<TTrackData, TItemData, TGroupData, TTransformValues>,
 ): SerializedTimelineEditorDocument<TTrackData, TItemData, TGroupData, TTransformValues> {
   return {
-    schemaVersion: 1,
+    schemaVersion: currentTimelineEditorSchemaVersion,
     document: normalizeTimelineEditorDocument(document) as TimelineEditorDocument<
       TTrackData,
       TItemData,

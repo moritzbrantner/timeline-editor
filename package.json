@@ -118,11 +118,11 @@
     "check-types": "tsc --noEmit",
     "check-examples": "tsc --ignoreConfig --noEmit --jsx react-jsx --module ESNext --moduleResolution Bundler --target ES2022 --strict --skipLibCheck tests/examples/*.tsx",
     "storybook": "storybook dev -p 6006 --host 127.0.0.1",
-    "test": "vitest run --project=unit",
+    "test": "vitest run --config vitest.config.ts",
     "test:package": "bun run build && node ./tests/package/smoke.mjs",
     "test:playwright": "playwright test",
     "test:regression": "playwright test src/react/workbench/workbench-basic-regressions.playwright.spec.ts",
-    "test:storybook": "vitest run --project=storybook",
+    "test:storybook": "vitest run --config vitest.storybook.config.ts",
     "verify": "bun run format:check && bun run lint && bun run check-types && bun run test && bun run test:storybook && bun run build-storybook && bun run build && bun run check-examples && bun run test:package",
     "verify:quick": "bun run check-types && bun run test && bun run test:regression"
   }

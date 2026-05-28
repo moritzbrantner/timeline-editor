@@ -1,4 +1,5 @@
 import {
+  currentTimelineEditorSchemaVersion,
   parseTimelineEditorDocument,
   serializeTimelineEditorDocument,
   type SerializedTimelineEditorDocument,
@@ -23,7 +24,7 @@ export function migrateTimelineEditorDocument(input: unknown): SerializedTimelin
     return serializeTimelineEditorDocument(parseTimelineEditorDocument(input));
   }
 
-  if (input.schemaVersion === 1) {
+  if (input.schemaVersion === currentTimelineEditorSchemaVersion) {
     return serializeTimelineEditorDocument(parseTimelineEditorDocument(input));
   }
 

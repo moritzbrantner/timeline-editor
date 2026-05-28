@@ -52,6 +52,19 @@ test("omits an unconfigured empty assets panel", async ({ page }) => {
   await expect(getTimelineEditor(page)).toBeVisible();
 });
 
+test("shows document state and marker action for empty selection with no markers", async ({
+  page,
+}) => {
+  await page.goto("/?fixture=no-markers");
+
+  const inspector = page.locator("[data-slot='timeline-workbench-inspector']");
+
+  await expect(inspector.getByText("Document")).toBeVisible();
+  await expect(inspector.getByText("2 tracks · 1 item")).toBeVisible();
+  await expect(inspector.getByText("0 markers · playhead 0:01.0")).toBeVisible();
+  await expect(inspector.getByRole("button", { name: "Add" })).toBeVisible();
+});
+
 test("shows compact preview state when no item is active", async ({ page }) => {
   await page.goto("/?fixture=no-active");
 
@@ -93,4 +106,18 @@ test("virtualizes large timeline rows", async ({ page }) => {
   await expect
     .poll(async () => page.locator("[data-slot='timeline-editor-track']").count())
     .toBeLessThan(20);
+});
+
+test("keeps workbench panels usable on a small viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 720 });
+  await page.goto("/");
+
+  await expect(getTimelineEditor(page)).toBeVisible();
+  await expect(page.locator("[data-slot='timeline-workbench-toolbar']")).toBeVisible();
+  await expect(page.locator("[data-slot='timeline-workbench-inspector']")).toBeVisible();
+
+  const editorBox = await getTimelineEditor(page).boundingBox();
+  expect(editorBox).not.toBeNull();
+  expect(editorBox!.width).toBeGreaterThan(160);
+  expect(editorBox!.height).toBeGreaterThan(180);
 });

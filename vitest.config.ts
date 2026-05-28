@@ -1,13 +1,11 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
-import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 const rootDir = fileURLToPath(new URL("./", import.meta.url));
 
-const alias = [
+export const timelineEditorTestAlias = [
   {
     find: "@moritzbrantner/timeline-editor/core",
     replacement: path.resolve(rootDir, "src/core.ts"),
@@ -48,34 +46,10 @@ const alias = [
 
 export default defineConfig({
   resolve: {
-    alias,
+    alias: timelineEditorTestAlias,
   },
   test: {
-    projects: [
-      {
-        resolve: { alias },
-        test: {
-          name: "unit",
-          environment: "jsdom",
-          globals: true,
-          include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
-        },
-      },
-      {
-        plugins: [storybookTest({ configDir: ".storybook" })],
-        resolve: { alias },
-        test: {
-          name: "storybook",
-          browser: {
-            enabled: true,
-            headless: true,
-            provider: playwright(),
-            instances: [{ browser: "chromium" }],
-          },
-          setupFiles: [".storybook/vitest.setup.ts"],
-        },
-      },
-    ],
+    name: "unit",
     environment: "jsdom",
     globals: true,
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],

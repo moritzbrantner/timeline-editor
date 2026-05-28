@@ -106,6 +106,11 @@ const createNoActiveItemsDocument = (): TimelineEditorDocument => ({
   currentTimeMs: 7_500,
 });
 
+const createNoMarkersDocument = (): TimelineEditorDocument => ({
+  ...createDocument(),
+  markers: [],
+});
+
 const createLargeDocument = (): TimelineEditorDocument => ({
   durationMs: 10 * 60_000,
   currentTimeMs: 0,
@@ -385,6 +390,10 @@ function createFixtureDocument(fixture: string): TimelineEditorDocument {
 
   if (fixture === "no-active") {
     return createNoActiveItemsDocument();
+  }
+
+  if (fixture === "no-markers") {
+    return createNoMarkersDocument();
   }
 
   return createDocument();

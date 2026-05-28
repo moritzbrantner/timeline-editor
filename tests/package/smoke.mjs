@@ -145,6 +145,7 @@ const expectedRuntimeExports = {
   ],
   "serialization.js": [
     "TimelineEditorParseError",
+    "currentTimelineEditorSchemaVersion",
     "parseTimelineEditorDocument",
     "readTimelineEditorDocument",
     "serializeTimelineEditorDocument",
@@ -198,6 +199,14 @@ for (const exportTarget of Object.values(packageJson.exports)) {
   }
 }
 
+for (const [subpath, exportTarget] of Object.entries(packageJson.exports)) {
+  assert("types" in exportTarget, `Package export ${subpath} is missing a types target`);
+  assert(
+    existsSync(path.join(rootDir, exportTarget.types)),
+    `Package export ${subpath} types target does not exist: ${exportTarget.types}`,
+  );
+}
+
 assert(
   packageJson.peerDependencies?.react === "^19.0.0" &&
     packageJson.peerDependencies?.["react-dom"] === "^19.0.0",
@@ -205,7 +214,6 @@ assert(
 );
 
 for (const [subpath, exportTarget] of Object.entries(packageJson.exports)) {
-  assert("types" in exportTarget, `Package export ${subpath} is missing a types target`);
   assert("import" in exportTarget, `Package export ${subpath} is missing an import target`);
 }
 

@@ -24,6 +24,18 @@ this package.
 - `validateTimelineEditorDocument(...)`, `serializeTimelineEditorDocument(...)`, `parseTimelineEditorDocument(...)`, and `migrateTimelineEditorDocument(...)`.
 - `detectTimelineEditorOverlaps(...)`, `getTimelineEditorDurationMs(...)`, and timeline tick/snap helpers.
 
+## API Policy
+
+The public `0.x` package surface is the root export plus these subpaths: `./core`,
+`./react`, `./commands`, `./history`, `./serialization`, `./media-types`,
+`./text`, `./audio`, `./video`, `./image`, and `./data`.
+
+Core document utilities, commands, history helpers, validation, serialization,
+and media data helpers are pure functions. `TimelineEditor` and
+`TimelineWorkbench` are controlled React components: hosts own document,
+selection, viewport, hotkey, and clipboard state when they pass the matching
+props.
+
 ## Core Editor
 
 The core package stays media-agnostic. Items can represent any timed domain
@@ -119,9 +131,11 @@ subpaths:
 - `@moritzbrantner/timeline-editor/image` for still image thumbnails and dimensions.
 - `@moritzbrantner/timeline-editor/data` for numeric data series and compact sparkline display.
 
-These interfaces describe item data for display. They do not decode media,
-generate waveforms or thumbnails, play audio/video, export renders, apply
-effects, or implement transitions.
+## Limitations
+
+Built-in media extensions describe item data for display only. They do not
+decode media, generate waveforms or thumbnails, play audio/video, export renders,
+apply effects, or implement transitions.
 
 ```tsx
 import { TimelineWorkbench, type TimelineEditorDocument } from "@moritzbrantner/timeline-editor";
@@ -275,8 +289,38 @@ const mediaType = getTimelineMediaTypeForItem(document.tracks[0]!.items[0]!);
 const mediaIssues = validateTimelineEditorMediaTypes(document);
 ```
 
-The private packages under `packages/audio`, `packages/video`, and
-`packages/captions` re-export these public media entrypoints for compatibility.
+## Package Layout
+
+The main `@moritzbrantner/timeline-editor` package owns all public exports. The
+private workspace packages under `packages/audio`, `packages/video`, and
+`packages/captions` currently re-export media entrypoints for future split-package
+compatibility. Consumers should not depend on the private `@timeline-editor/*`
+packages.
+
+Split media packages should wait until there is a concrete need: independent
+install requests, heavier optional media dependencies, or a measured main-package
+size problem.
+
+## Recipes
+
+- Controlled `TimelineEditor`: pass `document`, `selection`, `onDocumentChange`,
+  and `onSelectionChange`.
+- Controlled `TimelineWorkbench`: pass document and selection state, then opt in
+  to assets, inspector schema, clipboard, viewport, and hotkey persistence as
+  needed.
+- Custom item rendering: pass `renderTimelineItem` to `TimelineWorkbench` or
+  `renderItem` to `TimelineEditor`.
+- Custom asset insertion: pass `assets`, `onAssetInsert`, and optional
+  `renderAsset`.
+- Serialization and migration: save `serializeTimelineEditorDocument(document)`;
+  load with `migrateTimelineEditorDocument(stored).document`.
+- Hotkey persistence: pass `hotkeys` and persist changes from
+  `onHotkeysChange`.
+- Read-only mode: pass `readOnly` to block pointer, keyboard, toolbar, and
+  context-menu mutations.
+
+Longer examples are mirrored in `tests/examples/*.tsx` so
+`bun run check-examples` keeps the documented API usage typechecked.
 
 ## Controlled React Example
 
@@ -338,6 +382,12 @@ bun dev
 
 The example lives in `examples/dev` and imports the local `src` entrypoints through
 Vite aliases.
+
+## Contributor Checks
+
+- Use `bun run verify:quick` for normal changes before opening a PR.
+- Use `bun run verify` before release-oriented changes.
+- Use `bun run test:playwright` when touching workbench UI behavior.
 
 ## Core-only Usage
 
@@ -478,18 +528,24 @@ until the next point. Supported easings are `linear`, `hold`, `ease-in`,
 ```ts
 import { migrateTimelineEditorDocument } from "@moritzbrantner/timeline-editor";
 import {
+  currentTimelineEditorSchemaVersion,
   parseTimelineEditorDocument,
   serializeTimelineEditorDocument,
 } from "@moritzbrantner/timeline-editor/serialization";
 
 const stored = serializeTimelineEditorDocument(document);
 const restored = parseTimelineEditorDocument(stored);
-const migrated = migrateTimelineEditorDocument(stored);
+const migrated = migrateTimelineEditorDocument(stored).document;
+const schemaVersion = currentTimelineEditorSchemaVersion;
 ```
 
-Serialized documents use `schemaVersion: 1`. `migrateTimelineEditorDocument`
+Serialized documents use `schemaVersion: 1`, also exported as
+`currentTimelineEditorSchemaVersion`. Save with
+`serializeTimelineEditorDocument(document)` and load with
+`migrateTimelineEditorDocument(stored).document`. `migrateTimelineEditorDocument`
 accepts raw documents and v1 serialized documents, preserves custom `data`, and
 throws `TimelineEditorMigrationError` for unsupported future schema versions.
+Custom `data` fields should be JSON-compatible host data.
 
 ## Media Kinds
 

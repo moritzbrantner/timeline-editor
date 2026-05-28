@@ -19,6 +19,7 @@ import {
   getTimelineEditorTransformValuesAt,
   getVisibleTimelineEditorTicksForRange,
   insertTimelineEditorItem,
+  currentTimelineEditorSchemaVersion,
   migrateTimelineEditorDocument,
   moveTimelineEditorTrackInGroup,
   moveTimelineEditorTransformPoint,
@@ -34,6 +35,7 @@ import {
   setTimelineEditorItemTransform,
   splitTimelineEditorItem,
   TimelineEditorMigrationError,
+  TimelineEditorParseError,
   updateTimelineEditorTransformPoint,
   upsertTimelineEditorTransformPoint,
   addTimelineEditorTracksToGroup,
@@ -423,7 +425,8 @@ describe("@moritzbrantner/timeline-editor core", () => {
     };
     const serialized = serializeTimelineEditorDocument(document);
 
-    expect(serialized.schemaVersion).toBe(1);
+    expect(currentTimelineEditorSchemaVersion).toBe(1);
+    expect(serialized.schemaVersion).toBe(currentTimelineEditorSchemaVersion);
     expect(parseTimelineEditorDocument(serialized).tracks[0]?.items[0]?.id).toBe("brief");
     expect(migrateTimelineEditorDocument(document).schemaVersion).toBe(1);
     expect(
@@ -469,7 +472,10 @@ describe("@moritzbrantner/timeline-editor core", () => {
     const issues = validateTimelineEditorDocument({
       durationMs: 1_000,
       currentTimeMs: 1_500,
-      markers: [{ id: "late", timeMs: 1_500 }],
+      markers: [
+        { id: "late", timeMs: 1_500 },
+        { id: "late", timeMs: 500 },
+      ],
       groups: [{ id: "group", label: "Group", trackIds: ["planning", "planning"] }],
       itemGroups: [{ id: "pair", label: "Pair", itemIds: ["brief", "brief"] }],
       tracks: [
@@ -500,11 +506,108 @@ describe("@moritzbrantner/timeline-editor core", () => {
     expect(issues.map((issue) => issue.code)).toEqual(
       expect.arrayContaining([
         "current_time_exceeds_duration",
+        "duplicate_marker_id",
         "invalid_track_height",
         "duplicate_transform_offset",
         "duplicate_group_track",
         "duplicate_item_group_item",
         "marker_exceeds_duration",
+      ]),
+    );
+  });
+
+  test("migrates legacy and serialized documents and reports parse issues", () => {
+    const document: TimelineEditorDocument = { tracks, durationMs: 8_000 };
+    const serialized = serializeTimelineEditorDocument(document);
+
+    expect(migrateTimelineEditorDocument(document)).toEqual(serialized);
+    expect(migrateTimelineEditorDocument(serialized)).toEqual(serialized);
+    expect(() =>
+      migrateTimelineEditorDocument({
+        schemaVersion: currentTimelineEditorSchemaVersion + 1,
+        document,
+      }),
+    ).toThrowError(TimelineEditorMigrationError);
+
+    try {
+      parseTimelineEditorDocument({ tracks: [{ id: "", label: "Broken", items: [] }] });
+      throw new Error("Expected parseTimelineEditorDocument to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(TimelineEditorParseError);
+      expect((error as TimelineEditorParseError).issues).toEqual([
+        expect.objectContaining({
+          path: "tracks[0].id",
+          message: "Expected non-empty string.",
+        }),
+      ]);
+    }
+  });
+
+  test("reports structural validation edge cases", () => {
+    const document = {
+      durationMs: 2_000,
+      itemGroups: [
+        { id: "pair", label: "Pair", itemIds: ["brief", "missing-ref"] },
+        { id: "orphaned", label: "Orphaned", itemIds: ["orphan"] },
+      ],
+      tracks: [
+        {
+          id: "planning",
+          label: "Planning",
+          acceptsItemKinds: ["task"],
+          items: [
+            {
+              id: "brief",
+              trackId: "wrong-track",
+              label: "Brief",
+              kind: "review",
+              startMs: 0,
+              durationMs: 1_000,
+              itemGroupId: "pair",
+              transform: {
+                points: [
+                  {
+                    offsetMs: 0,
+                    values: { x: 0 },
+                    easing: "bounce",
+                  },
+                ],
+              },
+            },
+            {
+              id: "orphan",
+              trackId: "planning",
+              label: "Orphan",
+              startMs: 0,
+              durationMs: 1_000,
+            },
+          ],
+        },
+        {
+          id: "planning",
+          label: "Duplicate",
+          items: [
+            {
+              id: "brief",
+              trackId: "planning",
+              label: "Duplicate item",
+              startMs: 0,
+              durationMs: 1_000,
+            },
+          ],
+        },
+      ],
+    } as TimelineEditorDocument;
+    const issues = validateTimelineEditorDocument(document);
+
+    expect(issues.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining([
+        "duplicate_track_id",
+        "duplicate_item_id",
+        "mismatched_track_id",
+        "incompatible_track_kind",
+        "invalid_transform_easing",
+        "mismatched_item_group",
       ]),
     );
   });
