@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { Badge, Button, Input, WorkbenchPanel, cn } from "@moritzbrantner/ui";
+import { Badge, Button, Input, cn } from "@moritzbrantner/ui";
 
 import {
   formatTimelineEditorTimeMs,
@@ -221,7 +221,7 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
   const isAssetActivationSuppressed = () => Date.now() < suppressAssetActivationUntilRef.current;
 
   return (
-    <WorkbenchPanel side="left" className={cn("min-w-64 p-0", className)}>
+    <div data-slot="timeline-workbench-assets" className={cn("min-w-64", className)}>
       <div ref={panelContentRef} className="grid gap-3 p-3">
         <div className="flex items-center justify-between gap-3">
           <div className="text-sm font-medium">Assets</div>
@@ -424,12 +424,12 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
             })}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            0 assets · {tracks.length} timeline tracks
-          </p>
+          <div className="text-sm text-muted-foreground">
+            0 assets · {tracks.length} timeline {tracks.length === 1 ? "track" : "tracks"}
+          </div>
         )}
       </div>
-    </WorkbenchPanel>
+    </div>
   );
 }
 
@@ -450,7 +450,7 @@ function getTimelineWorkbenchAssetCompatibility<TAssetData>(
   }
 
   if (compatibleTrack) {
-    return { compatible: true, label: "Uses another compatible track" };
+    return { compatible: true, label: "Compatible with another track" };
   }
 
   return { compatible: false, label: "No compatible track" };

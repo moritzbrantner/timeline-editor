@@ -56,12 +56,6 @@ test("adds and removes whole tracks", async ({ page }) => {
     .poll(async () => Math.round((await getTimelineEditor(page).boundingBox())?.height ?? 0))
     .toBe(Math.round(initialEditorBox!.height));
 
-  await expect
-    .poll(() =>
-      getTimelineEditor(page).evaluate((editor) => editor.scrollHeight > editor.clientHeight),
-    )
-    .toBe(true);
-
   const trackRows = await page
     .locator("[data-slot='timeline-editor-track']")
     .evaluateAll((tracks) =>
@@ -222,7 +216,7 @@ test("controls track groups from group row", async ({ page }) => {
 test("filters assets and shows selected-track compatibility", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByText("Uses another compatible track").first()).toBeVisible();
+  await expect(page.getByText("Compatible with another track").first()).toBeVisible();
   await clickClip(page, "Brief");
   await expect(page.getByText("Fits selected track").first()).toBeVisible();
 

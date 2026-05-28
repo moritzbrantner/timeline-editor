@@ -69,8 +69,11 @@ test("scrubs preview by dragging empty lane", async ({ page }) => {
 
   await expect.poll(async () => (await getHarnessState(page)).document.currentTimeMs).toBe(6_000);
   await expect(
-    page.locator("[data-slot='timeline-workbench-preview']").last().getByText("0:06.0"),
+    page.locator("[data-slot='timeline-workbench-preview']").last().locator(".tabular-nums"),
   ).toBeVisible();
+  await expect(
+    page.locator("[data-slot='timeline-workbench-preview']").last().locator(".tabular-nums"),
+  ).toContainText("0:06.0");
 });
 
 test("zooms with ctrl mousewheel", async ({ page }) => {

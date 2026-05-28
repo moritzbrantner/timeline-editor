@@ -234,6 +234,9 @@ export type TimelineWorkbenchProps<
     | Array<TimelineWorkbenchImportResult<TAssetData>>;
   acceptedImportTypes?: string[];
   allowUrlImport?: boolean;
+  showAssetsPanel?: boolean;
+  showPreviewPanel?: boolean;
+  showInspectorPanel?: boolean;
   className?: string;
   style?: CSSProperties;
   createItemId?: (asset: TimelineWorkbenchAsset<TAssetData>) => string;

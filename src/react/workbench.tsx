@@ -2,7 +2,17 @@
 
 import { useMemo, useState } from "react";
 
-import { Button, type MenuActionItem, WorkbenchPanel, cn } from "@moritzbrantner/ui";
+import {
+  Button,
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+  type MenuActionItem,
+  WorkbenchCanvas,
+  WorkbenchPanel,
+  WorkbenchToolbar,
+  cn,
+} from "@moritzbrantner/ui";
 
 import {
   canPlaceTimelineEditorItemOnTrack,
@@ -121,6 +131,9 @@ export function TimelineWorkbench<
   assets = [],
   onImportAssets,
   acceptedImportTypes,
+  showAssetsPanel = true,
+  showPreviewPanel = true,
+  showInspectorPanel = true,
   className,
   style,
   createItemId,
@@ -159,6 +172,7 @@ export function TimelineWorkbench<
   const [importState, setImportState] = useState<TimelineWorkbenchImportState>({
     status: "idle",
   });
+  const [announcement, setAnnouncement] = useState("");
   const resolvedAssets = useMemo(() => assets.concat(importedAssets), [assets, importedAssets]);
   const resolvedViewport = viewport ?? internalViewport;
   const durationMs = document.durationMs ?? getTimelineEditorDurationMs(document.tracks, 30_000);
@@ -1311,117 +1325,154 @@ export function TimelineWorkbench<
       </div>
     </div>
   );
-
-  return (
-    <div
-      data-slot="timeline-workbench"
-      className={cn("grid overflow-hidden border border-border bg-background", className)}
-      style={{
-        gridTemplateRows: "auto minmax(0, 1fr) auto",
-        height: "min(56rem, 100vh)",
-        minHeight: "34rem",
-        ...style,
+  const announce = (message: string) => {
+    setAnnouncement(message);
+  };
+  const shouldShowAssetsPanel =
+    showAssetsPanel && (resolvedAssets.length > 0 || Boolean(onImportAssets));
+  const toolbarContent = (
+    <TimelineWorkbenchToolbar
+      announcement={announcement}
+      clipboard={resolvedClipboard}
+      currentTimeMs={currentTimeMs}
+      document={document}
+      durationMs={durationMs}
+      frameStepMs={frameStepMs}
+      hasSelectedItemGroup={hasSelectedItemGroup}
+      history={history}
+      inspectorContext={inspectorContext}
+      overlaps={overlaps}
+      pixelsPerSecond={pixelsPerSecond}
+      readOnly={readOnly}
+      resolvedHotkeys={resolvedHotkeys}
+      resolvedSnap={resolvedSnap}
+      resolvedTool={resolvedTool}
+      renderToolbarActions={renderToolbarActions}
+      resolvedSelection={resolvedSelection}
+      resolvedViewport={resolvedViewport}
+      onAddMarker={() => {
+        addMarker();
+        announce("Marker added");
       }}
-      onKeyDown={handleWorkbenchKeyDown}
-    >
-      <TimelineWorkbenchToolbar
-        clipboard={resolvedClipboard}
-        currentTimeMs={currentTimeMs}
-        document={document}
-        durationMs={durationMs}
-        frameStepMs={frameStepMs}
-        hasSelectedItemGroup={hasSelectedItemGroup}
-        history={history}
-        inspectorContext={inspectorContext}
-        overlaps={overlaps}
-        pixelsPerSecond={pixelsPerSecond}
-        readOnly={readOnly}
-        resolvedHotkeys={resolvedHotkeys}
-        resolvedSnap={resolvedSnap}
-        resolvedTool={resolvedTool}
-        renderToolbarActions={renderToolbarActions}
-        resolvedSelection={resolvedSelection}
-        resolvedViewport={resolvedViewport}
-        onAddMarker={() => addMarker()}
-        onDelete={() => deleteItems()}
-        onDeleteRange={() => deleteRange(resolvedSelection.range)}
-        onCopy={() => copyItems()}
-        onCut={() => cutItems()}
-        onDuplicate={() => duplicateItems()}
-        onGroup={() => groupItems()}
-        onInsertGap={insertSelectedRangeGap}
-        onCloseGap={closeSelectedRangeGap}
-        onPaste={pasteItems}
-        onRedo={() => {
-          const redo = redoTimelineEditorHistory(history);
-          setHistory(redo.history);
-          if (redo.document) {
-            onDocumentChange?.(redo.document);
-            if (redo.selection) {
-              commitSelection(redo.selection);
-            }
+      onDelete={() => {
+        deleteItems();
+        announce("Selection deleted");
+      }}
+      onDeleteRange={() => {
+        deleteRange(resolvedSelection.range);
+        announce("Range deleted");
+      }}
+      onCopy={() => {
+        copyItems();
+        announce("Selection copied");
+      }}
+      onCut={() => {
+        cutItems();
+        announce("Selection cut");
+      }}
+      onDuplicate={() => {
+        duplicateItems();
+        announce("Selection duplicated");
+      }}
+      onGroup={() => {
+        groupItems();
+        announce("Items grouped");
+      }}
+      onInsertGap={() => {
+        insertSelectedRangeGap();
+        announce("Gap inserted");
+      }}
+      onCloseGap={() => {
+        closeSelectedRangeGap();
+        announce("Gap closed");
+      }}
+      onPaste={() => {
+        pasteItems();
+        announce("Clipboard pasted");
+      }}
+      onRedo={() => {
+        const redo = redoTimelineEditorHistory(history);
+        setHistory(redo.history);
+        if (redo.document) {
+          onDocumentChange?.(redo.document);
+          if (redo.selection) {
+            commitSelection(redo.selection);
           }
-        }}
-        onSplit={() => splitItems()}
-        onStepFrame={stepCurrentTimeByFrame}
-        onUndo={() => {
-          const undo = undoTimelineEditorHistory(history);
-          setHistory(undo.history);
-          if (undo.document) {
-            onDocumentChange?.(undo.document);
-            if (undo.selection) {
-              commitSelection(undo.selection);
-            }
+          announce("Redo applied");
+        }
+      }}
+      onSplit={() => {
+        splitItems();
+        announce("Selection split");
+      }}
+      onStepFrame={(direction) => {
+        stepCurrentTimeByFrame(direction);
+        announce(direction < 0 ? "Moved to previous frame" : "Moved to next frame");
+      }}
+      onUndo={() => {
+        const undo = undoTimelineEditorHistory(history);
+        setHistory(undo.history);
+        if (undo.document) {
+          onDocumentChange?.(undo.document);
+          if (undo.selection) {
+            commitSelection(undo.selection);
           }
-        }}
-        onUngroup={() => ungroupItems()}
-        onViewportChange={commitViewport}
-        onToolChange={commitTool}
-        onSnapChange={commitSnap}
-        onHotkeyChange={commitHotkey}
-        onHotkeysReset={resetHotkeys}
-      />
-      <div
-        className="grid min-h-0 gap-3 overflow-auto border-b border-border/60 p-3"
-        style={{
-          gridTemplateColumns: "minmax(14rem, 9fr) minmax(18rem, 14fr) minmax(16rem, 10fr)",
-        }}
-      >
-        <TimelineWorkbenchAssetsPanel
-          className="h-full min-w-0"
-          assets={resolvedAssets}
-          tracks={document.tracks as Array<TimelineEditorTrack<Record<string, unknown>, unknown>>}
-          selectedTrack={selectedTrack as TimelineEditorTrack<Record<string, unknown>, unknown>}
-          readOnly={readOnly}
-          acceptedImportTypes={acceptedImportTypes}
-          importState={importState}
-          renderAsset={renderAsset}
-          onImportAssets={onImportAssets ? importAssets : undefined}
-          onImportStateClear={() => setImportState({ status: "idle" })}
-          onAssetDragEnd={() => setDraggedAssetId(null)}
-          onAssetDragStart={(asset) => setDraggedAssetId(asset.id)}
-          onInsertAsset={insertAsset}
+          announce("Undo applied");
+        }
+      }}
+      onUngroup={() => {
+        ungroupItems();
+        announce("Items ungrouped");
+      }}
+      onViewportChange={commitViewport}
+      onToolChange={commitTool}
+      onSnapChange={commitSnap}
+      onHotkeyChange={commitHotkey}
+      onHotkeysReset={resetHotkeys}
+    />
+  );
+  const assetsPanel = shouldShowAssetsPanel ? (
+    <TimelineWorkbenchAssetsPanel
+      className="h-full min-w-0"
+      assets={resolvedAssets}
+      tracks={document.tracks as Array<TimelineEditorTrack<Record<string, unknown>, unknown>>}
+      selectedTrack={selectedTrack as TimelineEditorTrack<Record<string, unknown>, unknown>}
+      readOnly={readOnly}
+      acceptedImportTypes={acceptedImportTypes}
+      importState={importState}
+      renderAsset={renderAsset}
+      onImportAssets={onImportAssets ? importAssets : undefined}
+      onImportStateClear={() => setImportState({ status: "idle" })}
+      onAssetDragEnd={() => setDraggedAssetId(null)}
+      onAssetDragStart={(asset) => setDraggedAssetId(asset.id)}
+      onInsertAsset={insertAsset}
+    />
+  ) : null;
+  const inspectorPanel = showInspectorPanel ? (
+    <div data-slot="timeline-workbench-inspector" className="h-full min-w-0 p-0">
+      {renderInspector ? (
+        renderInspector(inspectorContext)
+      ) : (
+        <DefaultTimelineInspector
+          context={inspectorContext}
+          extensionSections={extensionInspectorSections}
+          inspectorSchema={inspectorSchema}
+          timingStepMs={resolvedSnapMs > 0 ? resolvedSnapMs : undefined}
         />
-        <TimelineWorkbenchPreview
-          currentTimeMs={currentTimeMs}
-          document={document}
-          durationMs={durationMs}
-          extensions={extensions}
-          selectedItems={selectedItems}
-        />
-        <WorkbenchPanel side="right" className="h-full min-w-0 p-0">
-          {renderInspector ? (
-            renderInspector(inspectorContext)
-          ) : (
-            <DefaultTimelineInspector
-              context={inspectorContext}
-              extensionSections={extensionInspectorSections}
-              inspectorSchema={inspectorSchema}
-              timingStepMs={resolvedSnapMs > 0 ? resolvedSnapMs : undefined}
-            />
-          )}
-        </WorkbenchPanel>
-      </div>
+      )}
+    </div>
+  ) : null;
+  const previewPanel = showPreviewPanel ? (
+    <TimelineWorkbenchPreview
+      currentTimeMs={currentTimeMs}
+      document={document}
+      durationMs={durationMs}
+      extensions={extensions}
+      selectedItems={selectedItems}
+    />
+  ) : null;
+  const canvasPanel = (
+    <WorkbenchCanvas className="h-full min-h-0">
       <TimelineWorkbenchCanvas
         assets={resolvedAssets}
         draggedAssetId={draggedAssetId}
@@ -1454,6 +1505,73 @@ export function TimelineWorkbench<
         onSelectionChange={commitSelection}
         onViewportChange={commitViewport}
       />
+      <span className="sr-only" aria-live="polite">
+        {announcement}
+      </span>
+    </WorkbenchCanvas>
+  );
+  const sidePanelsVisible = Boolean(assetsPanel || inspectorPanel);
+  const mainPanelDefaultSize = 100 - (assetsPanel ? 20 : 0) - (inspectorPanel ? 24 : 0);
+
+  return (
+    <div
+      data-slot="timeline-workbench"
+      className={cn(
+        "grid min-h-0 w-full overflow-hidden rounded-md border border-border/60 bg-background text-foreground",
+        className,
+      )}
+      style={{
+        gridTemplateRows: "auto minmax(0, 1fr)",
+        height: "min(56rem, 100vh)",
+        minHeight: "34rem",
+        ...style,
+      }}
+      onKeyDown={handleWorkbenchKeyDown}
+    >
+      <WorkbenchToolbar>{toolbarContent}</WorkbenchToolbar>
+      <ResizablePanelGroup orientation="vertical" className="min-h-0">
+        <ResizablePanel defaultSize={previewPanel ? 72 : 100} minSize={42}>
+          {sidePanelsVisible ? (
+            <ResizablePanelGroup orientation="horizontal" className="min-h-full">
+              {assetsPanel ? (
+                <>
+                  <ResizablePanel defaultSize={20} minSize={16} collapsible>
+                    <WorkbenchPanel side="left" className="h-full border-r-0">
+                      {assetsPanel}
+                    </WorkbenchPanel>
+                  </ResizablePanel>
+                  <ResizableHandle withHandle />
+                </>
+              ) : null}
+              <ResizablePanel defaultSize={mainPanelDefaultSize} minSize={36}>
+                {canvasPanel}
+              </ResizablePanel>
+              {inspectorPanel ? (
+                <>
+                  <ResizableHandle withHandle />
+                  <ResizablePanel defaultSize={24} minSize={18} collapsible>
+                    <WorkbenchPanel side="right" className="h-full border-l-0">
+                      {inspectorPanel}
+                    </WorkbenchPanel>
+                  </ResizablePanel>
+                </>
+              ) : null}
+            </ResizablePanelGroup>
+          ) : (
+            canvasPanel
+          )}
+        </ResizablePanel>
+        {previewPanel ? (
+          <>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={28} minSize={14} collapsible>
+              <WorkbenchPanel side="bottom" className="h-full border-b-0 border-x-0">
+                {previewPanel}
+              </WorkbenchPanel>
+            </ResizablePanel>
+          </>
+        ) : null}
+      </ResizablePanelGroup>
     </div>
   );
 }

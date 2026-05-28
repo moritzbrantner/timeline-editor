@@ -103,7 +103,7 @@ test("splits a clip with toolbar button", async ({ page }) => {
 test("splits a clip with blade tool", async ({ page }) => {
   await page.goto("/");
 
-  await page.locator("label").filter({ hasText: "Tool" }).locator("select").selectOption("blade");
+  await page.getByRole("radio", { name: "Blade" }).click();
 
   const clip = getClip(page, "Brief");
   const clipBox = await clip.boundingBox();
@@ -144,10 +144,12 @@ test("nudges selected clip by frame when frameRate is set", async ({ page }) => 
 test("steps playhead by frame controls when frameRate is set", async ({ page }) => {
   await page.goto("/?frameRate=25");
 
-  await page.getByRole("button", { name: "Next frame" }).click();
+  await page.getByRole("button", { name: "More" }).click();
+  await page.getByRole("menuitem", { name: /Next frame/ }).click();
   await expect.poll(async () => (await getHarnessState(page)).document.currentTimeMs).toBe(1_040);
 
-  await page.getByRole("button", { name: "Previous frame" }).click();
+  await page.getByRole("button", { name: "More" }).click();
+  await page.getByRole("menuitem", { name: /Previous frame/ }).click();
   await expect.poll(async () => (await getHarnessState(page)).document.currentTimeMs).toBe(1_000);
 });
 

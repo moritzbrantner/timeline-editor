@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { ActionMenu, Button, type MenuActionItem, WorkbenchCanvas } from "@moritzbrantner/ui";
+import { ActionMenu, Button, type MenuActionItem } from "@moritzbrantner/ui";
 
 import type {
   TimelineEditorDocument,
@@ -217,11 +217,11 @@ export function TimelineWorkbenchCanvas<
         ];
 
   return (
-    <WorkbenchCanvas
-      className="grid min-h-0 min-w-0 overflow-hidden p-3"
+    <div
+      data-slot="timeline-workbench-canvas"
+      className="grid h-full min-h-0 min-w-0 overflow-hidden"
       style={{
         gridTemplateRows: "minmax(0, 1fr) auto",
-        height: "18rem",
       }}
     >
       <div className="relative min-h-0 min-w-0">
@@ -317,7 +317,7 @@ export function TimelineWorkbenchCanvas<
           }
         />
       </div>
-    </WorkbenchCanvas>
+    </div>
   );
 }
 

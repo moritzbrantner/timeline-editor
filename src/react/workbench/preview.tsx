@@ -1,7 +1,5 @@
 "use client";
 
-import { WorkbenchPanel } from "@moritzbrantner/ui";
-
 import {
   formatTimelineEditorTimeMs,
   getTimelineEditorItemEndMs,
@@ -63,9 +61,8 @@ export function TimelineWorkbenchPreview<
   });
 
   return (
-    <WorkbenchPanel
+    <div
       data-slot="timeline-workbench-preview"
-      side="bottom"
       className="grid min-w-0 overflow-hidden p-0"
       style={{ gridTemplateRows: "auto minmax(0, 1fr)" }}
     >
@@ -80,28 +77,37 @@ export function TimelineWorkbenchPreview<
           <div className="h-full bg-primary" style={{ width: `${progress}%` }} />
         </div>
         <div className="grid h-full place-items-center p-4">
-          {extensionPreview ?? (
-            <div className="grid w-full max-w-md gap-2">
-              {previewItems.slice(0, 4).map(({ item, track }) => (
-                <div
-                  key={item.id}
-                  className="grid min-h-12 gap-1 rounded border border-white/10 bg-white/10 px-3 py-2 text-white shadow-sm"
-                  style={{
-                    borderLeftColor: item.color ?? "hsl(var(--primary))",
-                    borderLeftWidth: 4,
-                  }}
-                >
-                  <div className="truncate text-sm font-medium">{item.label}</div>
-                  <div className="truncate text-xs text-white/60">
-                    {track?.label ?? item.kind ?? item.id}
-                  </div>
+          {extensionPreview ??
+            (previewItems.length === 0 ? (
+              <div className="grid gap-1 text-center text-white">
+                <div className="text-sm font-medium">0 active items</div>
+                <div className="text-xs text-white/60">
+                  {formatTimelineEditorTimeMs(currentTimeMs)} /{" "}
+                  {formatTimelineEditorTimeMs(durationMs)}
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            ) : (
+              <div className="grid w-full max-w-md gap-2">
+                {previewItems.slice(0, 4).map(({ item, track }) => (
+                  <div
+                    key={item.id}
+                    className="grid min-h-12 gap-1 rounded border border-white/10 bg-white/10 px-3 py-2 text-white shadow-sm"
+                    style={{
+                      borderLeftColor: item.color ?? "hsl(var(--primary))",
+                      borderLeftWidth: 4,
+                    }}
+                  >
+                    <div className="truncate text-sm font-medium">{item.label}</div>
+                    <div className="truncate text-xs text-white/60">
+                      {track?.label ?? item.kind ?? item.id}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
         </div>
       </div>
-    </WorkbenchPanel>
+    </div>
   );
 }
 

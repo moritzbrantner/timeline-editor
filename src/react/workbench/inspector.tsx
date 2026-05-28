@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 
+import { Button } from "@moritzbrantner/ui";
 import {
   InspectorPanel,
   type InspectorFieldDefinition,
@@ -150,6 +151,78 @@ export function DefaultTimelineInspector<TData>({
         marker={selectedMarker}
         timingStepMs={timingStepMs}
       />
+    );
+  }
+
+  const selectedRange = normalizeTimelineWorkbenchInspectorRange(context.selection.range);
+
+  if (!item && selectedRange) {
+    const trackCount = context.selection.trackIds?.length ?? context.document.tracks.length;
+    const targetTrackId =
+      context.selection.trackIds?.[0] ??
+      context.selectedTrack?.id ??
+      context.document.tracks.find((track) => !track.locked)?.id;
+    const trackLabel =
+      context.selection.trackIds?.length === 1
+        ? (context.document.tracks.find((track) => track.id === context.selection.trackIds?.[0])
+            ?.label ?? context.selection.trackIds[0])
+        : `${trackCount} ${trackCount === 1 ? "track" : "tracks"}`;
+
+    return (
+      <div className="grid gap-3">
+        <TimelineWorkbenchInfoPanel
+          title="Range"
+          summary={`${formatTimelineEditorTimeMs(selectedRange.endMs - selectedRange.startMs)} selected`}
+          rows={[
+            ["Start", formatTimelineEditorTimeMs(selectedRange.startMs)],
+            ["End", formatTimelineEditorTimeMs(selectedRange.endMs)],
+            ["Span", formatTimelineEditorTimeMs(selectedRange.endMs - selectedRange.startMs)],
+            ["Tracks", trackLabel],
+          ]}
+        />
+        <div className="flex flex-wrap items-center gap-2 px-3">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={context.readOnly}
+            onClick={() => context.deleteRange(selectedRange)}
+          >
+            Delete Range
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={context.readOnly || !targetTrackId}
+            onClick={() => {
+              if (targetTrackId) {
+                context.insertGap(
+                  targetTrackId,
+                  selectedRange.startMs,
+                  selectedRange.endMs - selectedRange.startMs,
+                );
+              }
+            }}
+          >
+            Insert Gap
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={context.readOnly || !targetTrackId}
+            onClick={() => {
+              if (targetTrackId) {
+                context.closeGap(targetTrackId, selectedRange.startMs, selectedRange.endMs);
+              }
+            }}
+          >
+            Close Gap
+          </Button>
+        </div>
+        {extensionSections}
+      </div>
     );
   }
 
@@ -302,7 +375,7 @@ function getTimelineWorkbenchInspectorSections<TData>({
                 {
                   id: field.id,
                   label: field.label,
-                  type: field.type === "color" ? "text" : field.type,
+                  type: field.type,
                 },
                 mixedFieldIds,
               ),
@@ -311,6 +384,17 @@ function getTimelineWorkbenchInspectorSections<TData>({
         ]
       : []),
   ];
+}
+
+function normalizeTimelineWorkbenchInspectorRange(range?: { startMs: number; endMs: number }) {
+  if (!range || range.startMs === range.endMs) {
+    return undefined;
+  }
+
+  return {
+    startMs: Math.max(0, Math.min(range.startMs, range.endMs)),
+    endMs: Math.max(range.startMs, range.endMs),
+  };
 }
 
 function withMixedPlaceholder(

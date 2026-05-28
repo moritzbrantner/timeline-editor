@@ -920,7 +920,8 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
       }),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Marker" }));
+    fireEvent.keyDown(screen.getByRole("button", { name: "More" }), { key: "ArrowDown" });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Add Marker" }));
     expect(handleDocumentChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         markers: [expect.objectContaining({ id: "marker-fixed", timeMs: 1_000 })],

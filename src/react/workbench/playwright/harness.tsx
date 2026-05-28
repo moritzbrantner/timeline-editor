@@ -101,6 +101,11 @@ const createOverlapPreventDocument = (): TimelineEditorDocument => ({
   markers: [{ id: "handoff", timeMs: 4_000, label: "Handoff" }],
 });
 
+const createNoActiveItemsDocument = (): TimelineEditorDocument => ({
+  ...createDocument(),
+  currentTimeMs: 7_500,
+});
+
 const createLargeDocument = (): TimelineEditorDocument => ({
   durationMs: 10 * 60_000,
   currentTimeMs: 0,
@@ -145,6 +150,7 @@ function App() {
   const timelineMenuFixture = searchParams.get("timelineMenu") === "true";
   const importAssetsFixture = searchParams.get("importAssets") === "true";
   const assetActionsFixture = searchParams.get("assetActions") === "true";
+  const emptyAssetsFixture = searchParams.get("assets") === "none";
   const editPolicy: Partial<TimelineEditorEditPolicy> | undefined =
     searchParams.get("editPolicy") === "prevent"
       ? { overlap: "prevent", ripple: false }
@@ -266,8 +272,11 @@ function App() {
       pixelsPerSecond={80}
       frameRate={frameRate}
       snapMs={100}
-      assets={timelineAssets}
+      assets={emptyAssetsFixture ? [] : timelineAssets}
       acceptedImportTypes={["video/*"]}
+      showAssetsPanel={searchParams.get("showAssetsPanel") !== "false"}
+      showPreviewPanel={searchParams.get("showPreviewPanel") !== "false"}
+      showInspectorPanel={searchParams.get("showInspectorPanel") !== "false"}
       onImportAssets={importAssetsFixture ? handleImportAssets : undefined}
       onDocumentChange={handleDocumentChange}
       onCurrentTimeChange={handleCurrentTimeChange}
@@ -361,6 +370,10 @@ function createFixtureDocument(fixture: string): TimelineEditorDocument {
 
   if (fixture === "overlap-prevent") {
     return createOverlapPreventDocument();
+  }
+
+  if (fixture === "no-active") {
+    return createNoActiveItemsDocument();
   }
 
   return createDocument();
