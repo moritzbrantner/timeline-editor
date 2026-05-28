@@ -10,7 +10,7 @@ import {
   getHarnessState,
   getTimelineEditor,
   scrubRulerTo,
-} from "./support/workbench";
+} from "./playwright/support/workbench";
 
 const modKey = process.platform === "darwin" ? "Meta" : "Control";
 

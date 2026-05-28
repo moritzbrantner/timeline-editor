@@ -9,7 +9,7 @@ import {
   getTimelineEditor,
   getTimelineTrack,
   scrubRulerTo,
-} from "./support/workbench";
+} from "./playwright/support/workbench";
 
 test("inserts an asset at the playhead", async ({ page }) => {
   await page.goto("/");

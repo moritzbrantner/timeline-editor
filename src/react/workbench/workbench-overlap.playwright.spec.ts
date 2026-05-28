@@ -14,7 +14,7 @@ import {
   hasOverlaps,
   snapshotDocument,
   scrubRulerTo,
-} from "./support/workbench";
+} from "./playwright/support/workbench";
 
 const overlapFixtureUrl = "/?fixture=overlap-prevent&editPolicy=prevent";
 

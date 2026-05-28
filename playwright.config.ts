@@ -3,7 +3,8 @@ import { defineConfig, devices } from "@playwright/test";
 const isCi = Boolean(process.env.CI);
 
 export default defineConfig({
-  testDir: "./tests/playwright",
+  testDir: "./src/react/workbench",
+  testMatch: "*.playwright.spec.ts",
   fullyParallel: true,
   retries: isCi ? 2 : 0,
   workers: isCi ? 1 : undefined,
@@ -21,7 +22,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "bunx vite --config tests/playwright/vite.config.ts --host 127.0.0.1 --port 4173",
+    command:
+      "bunx vite --config src/react/workbench/playwright/vite.config.ts --host 127.0.0.1 --port 4173",
     url: "http://127.0.0.1:4173",
     reuseExistingServer: !isCi,
   },

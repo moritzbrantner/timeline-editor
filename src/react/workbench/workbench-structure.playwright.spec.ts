@@ -13,7 +13,7 @@ import {
   getTimelineTrack,
   scrubRulerTo,
   selectContextMenuItem,
-} from "./support/workbench";
+} from "./playwright/support/workbench";
 
 test("adds and removes whole tracks", async ({ page }) => {
   await page.goto("/");

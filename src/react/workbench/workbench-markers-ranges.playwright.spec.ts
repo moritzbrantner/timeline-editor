@@ -8,7 +8,7 @@ import {
   getTimelineRulerLane,
   getTimelineTrack,
   scrubRulerTo,
-} from "./support/workbench";
+} from "./playwright/support/workbench";
 
 test("edits jumps to and deletes marker from inspector", async ({ page }) => {
   await page.goto("/");

@@ -9,7 +9,7 @@ import {
   getTimelineRulerLane,
   getTimelineTrack,
   scrubRulerTo,
-} from "./support/workbench";
+} from "./playwright/support/workbench";
 
 test("selects an item with one click", async ({ page }) => {
   await page.goto("/");

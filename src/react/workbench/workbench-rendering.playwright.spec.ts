@@ -5,7 +5,7 @@ import {
   getHarnessState,
   getTimelineEditor,
   getTimelineRulerLane,
-} from "./support/workbench";
+} from "./playwright/support/workbench";
 
 test("renders default workbench shell", async ({ page }) => {
   await page.goto("/");

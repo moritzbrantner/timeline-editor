@@ -4,10 +4,10 @@ import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 
-const rootDir = fileURLToPath(new URL("../../", import.meta.url));
+const rootDir = fileURLToPath(new URL("../../../../", import.meta.url));
 
 export default defineConfig({
-  root: path.resolve(rootDir, "tests/playwright"),
+  root: path.resolve(rootDir, "src/react/workbench/playwright"),
   plugins: [tailwindcss()],
   resolve: {
     alias: {
