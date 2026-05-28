@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-import { Button } from "@moritzbrantner/ui";
+import { Button, Input } from "@moritzbrantner/ui";
 import {
   InspectorPanel,
   type InspectorFieldDefinition,
@@ -11,9 +11,13 @@ import {
 
 import {
   formatTimelineEditorTimeMs,
+  getTimelineEditorItemTransformValuesAt,
   getTimelineEditorItemEndMs,
   snapTimelineEditorTime,
+  timelineEditorTransformEasings,
   type TimelineEditorItem,
+  type TimelineEditorTransformPoint,
+  type TimelineEditorTransformValues,
   validateTimelineEditorDocument,
 } from "../../core";
 import type {
@@ -309,9 +313,228 @@ export function DefaultTimelineInspector<TData>({
           });
         }}
       />
+      {inspectorSchema?.transformFields?.length ? (
+        <TimelineWorkbenchTransformInspector
+          context={context}
+          item={item}
+          timingStepMs={timingStepMs}
+          transformFields={inspectorSchema.transformFields}
+        />
+      ) : null}
       {extensionSections}
     </div>
   );
+}
+
+function TimelineWorkbenchTransformInspector<TData>({
+  context,
+  item,
+  timingStepMs,
+  transformFields,
+}: {
+  context: TimelineWorkbenchInspectorContext<TData>;
+  item: TimelineEditorItem<TData>;
+  timingStepMs?: number;
+  transformFields: NonNullable<TimelineWorkbenchInspectorSchema<TData>["transformFields"]>;
+}) {
+  const playheadOffsetMs = clampTimelineWorkbenchTransformOffset(
+    (context.document.currentTimeMs ?? 0) - item.startMs,
+    item.durationMs,
+  );
+  const keyframes = item.transform?.points ?? [];
+  const nearestKeyframe = getNearestTimelineWorkbenchTransformPoint(keyframes, playheadOffsetMs);
+  const sampledValues = getTimelineEditorItemTransformValuesAt(
+    item,
+    item.startMs + playheadOffsetMs,
+  );
+  const nearestOffsetMs = nearestKeyframe?.offsetMs ?? playheadOffsetMs;
+  const easing = nearestKeyframe?.easing ?? "linear";
+  const values = Object.fromEntries(
+    transformFields.map((field) => [
+      field.id,
+      toTransformFieldValue(
+        nearestKeyframe?.values[field.id] ?? sampledValues[field.id] ?? field.defaultValue ?? 0,
+      ),
+    ]),
+  );
+  const createPoint = (
+    offsetMs = playheadOffsetMs,
+    nextValues: Partial<TimelineEditorTransformValues> = values,
+  ): TimelineEditorTransformPoint<TimelineEditorTransformValues> => ({
+    offsetMs,
+    easing,
+    values: Object.fromEntries(
+      transformFields.map((field) => [
+        field.id,
+        toTransformFieldValue(nextValues[field.id] ?? field.defaultValue ?? 0),
+      ]),
+    ),
+  });
+
+  const updateValue = (fieldId: string, value: string) => {
+    const numberValue = Number(value);
+
+    if (!Number.isFinite(numberValue)) {
+      return;
+    }
+
+    context.upsertSelectedTransformPoint(
+      createPoint(nearestKeyframe?.offsetMs ?? playheadOffsetMs, {
+        ...values,
+        [fieldId]: numberValue,
+      }),
+    );
+  };
+  const updateEasing = (value: string) => {
+    if (
+      !timelineEditorTransformEasings.includes(
+        value as (typeof timelineEditorTransformEasings)[number],
+      )
+    ) {
+      return;
+    }
+
+    context.updateSelectedTransformPoint(nearestOffsetMs, {
+      easing: value as (typeof timelineEditorTransformEasings)[number],
+    });
+  };
+  const moveKeyframe = (value: string) => {
+    const nextOffsetMs = snapTimelineWorkbenchInspectorTime(
+      toNumber(value, nearestOffsetMs),
+      timingStepMs,
+    );
+
+    context.moveSelectedTransformPoint(nearestOffsetMs, nextOffsetMs);
+  };
+
+  return (
+    <section
+      data-slot="timeline-workbench-transform-inspector"
+      className="grid gap-3 rounded border border-border bg-background p-3 text-sm"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="grid gap-1">
+          <h2 className="text-sm font-semibold">Transform</h2>
+          <p className="text-xs text-muted-foreground">
+            {keyframes.length} {keyframes.length === 1 ? "keyframe" : "keyframes"} · playhead{" "}
+            {formatTimelineEditorTimeMs(playheadOffsetMs)}
+          </p>
+        </div>
+        {nearestKeyframe ? (
+          <div className="text-right text-xs text-muted-foreground">
+            Nearest {formatTimelineEditorTimeMs(nearestKeyframe.offsetMs)}
+          </div>
+        ) : null}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="grid gap-1 text-xs text-muted-foreground">
+          <span>Keyframe time</span>
+          <Input
+            data-slot="timeline-workbench-transform-offset"
+            type="number"
+            min={0}
+            max={item.durationMs}
+            step={timingStepMs ?? 100}
+            value={nearestOffsetMs}
+            disabled={context.readOnly || !nearestKeyframe}
+            onChange={(event) => moveKeyframe(event.currentTarget.value)}
+          />
+        </label>
+        <label className="grid gap-1 text-xs text-muted-foreground">
+          <span>Easing</span>
+          <select
+            data-slot="timeline-workbench-transform-easing"
+            className="h-8 rounded border bg-background px-2 text-xs"
+            value={easing}
+            disabled={context.readOnly || !nearestKeyframe}
+            onChange={(event) => updateEasing(event.currentTarget.value)}
+          >
+            {timelineEditorTransformEasings.map((candidate) => (
+              <option key={candidate} value={candidate}>
+                {candidate}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="grid gap-2">
+        {transformFields.map((field) => (
+          <label key={field.id} className="grid gap-1 text-xs text-muted-foreground">
+            <span>{field.label}</span>
+            <Input
+              data-slot={`timeline-workbench-transform-field-${field.id}`}
+              type="number"
+              min={field.min}
+              max={field.max}
+              step={field.step ?? 1}
+              value={values[field.id]}
+              disabled={context.readOnly}
+              onChange={(event) => updateValue(field.id, event.currentTarget.value)}
+            />
+          </label>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={context.readOnly}
+          onClick={() => context.upsertSelectedTransformPoint(createPoint(playheadOffsetMs))}
+        >
+          Add Keyframe
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={context.readOnly}
+          onClick={() => context.upsertSelectedTransformPoint(createPoint(playheadOffsetMs))}
+        >
+          Update Keyframe
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="destructive"
+          disabled={context.readOnly || !nearestKeyframe}
+          onClick={() => {
+            if (nearestKeyframe) {
+              context.removeSelectedTransformPoint(nearestKeyframe.offsetMs);
+            }
+          }}
+        >
+          Remove Keyframe
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function clampTimelineWorkbenchTransformOffset(offsetMs: number, durationMs: number) {
+  if (!Number.isFinite(offsetMs)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(durationMs, offsetMs));
+}
+
+function getNearestTimelineWorkbenchTransformPoint(
+  points: Array<TimelineEditorTransformPoint<TimelineEditorTransformValues>>,
+  offsetMs: number,
+) {
+  return points
+    .slice()
+    .sort(
+      (left, right) =>
+        Math.abs(left.offsetMs - offsetMs) - Math.abs(right.offsetMs - offsetMs) ||
+        left.offsetMs - right.offsetMs,
+    )[0];
+}
+
+function toTransformFieldValue(value: unknown) {
+  const numberValue = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numberValue) ? numberValue : 0;
 }
 
 function toNumber(value: InspectorFieldValue, fallback: number) {

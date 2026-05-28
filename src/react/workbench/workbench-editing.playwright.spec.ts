@@ -153,6 +153,39 @@ test("steps playhead by frame controls when frameRate is set", async ({ page }) 
   await expect.poll(async () => (await getHarnessState(page)).document.currentTimeMs).toBe(1_000);
 });
 
+test("edits transform keyframes from the inspector", async ({ page }) => {
+  await page.goto("/?transformInspector=true");
+
+  await clickClip(page, "Brief");
+  await expect(page.locator("[data-slot='timeline-workbench-transform-inspector']")).toBeVisible();
+
+  await page.getByRole("button", { name: "Add Keyframe" }).click();
+  await expect
+    .poll(async () => (await getHarnessState(page)).document.tracks[0]?.items[0]?.transform?.points)
+    .toEqual([{ offsetMs: 0, values: { x: 0, opacity: 1 }, easing: "linear" }]);
+
+  await page.getByLabel("X").fill("24");
+  await expect
+    .poll(
+      async () =>
+        (await getHarnessState(page)).document.tracks[0]?.items[0]?.transform?.points[0]?.values.x,
+    )
+    .toBe(24);
+
+  await page.locator("[data-slot='timeline-workbench-transform-easing']").selectOption("hold");
+  await expect
+    .poll(
+      async () =>
+        (await getHarnessState(page)).document.tracks[0]?.items[0]?.transform?.points[0]?.easing,
+    )
+    .toBe("hold");
+
+  await page.getByRole("button", { name: "Remove Keyframe" }).click();
+  await expect
+    .poll(async () => (await getHarnessState(page)).document.tracks[0]?.items[0]?.transform)
+    .toBeUndefined();
+});
+
 test("draws frame ticks across timeline tracks", async ({ page }) => {
   await page.goto("/?frameRate=25");
 

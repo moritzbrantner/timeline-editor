@@ -21,6 +21,7 @@ const initialDocument: TimelineEditorDocument = {
     { id: "review", timeMs: 8_000, label: "Review", color: "#16a34a" },
     { id: "ship", timeMs: 15_000, label: "Ship", color: "#f59e0b" },
   ],
+  groups: [{ id: "program", label: "Program", trackIds: ["video", "audio", "notes"] }],
   tracks: [
     {
       id: "video",
@@ -85,6 +86,12 @@ const initialDocument: TimelineEditorDocument = {
           startMs: 2_300,
           durationMs: 2_200,
           color: "#7c3aed",
+          transform: {
+            points: [
+              { offsetMs: 0, values: { x: 0, opacity: 1 } },
+              { offsetMs: 2_200, values: { x: 120, opacity: 0.75 }, easing: "ease-out" },
+            ],
+          },
         },
         {
           id: "review-note",
@@ -189,6 +196,12 @@ function App() {
           pixelsPerSecond={84}
           snapMs={100}
           assets={assets}
+          inspectorSchema={{
+            transformFields: [
+              { id: "x", label: "X", step: 1, defaultValue: 0 },
+              { id: "opacity", label: "Opacity", min: 0, max: 1, step: 0.1, defaultValue: 1 },
+            ],
+          }}
           onDocumentChange={updateDocument}
           onSelectionChange={updateSelection}
           renderAsset={(asset) => (

@@ -18,7 +18,8 @@ this package.
 - `TimelineWorkbench` for a controlled workbench with assets, toolbar actions, inspector, markers, item context menus, and zoom.
 - `normalizeTimelineEditorTracks(...)`, `moveTimelineEditorItem(...)`, `resizeTimelineEditorItem(...)`, `splitTimelineEditorItem(...)`, and `duplicateTimelineEditorItem(...)`.
 - `insertTimelineEditorItem(...)`, `removeTimelineEditorItems(...)`, `moveTimelineEditorItems(...)`, `splitTimelineEditorItems(...)`, and `duplicateTimelineEditorItems(...)`.
-- `setTimelineEditorItemTransform(...)`, `getTimelineEditorTransformValuesAt(...)`, and `getTimelineEditorItemTransformValuesAt(...)` for item-relative animated transform values.
+- `setTimelineEditorItemTransform(...)`, `upsertTimelineEditorTransformPoint(...)`, `updateTimelineEditorTransformPoint(...)`, `moveTimelineEditorTransformPoint(...)`, `removeTimelineEditorTransformPoint(...)`, `getTimelineEditorTransformValuesAt(...)`, and `getTimelineEditorItemTransformValuesAt(...)` for item-relative animated transform values.
+- `addTimelineEditorTracksToGroup(...)`, `removeTimelineEditorTracksFromGroup(...)`, and `moveTimelineEditorTrackInGroup(...)` for track-group workflows.
 - `applyTimelineEditorCommand(...)`, `createTimelineEditorHistory(...)`, `undoTimelineEditorHistory(...)`, and `redoTimelineEditorHistory(...)`.
 - `validateTimelineEditorDocument(...)`, `serializeTimelineEditorDocument(...)`, `parseTimelineEditorDocument(...)`, and `migrateTimelineEditorDocument(...)`.
 - `detectTimelineEditorOverlaps(...)`, `getTimelineEditorDurationMs(...)`, and timeline tick/snap helpers.
@@ -57,6 +58,8 @@ snap-aware asset insertion.
 
 The toolbar includes a Hotkeys menu for rebinding workbench shortcuts at runtime.
 Use `onHotkeysChange` when the host app should persist the user overrides.
+Pass `inspectorSchema.transformFields` to enable default keyframe editing for
+numeric item transform values.
 
 ```tsx
 <TimelineWorkbench
@@ -70,6 +73,17 @@ Use `onHotkeysChange` when the host app should persist the user overrides.
   onSelectionChange={setSelection}
 />
 ```
+
+## Choosing APIs
+
+- Use core operations from `@moritzbrantner/timeline-editor/core` for non-React
+  state management.
+- Use commands when edits should share selection, clipboard, and undo/redo
+  semantics.
+- Use `TimelineWorkbench` when you want a controlled editing surface with
+  toolbar, assets, preview, inspector, groups, and context menus.
+- Use extensions for media-specific item rendering, preview rendering,
+  inspector sections, toolbar actions, context menu items, and operations.
 
 ## Extensions
 
@@ -404,6 +418,12 @@ export function WorkbenchExample({ initialDocument }: { initialDocument: Timelin
       document={document}
       selection={selection}
       viewport={viewport}
+      inspectorSchema={{
+        transformFields: [
+          { id: "x", label: "X", step: 1, defaultValue: 0 },
+          { id: "opacity", label: "Opacity", min: 0, max: 1, step: 0.1, defaultValue: 1 },
+        ],
+      }}
       assets={[{ id: "scene", label: "Scene", kind: "video", durationMs: 2_000 }]}
       onDocumentChange={setDocument}
       onSelectionChange={setSelection}
@@ -422,7 +442,9 @@ inside the item.
 ```ts
 import {
   getTimelineEditorItemTransformValuesAt,
+  moveTimelineEditorTransformPoint,
   setTimelineEditorItemTransform,
+  upsertTimelineEditorTransformPoint,
 } from "@moritzbrantner/timeline-editor";
 
 const nextTracks = setTimelineEditorItemTransform(document.tracks, "brief", {
@@ -435,6 +457,14 @@ const nextTracks = setTimelineEditorItemTransform(document.tracks, "brief", {
 const item = nextTracks[0].items[0];
 const values = getTimelineEditorItemTransformValuesAt(item, 2_000);
 // { x: 50, opacity: 0.5 } when the item starts at 1_000ms
+
+const withKeyframe = upsertTimelineEditorTransformPoint(document.tracks, "brief", {
+  offsetMs: 1_000,
+  values: { x: 50, opacity: 0.75 },
+  easing: "ease-out",
+});
+
+const movedKeyframe = moveTimelineEditorTransformPoint(withKeyframe, "brief", 1_000, 1_500);
 ```
 
 Set `easing` on the point that starts a segment to control how values change
@@ -508,6 +538,38 @@ handling a built-in family such as all text-like items.
     return [];
   }}
 />
+```
+
+## Track Groups
+
+Track groups organize related tracks without changing the underlying track
+shape. Groups can be collapsed, locked, renamed, removed, and edited from the
+workbench track-group row and track context menus. Removing a group preserves
+the tracks and items it referenced.
+
+```tsx
+import {
+  TimelineWorkbench,
+  addTimelineEditorTracksToGroup,
+  moveTimelineEditorTrackInGroup,
+  removeTimelineEditorTracksFromGroup,
+} from "@moritzbrantner/timeline-editor";
+
+const groupedDocument = {
+  durationMs: 10_000,
+  groups: [{ id: "program", label: "Program", trackIds: ["video", "audio", "captions"] }],
+  tracks: [
+    { id: "video", label: "Video", kind: "video", items: [] },
+    { id: "audio", label: "Audio", kind: "audio", items: [] },
+    { id: "captions", label: "Captions", acceptsItemKinds: ["caption"], items: [] },
+  ],
+};
+
+const withNotes = addTimelineEditorTracksToGroup(groupedDocument, "program", ["notes"]);
+const reordered = moveTimelineEditorTrackInGroup(withNotes, "program", "audio", 0);
+const withoutCaptions = removeTimelineEditorTracksFromGroup(reordered, "program", ["captions"]);
+
+<TimelineWorkbench document={withoutCaptions} />;
 ```
 
 ## Timeline Context Menus

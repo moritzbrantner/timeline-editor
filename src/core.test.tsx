@@ -20,9 +20,13 @@ import {
   getVisibleTimelineEditorTicksForRange,
   insertTimelineEditorItem,
   migrateTimelineEditorDocument,
+  moveTimelineEditorTrackInGroup,
+  moveTimelineEditorTransformPoint,
   moveTimelineEditorItem,
   normalizeTimelineEditorTracks,
   parseTimelineEditorDocument,
+  removeTimelineEditorTracksFromGroup,
+  removeTimelineEditorTransformPoint,
   removeTimelineEditorItem,
   resizeTimelineEditorItem,
   rippleDeleteTimelineEditorItems,
@@ -30,6 +34,9 @@ import {
   setTimelineEditorItemTransform,
   splitTimelineEditorItem,
   TimelineEditorMigrationError,
+  updateTimelineEditorTransformPoint,
+  upsertTimelineEditorTransformPoint,
+  addTimelineEditorTracksToGroup,
   undoTimelineEditorHistory,
   validateTimelineEditorDocument,
   type TimelineEditorDocument,
@@ -556,6 +563,116 @@ describe("@moritzbrantner/timeline-editor core", () => {
       parseTimelineEditorDocument(serializeTimelineEditorDocument({ tracks: transformed }))
         .tracks[0]?.items[0]?.transform?.points[0]?.easing,
     ).toBe("cubic");
+  });
+
+  test("adds, updates, moves, removes, and commands transform points", () => {
+    const withData = setTimelineEditorItemTransform(tracks, "brief", {
+      data: { source: "test" },
+      points: [{ offsetMs: 0, values: { x: 0 }, easing: "linear" }],
+    });
+    const inserted = upsertTimelineEditorTransformPoint(withData, "brief", {
+      offsetMs: 4_000,
+      values: { x: 200, opacity: 0.5 },
+      easing: "ease-in",
+    });
+
+    expect(inserted[0]?.items[0]?.transform).toEqual({
+      data: { source: "test" },
+      points: [
+        { offsetMs: 0, values: { x: 0 }, easing: "linear" },
+        { offsetMs: 2_000, values: { x: 200, opacity: 0.5 }, easing: "ease-in" },
+      ],
+    });
+
+    const replaced = upsertTimelineEditorTransformPoint(inserted, "brief", {
+      offsetMs: 2_000,
+      values: { x: 250 },
+    });
+    expect(replaced[0]?.items[0]?.transform?.points).toEqual([
+      { offsetMs: 0, values: { x: 0 }, easing: "linear" },
+      { offsetMs: 2_000, values: { x: 250, opacity: 0.5 }, easing: undefined },
+    ]);
+
+    const updated = updateTimelineEditorTransformPoint(replaced, "brief", 2_000, {
+      values: { opacity: 0 },
+      easing: "hold",
+    });
+    expect(updated[0]?.items[0]?.transform?.points[1]).toEqual({
+      offsetMs: 2_000,
+      values: { x: 250, opacity: 0 },
+      easing: "hold",
+    });
+
+    const moved = moveTimelineEditorTransformPoint(updated, "brief", 2_000, 1_000);
+    expect(moved[0]?.items[0]?.transform?.points.map((point) => point.offsetMs)).toEqual([
+      0, 1_000,
+    ]);
+
+    const removed = removeTimelineEditorTransformPoint(moved, "brief", 1_000);
+    expect(removed[0]?.items[0]?.transform).toEqual({
+      data: { source: "test" },
+      points: [{ offsetMs: 0, values: { x: 0 }, easing: "linear" }],
+    });
+
+    const lockedItem = upsertTimelineEditorTransformPoint(
+      [
+        {
+          ...tracks[0]!,
+          items: [{ ...tracks[0]!.items[0]!, locked: true }],
+        },
+      ],
+      "brief",
+      { offsetMs: 0, values: { x: 10 } },
+    );
+    expect(lockedItem[0]?.items[0]?.transform).toBeUndefined();
+
+    const commandResult = applyTimelineEditorCommand(
+      { tracks },
+      { itemIds: ["brief"] },
+      {
+        type: "upsert-transform-point",
+        itemId: "brief",
+        point: { offsetMs: 1_000, values: { x: 50 } },
+      },
+    );
+    expect(commandResult.changed).toBe(true);
+    expect(commandResult.label).toBe("Upsert transform point");
+    expect(commandResult.document.tracks[0]?.items[0]?.transform?.points).toEqual([
+      { offsetMs: 1_000, values: { x: 50 }, easing: undefined },
+    ]);
+  });
+
+  test("adds, removes, moves, and normalizes tracks within groups", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks,
+      groups: [{ id: "phase", label: "Phase", trackIds: ["planning"] }],
+    };
+    const added = addTimelineEditorTracksToGroup(document, "phase", ["review", "missing"]);
+    expect(added.groups?.[0]?.trackIds).toEqual(["planning", "review"]);
+
+    const moved = moveTimelineEditorTrackInGroup(added, "phase", "review", 0);
+    expect(moved.groups?.[0]?.trackIds).toEqual(["review", "planning"]);
+
+    const removed = removeTimelineEditorTracksFromGroup(moved, "phase", ["review"]);
+    expect(removed.groups?.[0]?.trackIds).toEqual(["planning"]);
+
+    const empty = removeTimelineEditorTracksFromGroup(removed, "phase", ["planning"]);
+    expect(empty.groups).toBeUndefined();
+
+    const commandResult = applyTimelineEditorCommand(
+      moved,
+      { itemIds: [] },
+      {
+        type: "move-track-in-group",
+        groupId: "phase",
+        trackId: "planning",
+        toIndex: 0,
+      },
+    );
+    expect(commandResult.changed).toBe(true);
+    expect(commandResult.label).toBe("Move track in timeline group");
+    expect(commandResult.document.groups?.[0]?.trackIds).toEqual(["planning", "review"]);
   });
 
   test("resolves snap targets without enumerating interval candidates", () => {

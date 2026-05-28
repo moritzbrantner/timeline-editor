@@ -90,6 +90,10 @@ export function AnnotationPlanningWorkbench() {
           { id: "assignee", label: "Assignee", type: "text", dataKey: "assignee" },
           { id: "status", label: "Status", type: "text", dataKey: "status" },
         ],
+        transformFields: [
+          { id: "x", label: "X", step: 1, defaultValue: 0 },
+          { id: "opacity", label: "Opacity", min: 0, max: 1, step: 0.1, defaultValue: 1 },
+        ],
       }}
       assets={[
         {

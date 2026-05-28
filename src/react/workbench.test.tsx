@@ -644,6 +644,60 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     );
   });
 
+  test("edits selected item transform keyframes from the default inspector", () => {
+    let document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 1_500,
+      tracks: [
+        {
+          id: "planning",
+          label: "Planning",
+          items: [
+            { id: "brief", trackId: "planning", label: "Brief", startMs: 1_000, durationMs: 2_000 },
+          ],
+        },
+      ],
+    };
+    const handleDocumentChange = vi.fn((nextDocument: TimelineEditorDocument) => {
+      document = nextDocument;
+    });
+    const renderWorkbench = () => (
+      <TimelineWorkbench
+        document={document}
+        selection={{ itemIds: ["brief"], anchorItemId: "brief" }}
+        inspectorSchema={{
+          transformFields: [
+            { id: "x", label: "X", step: 1, defaultValue: 0 },
+            { id: "opacity", label: "Opacity", min: 0, max: 1, step: 0.1, defaultValue: 1 },
+          ],
+        }}
+        onDocumentChange={handleDocumentChange}
+      />
+    );
+    const { rerender } = render(renderWorkbench());
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Keyframe" }));
+    expect(document.tracks[0]?.items[0]?.transform?.points).toEqual([
+      { offsetMs: 500, values: { x: 0, opacity: 1 }, easing: "linear" },
+    ]);
+
+    rerender(renderWorkbench());
+    fireEvent.change(screen.getByLabelText("X"), { target: { value: "42" } });
+    expect(document.tracks[0]?.items[0]?.transform?.points[0]).toEqual({
+      offsetMs: 500,
+      values: { x: 42, opacity: 1 },
+      easing: "linear",
+    });
+
+    rerender(renderWorkbench());
+    fireEvent.change(screen.getByLabelText("Easing"), { target: { value: "hold" } });
+    expect(document.tracks[0]?.items[0]?.transform?.points[0]?.easing).toBe("hold");
+
+    rerender(renderWorkbench());
+    fireEvent.click(screen.getByRole("button", { name: "Remove Keyframe" }));
+    expect(document.tracks[0]?.items[0]?.transform).toBeUndefined();
+  });
+
   test("manages track groups from the workbench group menu without deleting tracks", () => {
     let document: TimelineEditorDocument = {
       durationMs: 8_000,

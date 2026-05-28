@@ -35,6 +35,9 @@ import {
   type TimelineEditorTool,
   type TimelineEditorTrack,
   type TimelineEditorTrackGroup,
+  type TimelineEditorTransformPoint,
+  type TimelineEditorTransformPointPatch,
+  type TimelineEditorTransformValues,
   type TimelineEditorViewport,
 } from "../core";
 import type { TimelineEditorCommand } from "../commands";
@@ -321,7 +324,7 @@ export function TimelineWorkbench<
 
     const found = itemLookup.get(itemId);
 
-    if (!found || found.item.locked || found.track.locked) {
+    if (!found || found.item.locked || isTimelineWorkbenchTrackLocked(document, found.track)) {
       return;
     }
 
@@ -346,7 +349,10 @@ export function TimelineWorkbench<
     const selectedItemIds = new Set(selectedItems.map((item) => item.id));
     let changed = false;
     const tracks = document.tracks.map((track) => {
-      if (track.locked || !track.items.some((item) => selectedItemIds.has(item.id))) {
+      if (
+        isTimelineWorkbenchTrackLocked(document, track) ||
+        !track.items.some((item) => selectedItemIds.has(item.id))
+      ) {
         return track;
       }
 
@@ -548,15 +554,54 @@ export function TimelineWorkbench<
       return;
     }
 
-    const trackIds = [...group.trackIds];
-    const [movedTrackId] = trackIds.splice(currentIndex, 1);
+    runCommand({
+      type: "move-track-in-group",
+      groupId: group.id,
+      trackId,
+      toIndex: nextIndex,
+    });
+  };
 
-    if (!movedTrackId) {
+  const upsertSelectedTransformPoint = (
+    point: TimelineEditorTransformPoint<TimelineEditorTransformValues>,
+  ) => {
+    if (readOnly || !selectedItem) {
       return;
     }
 
-    trackIds.splice(nextIndex, 0, movedTrackId);
-    updateTrackGroup(group.id, { trackIds });
+    runCommand({ type: "upsert-transform-point", itemId: selectedItem.id, point });
+  };
+
+  const updateSelectedTransformPoint = (
+    offsetMs: number,
+    patch: TimelineEditorTransformPointPatch<TimelineEditorTransformValues>,
+  ) => {
+    if (readOnly || !selectedItem) {
+      return;
+    }
+
+    runCommand({ type: "update-transform-point", itemId: selectedItem.id, offsetMs, patch });
+  };
+
+  const moveSelectedTransformPoint = (fromOffsetMs: number, toOffsetMs: number) => {
+    if (readOnly || !selectedItem) {
+      return;
+    }
+
+    runCommand({
+      type: "move-transform-point",
+      itemId: selectedItem.id,
+      fromOffsetMs,
+      toOffsetMs,
+    });
+  };
+
+  const removeSelectedTransformPoint = (offsetMs: number) => {
+    if (readOnly || !selectedItem) {
+      return;
+    }
+
+    runCommand({ type: "remove-transform-point", itemId: selectedItem.id, offsetMs });
   };
 
   const removeTimeline = (trackId?: string) => {
@@ -673,7 +718,7 @@ export function TimelineWorkbench<
   const getRangeTargetTrackId = () =>
     resolvedSelection.trackIds?.[0] ??
     selectedTrack?.id ??
-    document.tracks.find((track) => !track.locked)?.id;
+    document.tracks.find((track) => !isTimelineWorkbenchTrackLocked(document, track))?.id;
 
   const insertSelectedRangeGap = () => {
     const range = normalizeTimelineWorkbenchRange(resolvedSelection.range);
@@ -715,6 +760,10 @@ export function TimelineWorkbench<
     closeGap,
     updateSelectedItem,
     updateSelectedItems,
+    upsertSelectedTransformPoint,
+    updateSelectedTransformPoint,
+    moveSelectedTransformPoint,
+    removeSelectedTransformPoint,
   } satisfies TimelineWorkbenchInspectorContext<TItemData>;
 
   const extensionInspectorSections = extensions.flatMap(
@@ -743,14 +792,21 @@ export function TimelineWorkbench<
     const selectedTrackForPlacement =
       !requestedTrack &&
       selectedTrack &&
-      canPlaceTimelineWorkbenchAssetOnTrack(asset, selectedTrack)
+      canPlaceTimelineWorkbenchAssetOnTrack(asset, selectedTrack) &&
+      !isTimelineWorkbenchTrackLocked(document, selectedTrack)
         ? selectedTrack
         : undefined;
     const targetTrack =
-      requestedTrack && canPlaceTimelineWorkbenchAssetOnTrack(asset, requestedTrack)
+      requestedTrack &&
+      canPlaceTimelineWorkbenchAssetOnTrack(asset, requestedTrack) &&
+      !isTimelineWorkbenchTrackLocked(document, requestedTrack)
         ? requestedTrack
         : (selectedTrackForPlacement ??
-          document.tracks.find((track) => canPlaceTimelineWorkbenchAssetOnTrack(asset, track)));
+          document.tracks.find(
+            (track) =>
+              canPlaceTimelineWorkbenchAssetOnTrack(asset, track) &&
+              !isTimelineWorkbenchTrackLocked(document, track),
+          ));
 
     if (!targetTrack || readOnly) {
       return;
@@ -856,6 +912,21 @@ export function TimelineWorkbench<
         disabled: readOnly || Boolean(trackGroup),
         onSelect: () => addTrackGroup([context.track.id], `${context.track.label} Group`),
       },
+      ...(document.groups ?? [])
+        .filter((group) => group.id !== trackGroup?.id)
+        .map(
+          (group): MenuActionItem => ({
+            id: `add-track-to-group-${group.id}`,
+            label: `Add Track To ${group.label}`,
+            disabled: readOnly || group.trackIds.includes(context.track.id),
+            onSelect: () =>
+              runCommand({
+                type: "add-tracks-to-group",
+                groupId: group.id,
+                trackIds: [context.track.id],
+              }),
+          }),
+        ),
       {
         id: "move-track-group-up",
         label: "Move Track Up In Group",
@@ -878,8 +949,10 @@ export function TimelineWorkbench<
         disabled: readOnly || !trackGroup,
         onSelect: () => {
           if (trackGroup) {
-            updateTrackGroup(trackGroup.id, {
-              trackIds: trackGroup.trackIds.filter((trackId) => trackId !== context.track.id),
+            runCommand({
+              type: "remove-tracks-from-group",
+              groupId: trackGroup.id,
+              trackIds: [context.track.id],
             });
           }
         },
@@ -1708,6 +1781,16 @@ function getTimelineWorkbenchTrackKinds<
 
   return [...kinds].sort((left, right) =>
     formatTimelineWorkbenchTrackKind(left).localeCompare(formatTimelineWorkbenchTrackKind(right)),
+  );
+}
+
+function isTimelineWorkbenchTrackLocked<TTrackData, TItemData>(
+  document: TimelineEditorDocument<TTrackData, TItemData>,
+  track: TimelineEditorTrack<TTrackData, TItemData>,
+) {
+  return Boolean(
+    track.locked ||
+    document.groups?.some((group) => group.locked && group.trackIds.includes(track.id)),
   );
 }
 

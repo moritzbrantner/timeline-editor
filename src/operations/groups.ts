@@ -189,6 +189,99 @@ export function updateTimelineEditorTrackGroup<
   );
 }
 
+export function addTimelineEditorTracksToGroup<
+  TTrackData = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+  TGroupData = Record<string, unknown>,
+>(
+  document: TimelineEditorDocument<TTrackData, TItemData, TGroupData>,
+  groupId: string,
+  trackIds: readonly string[],
+  options: TimelineEditorOperationOptions = {},
+) {
+  const group = document.groups?.find((candidate) => candidate.id === groupId);
+
+  if (!group || trackIds.length === 0) {
+    return document;
+  }
+
+  const knownTrackIds = new Set(document.tracks.map((track) => track.id));
+  const nextTrackIds = [
+    ...group.trackIds,
+    ...trackIds.filter(
+      (trackId) => knownTrackIds.has(trackId) && !group.trackIds.includes(trackId),
+    ),
+  ];
+
+  if (nextTrackIds.length === group.trackIds.length) {
+    return document;
+  }
+
+  return updateTimelineEditorTrackGroup(document, groupId, { trackIds: nextTrackIds }, options);
+}
+
+export function removeTimelineEditorTracksFromGroup<
+  TTrackData = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+  TGroupData = Record<string, unknown>,
+>(
+  document: TimelineEditorDocument<TTrackData, TItemData, TGroupData>,
+  groupId: string,
+  trackIds: readonly string[],
+  options: TimelineEditorOperationOptions = {},
+) {
+  const group = document.groups?.find((candidate) => candidate.id === groupId);
+
+  if (!group || trackIds.length === 0) {
+    return document;
+  }
+
+  const removedTrackIds = new Set(trackIds);
+  const nextTrackIds = group.trackIds.filter((trackId) => !removedTrackIds.has(trackId));
+
+  if (nextTrackIds.length === group.trackIds.length) {
+    return document;
+  }
+
+  return updateTimelineEditorTrackGroup(document, groupId, { trackIds: nextTrackIds }, options);
+}
+
+export function moveTimelineEditorTrackInGroup<
+  TTrackData = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+  TGroupData = Record<string, unknown>,
+>(
+  document: TimelineEditorDocument<TTrackData, TItemData, TGroupData>,
+  groupId: string,
+  trackId: string,
+  toIndex: number,
+  options: TimelineEditorOperationOptions = {},
+) {
+  const group = document.groups?.find((candidate) => candidate.id === groupId);
+  const fromIndex = group?.trackIds.indexOf(trackId) ?? -1;
+
+  if (!group || fromIndex === -1) {
+    return document;
+  }
+
+  const nextIndex = Math.max(0, Math.min(group.trackIds.length - 1, Math.round(toIndex)));
+
+  if (fromIndex === nextIndex) {
+    return document;
+  }
+
+  const trackIds = [...group.trackIds];
+  const [movedTrackId] = trackIds.splice(fromIndex, 1);
+
+  if (!movedTrackId) {
+    return document;
+  }
+
+  trackIds.splice(nextIndex, 0, movedTrackId);
+
+  return updateTimelineEditorTrackGroup(document, groupId, { trackIds }, options);
+}
+
 export function removeTimelineEditorTrackGroup<
   TTrackData = Record<string, unknown>,
   TItemData = Record<string, unknown>,

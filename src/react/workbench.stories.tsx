@@ -8,6 +8,7 @@ import {
   type TimelineEditorEditPolicy,
   type TimelineEditorSelection,
   type TimelineWorkbenchAsset,
+  type TimelineWorkbenchInspectorSchema,
   type TimelineWorkbenchImportSource,
 } from "@moritzbrantner/timeline-editor";
 
@@ -130,6 +131,32 @@ const overlapDocument: TimelineEditorDocument = {
   ],
 };
 
+const keyframeDocument: TimelineEditorDocument = {
+  ...editingDocument,
+  currentTimeMs: 2_300,
+  tracks: editingDocument.tracks.map((track) =>
+    track.id === "notes"
+      ? {
+          ...track,
+          items: track.items.map((item) =>
+            item.id === "lower-third"
+              ? {
+                  ...item,
+                  transform: {
+                    points: [
+                      { offsetMs: 0, values: { x: 0, opacity: 1 } },
+                      { offsetMs: item.durationMs, values: { x: 120, opacity: 0.75 } },
+                    ],
+                  },
+                }
+              : item,
+          ),
+        }
+      : track,
+  ),
+  groups: [{ id: "program", label: "Program", trackIds: ["video", "audio", "notes"] }],
+};
+
 const assets = [
   {
     id: "b-roll",
@@ -176,6 +203,7 @@ type TimelineWorkbenchStoryProps = {
   document: TimelineEditorDocument;
   editPolicy?: Partial<TimelineEditorEditPolicy>;
   importAssets?: boolean;
+  inspectorSchema?: TimelineWorkbenchInspectorSchema;
   readOnly?: boolean;
 };
 
@@ -185,6 +213,7 @@ function TimelineWorkbenchStory({
   document: initialDocument,
   editPolicy,
   importAssets,
+  inspectorSchema,
   readOnly,
 }: TimelineWorkbenchStoryProps) {
   const [document, setDocument] = useState(initialDocument);
@@ -218,6 +247,7 @@ function TimelineWorkbenchStory({
         pixelsPerSecond={84}
         snapMs={100}
         assets={resolvedAssets}
+        inspectorSchema={inspectorSchema}
         acceptedImportTypes={acceptedImportTypes}
         onImportAssets={importAssets ? handleImportAssets : undefined}
         onDocumentChange={setDocument}
@@ -279,5 +309,21 @@ export const OverlapPrevention: Story = {
   play: async ({ canvas }) => {
     await expect(canvas.getByLabelText("First")).toBeVisible();
     await expect(canvas.getByLabelText("Second")).toBeVisible();
+  },
+};
+
+export const KeyframeInspectorAndTrackGroups: Story = {
+  args: {
+    document: keyframeDocument,
+    inspectorSchema: {
+      transformFields: [
+        { id: "x", label: "X", step: 1, defaultValue: 0 },
+        { id: "opacity", label: "Opacity", min: 0, max: 1, step: 0.1, defaultValue: 1 },
+      ],
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Program")).toBeVisible();
+    await expect(canvas.getByLabelText("Lower third")).toBeVisible();
   },
 };

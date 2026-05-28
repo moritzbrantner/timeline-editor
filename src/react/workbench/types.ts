@@ -14,6 +14,9 @@ import type {
   TimelineEditorTimeRange,
   TimelineEditorTool,
   TimelineEditorTrack,
+  TimelineEditorTransformPoint,
+  TimelineEditorTransformPointPatch,
+  TimelineEditorTransformValues,
   TimelineEditorViewport,
 } from "../../core";
 import type { TimelineMediaType } from "../../media-types";
@@ -92,6 +95,15 @@ export type TimelineWorkbenchInspectorContext<TData = Record<string, unknown>> =
       | Partial<TimelineEditorItem<TData>>
       | ((item: TimelineEditorItem<TData>) => Partial<TimelineEditorItem<TData>>),
   ) => void;
+  upsertSelectedTransformPoint: (
+    point: TimelineEditorTransformPoint<TimelineEditorTransformValues>,
+  ) => void;
+  updateSelectedTransformPoint: (
+    offsetMs: number,
+    patch: TimelineEditorTransformPointPatch<TimelineEditorTransformValues>,
+  ) => void;
+  moveSelectedTransformPoint: (fromOffsetMs: number, toOffsetMs: number) => void;
+  removeSelectedTransformPoint: (offsetMs: number) => void;
 };
 
 export type TimelinePreviewContext<TItemData = Record<string, unknown>> = {
@@ -175,6 +187,14 @@ export type TimelineWorkbenchInspectorSchema<TData = Record<string, unknown>> = 
     label: string;
     type: "text" | "number" | "boolean" | "color";
     dataKey?: keyof TData & string;
+  }>;
+  transformFields?: Array<{
+    id: string;
+    label: string;
+    min?: number;
+    max?: number;
+    step?: number;
+    defaultValue?: number;
   }>;
 };
 

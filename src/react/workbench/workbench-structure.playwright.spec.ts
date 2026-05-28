@@ -213,6 +213,51 @@ test("controls track groups from group row", async ({ page }) => {
   await expectItem(page, "brief", { startMs: 1_000 });
 });
 
+test("adds moves and removes tracks inside a group from track menus", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Track Groups" }).click();
+  await page.getByRole("menuitem", { name: "Create Group From All Tracks" }).click();
+
+  await expect
+    .poll(async () => (await getHarnessState(page)).document.groups?.[0]?.trackIds)
+    .toEqual(["planning", "review"]);
+
+  const reviewTrack = getTimelineTrack(page, "Review");
+  const reviewTrackBox = await reviewTrack.boundingBox();
+  expect(reviewTrackBox).not.toBeNull();
+
+  await reviewTrack.click({
+    button: "right",
+    position: { x: 24, y: reviewTrackBox!.height / 2 },
+  });
+  await selectContextMenuItem(page, "Remove Track From Group");
+
+  await expect
+    .poll(async () => (await getHarnessState(page)).document.groups?.[0]?.trackIds)
+    .toEqual(["planning"]);
+
+  await reviewTrack.click({
+    button: "right",
+    position: { x: 24, y: reviewTrackBox!.height / 2 },
+  });
+  await selectContextMenuItem(page, "Add Track To Group 1");
+
+  await expect
+    .poll(async () => (await getHarnessState(page)).document.groups?.[0]?.trackIds)
+    .toEqual(["review", "planning"]);
+
+  await reviewTrack.click({
+    button: "right",
+    position: { x: 24, y: reviewTrackBox!.height / 2 },
+  });
+  await selectContextMenuItem(page, "Move Track Down In Group");
+
+  await expect
+    .poll(async () => (await getHarnessState(page)).document.groups?.[0]?.trackIds)
+    .toEqual(["planning", "review"]);
+});
+
 test("filters assets and shows selected-track compatibility", async ({ page }) => {
   await page.goto("/");
 

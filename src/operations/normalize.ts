@@ -6,6 +6,7 @@ import {
   type TimelineEditorItemGroup,
   type TimelineEditorOperationOptions,
   type TimelineEditorTrack,
+  type TimelineEditorTrackGroup,
 } from "../types";
 
 export function normalizeTimelineEditorTracks<
@@ -66,6 +67,7 @@ export function normalizeTimelineEditorDocument<
   return {
     ...document,
     tracks,
+    groups: normalizeTimelineEditorTrackGroups(document.groups ?? [], tracks),
     itemGroups,
     markers: document.markers
       ?.map((marker) => ({
@@ -110,6 +112,30 @@ export function normalizeTimelineEditorTrack<TTrackData, TItemData>(
       })
       .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id)),
   };
+}
+
+export function normalizeTimelineEditorTrackGroups<TTrackData, TItemData, TGroupData>(
+  groups: Array<TimelineEditorTrackGroup<TGroupData>>,
+  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
+) {
+  const trackIds = new Set(tracks.map((track) => track.id));
+  const normalizedGroups = groups
+    .map((group) => {
+      const seenTrackIds = new Set<string>();
+      const groupTrackIds = group.trackIds.filter((trackId) => {
+        if (!trackIds.has(trackId) || seenTrackIds.has(trackId)) {
+          return false;
+        }
+
+        seenTrackIds.add(trackId);
+        return true;
+      });
+
+      return { ...group, trackIds: groupTrackIds };
+    })
+    .filter((group) => group.trackIds.length > 0);
+
+  return normalizedGroups.length > 0 ? normalizedGroups : undefined;
 }
 
 export function normalizeTimelineEditorItemGroups<TTrackData, TItemData>(

@@ -15,6 +15,13 @@ export type TimelineEditorHarnessState = {
       itemIds: string[];
       label: string;
     }>;
+    groups?: Array<{
+      id: string;
+      label: string;
+      trackIds: string[];
+      collapsed?: boolean;
+      locked?: boolean;
+    }>;
     tracks: Array<{
       id: string;
       items: Array<TimelineEditorHarnessItem>;
@@ -40,6 +47,13 @@ export type TimelineEditorHarnessItem = {
   label: string;
   startMs: number;
   trackId: string;
+  transform?: {
+    points: Array<{
+      offsetMs: number;
+      values: Record<string, number>;
+      easing?: string;
+    }>;
+  };
 };
 
 export type TimelineEditorHarnessSnapshot = {

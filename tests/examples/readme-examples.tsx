@@ -57,6 +57,12 @@ export function ControlledWorkbenchExample() {
       document={document}
       selection={selection}
       viewport={viewport}
+      inspectorSchema={{
+        transformFields: [
+          { id: "x", label: "X", step: 1, defaultValue: 0 },
+          { id: "opacity", label: "Opacity", min: 0, max: 1, step: 0.1, defaultValue: 1 },
+        ],
+      }}
       assets={[{ id: "scene", label: "Scene", kind: "video", durationMs: 2_000 }]}
       onDocumentChange={setDocument}
       onSelectionChange={setSelection}
@@ -79,4 +85,58 @@ export function coreExamples() {
   );
 
   return serializeTimelineEditorDocument(commandResult.document);
+}
+
+const groupedMediaDocument: TimelineEditorDocument = {
+  durationMs: 10_000,
+  currentTimeMs: 2_000,
+  groups: [{ id: "program", label: "Program", trackIds: ["video", "audio", "captions"] }],
+  tracks: [
+    {
+      id: "video",
+      label: "Video",
+      kind: "video",
+      items: [
+        {
+          id: "scene",
+          trackId: "video",
+          label: "Scene",
+          kind: "video",
+          startMs: 0,
+          durationMs: 4_000,
+          transform: {
+            points: [
+              { offsetMs: 0, values: { x: 0, opacity: 1 } },
+              { offsetMs: 4_000, values: { x: 120, opacity: 0.75 }, easing: "ease-out" },
+            ],
+          },
+        },
+      ],
+    },
+    { id: "audio", label: "Audio", kind: "audio", items: [] },
+    { id: "captions", label: "Captions", acceptsItemKinds: ["caption"], items: [] },
+  ],
+};
+
+export function KeyframeAndTrackGroupWorkbenchExample() {
+  const [document, setDocument] = useState(groupedMediaDocument);
+  const [selection, setSelection] = useState<TimelineEditorSelection>({
+    itemIds: ["scene"],
+    anchorItemId: "scene",
+  });
+
+  return (
+    <TimelineWorkbench
+      document={document}
+      selection={selection}
+      inspectorSchema={{
+        transformFields: [
+          { id: "x", label: "X", step: 1, defaultValue: 0 },
+          { id: "opacity", label: "Opacity", min: 0, max: 1, step: 0.1, defaultValue: 1 },
+        ],
+      }}
+      onDocumentChange={setDocument}
+      onSelectionChange={setSelection}
+    />
+  );
 }

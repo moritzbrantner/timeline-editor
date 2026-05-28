@@ -151,6 +151,7 @@ function App() {
   const importAssetsFixture = searchParams.get("importAssets") === "true";
   const assetActionsFixture = searchParams.get("assetActions") === "true";
   const emptyAssetsFixture = searchParams.get("assets") === "none";
+  const transformInspectorFixture = searchParams.get("transformInspector") === "true";
   const editPolicy: Partial<TimelineEditorEditPolicy> | undefined =
     searchParams.get("editPolicy") === "prevent"
       ? { overlap: "prevent", ripple: false }
@@ -274,6 +275,16 @@ function App() {
       snapMs={100}
       assets={emptyAssetsFixture ? [] : timelineAssets}
       acceptedImportTypes={["video/*"]}
+      inspectorSchema={
+        transformInspectorFixture
+          ? {
+              transformFields: [
+                { id: "x", label: "X", step: 1, defaultValue: 0 },
+                { id: "opacity", label: "Opacity", min: 0, max: 1, step: 0.1, defaultValue: 1 },
+              ],
+            }
+          : undefined
+      }
       showAssetsPanel={searchParams.get("showAssetsPanel") !== "false"}
       showPreviewPanel={searchParams.get("showPreviewPanel") !== "false"}
       showInspectorPanel={searchParams.get("showInspectorPanel") !== "false"}

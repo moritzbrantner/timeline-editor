@@ -1,4 +1,5 @@
 import {
+  addTimelineEditorTracksToGroup,
   addTimelineEditorTrackGroup,
   addTimelineEditorMarker,
   addTimelineEditorTrack,
@@ -11,23 +12,29 @@ import {
   insertTimelineEditorGap,
   insertTimelineEditorItem,
   moveTimelineEditorTrack,
+  moveTimelineEditorTrackInGroup,
+  moveTimelineEditorTransformPoint,
   moveTimelineEditorItems,
   normalizeTimelineEditorDocument,
   normalizeTimelineEditorTracks,
   pasteTimelineEditorClipboard,
   removeTimelineEditorMarker,
   removeTimelineEditorRange,
+  removeTimelineEditorTracksFromGroup,
   removeTimelineEditorTrackGroup,
   removeTimelineEditorTrack,
   removeTimelineEditorItems,
+  removeTimelineEditorTransformPoint,
   resizeTimelineEditorItem,
   rippleDeleteTimelineEditorItems,
   splitTimelineEditorItems,
   trimTimelineEditorItem,
   ungroupTimelineEditorItems,
+  updateTimelineEditorTransformPoint,
   updateTimelineEditorMarker,
   updateTimelineEditorTrack,
   updateTimelineEditorTrackGroup,
+  upsertTimelineEditorTransformPoint,
 } from "./operations";
 import {
   type TimelineEditorClipboard,
@@ -38,6 +45,9 @@ import {
   type TimelineEditorSelection,
   type TimelineEditorTrack,
   type TimelineEditorTrackGroup,
+  type TimelineEditorTransformPoint,
+  type TimelineEditorTransformPointPatch,
+  type TimelineEditorTransformValues,
 } from "./types";
 
 export type TimelineEditorCommand<
@@ -73,6 +83,19 @@ export type TimelineEditorCommand<
     }
   | { type: "split-items"; itemIds: string[]; timeMs: number }
   | { type: "split-at-pointer"; itemIds: string[]; timeMs: number }
+  | {
+      type: "upsert-transform-point";
+      itemId: string;
+      point: TimelineEditorTransformPoint<TimelineEditorTransformValues>;
+    }
+  | {
+      type: "update-transform-point";
+      itemId: string;
+      offsetMs: number;
+      patch: TimelineEditorTransformPointPatch<TimelineEditorTransformValues>;
+    }
+  | { type: "move-transform-point"; itemId: string; fromOffsetMs: number; toOffsetMs: number }
+  | { type: "remove-transform-point"; itemId: string; offsetMs: number }
   | { type: "duplicate-selection" }
   | { type: "group-selection"; groupId?: string; label?: string }
   | { type: "ungroup-selection" }
@@ -100,6 +123,9 @@ export type TimelineEditorCommand<
       groupId: string;
       patch: Partial<Omit<TimelineEditorTrackGroup<TGroupData>, "id">>;
     }
+  | { type: "add-tracks-to-group"; groupId: string; trackIds: string[] }
+  | { type: "remove-tracks-from-group"; groupId: string; trackIds: string[] }
+  | { type: "move-track-in-group"; groupId: string; trackId: string; toIndex: number }
   | { type: "remove-track-group"; groupId: string }
   | { type: "insert-item"; item: TimelineEditorItem<TItemData> }
   | { type: "update-item"; itemId: string; patch: Partial<TimelineEditorItem<TItemData>> };
@@ -332,6 +358,48 @@ export function applyTimelineEditorCommand<
     return result(document, tracks, selection, "Split at pointer");
   }
 
+  if (command.type === "upsert-transform-point") {
+    const tracks = upsertTimelineEditorTransformPoint(
+      document.tracks,
+      command.itemId,
+      command.point,
+      options,
+    );
+    return result(document, tracks, selection, "Upsert transform point");
+  }
+
+  if (command.type === "update-transform-point") {
+    const tracks = updateTimelineEditorTransformPoint(
+      document.tracks,
+      command.itemId,
+      command.offsetMs,
+      command.patch,
+      options,
+    );
+    return result(document, tracks, selection, "Update transform point");
+  }
+
+  if (command.type === "move-transform-point") {
+    const tracks = moveTimelineEditorTransformPoint(
+      document.tracks,
+      command.itemId,
+      command.fromOffsetMs,
+      command.toOffsetMs,
+      options,
+    );
+    return result(document, tracks, selection, "Move transform point");
+  }
+
+  if (command.type === "remove-transform-point") {
+    const tracks = removeTimelineEditorTransformPoint(
+      document.tracks,
+      command.itemId,
+      command.offsetMs,
+      options,
+    );
+    return result(document, tracks, selection, "Remove transform point");
+  }
+
   if (command.type === "duplicate-selection") {
     const tracks = duplicateTimelineEditorItems(
       document.tracks,
@@ -439,6 +507,37 @@ export function applyTimelineEditorCommand<
       options,
     );
     return documentResult(document, nextDocument, selection, "Update timeline group");
+  }
+
+  if (command.type === "add-tracks-to-group") {
+    const nextDocument = addTimelineEditorTracksToGroup(
+      document,
+      command.groupId,
+      command.trackIds,
+      options,
+    );
+    return documentResult(document, nextDocument, selection, "Add tracks to timeline group");
+  }
+
+  if (command.type === "remove-tracks-from-group") {
+    const nextDocument = removeTimelineEditorTracksFromGroup(
+      document,
+      command.groupId,
+      command.trackIds,
+      options,
+    );
+    return documentResult(document, nextDocument, selection, "Remove tracks from timeline group");
+  }
+
+  if (command.type === "move-track-in-group") {
+    const nextDocument = moveTimelineEditorTrackInGroup(
+      document,
+      command.groupId,
+      command.trackId,
+      command.toIndex,
+      options,
+    );
+    return documentResult(document, nextDocument, selection, "Move track in timeline group");
   }
 
   if (command.type === "remove-track-group") {

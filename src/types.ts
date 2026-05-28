@@ -41,6 +41,10 @@ export type TimelineEditorTransformPoint<
   easing?: TimelineEditorTransformEasing;
 };
 
+export type TimelineEditorTransformPointPatch<
+  TValues extends TimelineEditorTransformValues = TimelineEditorTransformValues,
+> = Partial<Omit<TimelineEditorTransformPoint<TValues>, "offsetMs">>;
+
 export type TimelineEditorTransform<
   TValues extends TimelineEditorTransformValues = TimelineEditorTransformValues,
 > = {
