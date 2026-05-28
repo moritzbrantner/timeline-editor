@@ -218,15 +218,15 @@ export function TimelineWorkbenchCanvas<
 
   return (
     <WorkbenchCanvas
-      className="grid min-h-0 overflow-hidden p-3"
+      className="grid min-h-0 min-w-0 overflow-hidden p-3"
       style={{
         gridTemplateRows: "minmax(0, 1fr) auto",
         height: "18rem",
       }}
     >
-      <div className="relative min-h-0">
+      <div className="relative min-h-0 min-w-0">
         <TimelineEditor
-          className="h-full min-h-0 w-full"
+          className="h-full min-h-0 w-full min-w-0"
           document={document}
           selection={resolvedSelection}
           viewport={resolvedViewport}

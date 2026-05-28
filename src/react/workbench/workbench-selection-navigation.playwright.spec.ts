@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import {
   clickClip,
@@ -175,3 +175,35 @@ test("keeps horizontal timeline scroll on the editor scroller", async ({ page })
     windowScrollX: 0,
   });
 });
+
+test("keeps the track scrollbar visible when the timeline overflows horizontally", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 640, height: 720 });
+  await page.goto("/");
+
+  await addReviewTrack(page);
+  await addReviewTrack(page);
+  await addReviewTrack(page);
+  await addReviewTrack(page);
+
+  const editorOverflow = await getTimelineEditor(page).evaluate((editor) => {
+    const bounds = editor.getBoundingClientRect();
+
+    return {
+      editorRight: bounds.right,
+      horizontalOverflow: editor.scrollWidth > editor.clientWidth,
+      verticalOverflow: editor.scrollHeight > editor.clientHeight,
+      viewportWidth: window.innerWidth,
+    };
+  });
+
+  expect(editorOverflow.horizontalOverflow).toBe(true);
+  expect(editorOverflow.verticalOverflow).toBe(true);
+  expect(editorOverflow.editorRight).toBeLessThanOrEqual(editorOverflow.viewportWidth);
+});
+
+async function addReviewTrack(page: Page) {
+  await page.getByRole("button", { name: "Add Track" }).click();
+  await page.getByRole("menuitem", { name: "Review Track" }).click();
+}

@@ -866,7 +866,10 @@ export function TimelineEditor<
       data-slot="timeline-editor"
       data-read-only={readOnly ? "true" : undefined}
       ref={scrollerRef}
-      className={cn("overflow-auto rounded-md border bg-card text-card-foreground", className)}
+      className={cn(
+        "min-w-0 max-w-full overflow-auto rounded-md border bg-card text-card-foreground",
+        className,
+      )}
       style={{
         overscrollBehavior: "contain",
         overflowAnchor: "none",
