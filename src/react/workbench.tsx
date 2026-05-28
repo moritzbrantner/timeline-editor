@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 
 import {
   Button,
@@ -1585,6 +1586,39 @@ export function TimelineWorkbench<
   );
   const sidePanelsVisible = Boolean(assetsPanel || inspectorPanel);
   const mainPanelDefaultSize = 100 - (assetsPanel ? 20 : 0) - (inspectorPanel ? 24 : 0);
+  const renderMainArea = (centerPanel: ReactNode) =>
+    sidePanelsVisible ? (
+      <ResizablePanelGroup orientation="horizontal" className="min-h-full">
+        {assetsPanel ? (
+          <>
+            <ResizablePanel defaultSize={20} minSize={16} collapsible>
+              <WorkbenchPanel side="left" className="h-full border-r-0">
+                {assetsPanel}
+              </WorkbenchPanel>
+            </ResizablePanel>
+            <ResizableHandle withHandle />
+          </>
+        ) : null}
+        <ResizablePanel defaultSize={mainPanelDefaultSize} minSize={36}>
+          {centerPanel}
+        </ResizablePanel>
+        {inspectorPanel ? (
+          <>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={24} minSize={18} collapsible>
+              <WorkbenchPanel side="right" className="h-full border-l-0">
+                {inspectorPanel}
+              </WorkbenchPanel>
+            </ResizablePanel>
+          </>
+        ) : null}
+      </ResizablePanelGroup>
+    ) : (
+      centerPanel
+    );
+  const previewMainPanel = previewPanel ? (
+    <WorkbenchCanvas className="h-full min-h-0 p-0">{previewPanel}</WorkbenchCanvas>
+  ) : null;
 
   return (
     <div
@@ -1595,7 +1629,7 @@ export function TimelineWorkbench<
       )}
       style={{
         gridTemplateRows: "auto minmax(0, 1fr)",
-        height: "min(56rem, 100vh)",
+        height: "100%",
         minHeight: "34rem",
         ...style,
       }}
@@ -1603,44 +1637,17 @@ export function TimelineWorkbench<
     >
       <WorkbenchToolbar>{toolbarContent}</WorkbenchToolbar>
       <ResizablePanelGroup orientation="vertical" className="min-h-0">
-        <ResizablePanel defaultSize={previewPanel ? 72 : 100} minSize={42}>
-          {sidePanelsVisible ? (
-            <ResizablePanelGroup orientation="horizontal" className="min-h-full">
-              {assetsPanel ? (
-                <>
-                  <ResizablePanel defaultSize={20} minSize={16} collapsible>
-                    <WorkbenchPanel side="left" className="h-full border-r-0">
-                      {assetsPanel}
-                    </WorkbenchPanel>
-                  </ResizablePanel>
-                  <ResizableHandle withHandle />
-                </>
-              ) : null}
-              <ResizablePanel defaultSize={mainPanelDefaultSize} minSize={36}>
-                {canvasPanel}
-              </ResizablePanel>
-              {inspectorPanel ? (
-                <>
-                  <ResizableHandle withHandle />
-                  <ResizablePanel defaultSize={24} minSize={18} collapsible>
-                    <WorkbenchPanel side="right" className="h-full border-l-0">
-                      {inspectorPanel}
-                    </WorkbenchPanel>
-                  </ResizablePanel>
-                </>
-              ) : null}
-            </ResizablePanelGroup>
-          ) : (
-            canvasPanel
-          )}
+        <ResizablePanel
+          defaultSize={previewMainPanel ? 28 : 100}
+          minSize={previewMainPanel ? 18 : 42}
+        >
+          {previewMainPanel ? renderMainArea(previewMainPanel) : renderMainArea(canvasPanel)}
         </ResizablePanel>
-        {previewPanel ? (
+        {previewMainPanel ? (
           <>
             <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={28} minSize={14} collapsible>
-              <WorkbenchPanel side="bottom" className="h-full border-b-0 border-x-0">
-                {previewPanel}
-              </WorkbenchPanel>
+            <ResizablePanel defaultSize={72} minSize={42}>
+              {canvasPanel}
             </ResizablePanel>
           </>
         ) : null}

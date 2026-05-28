@@ -63,7 +63,7 @@ export function TimelineWorkbenchPreview<
   return (
     <div
       data-slot="timeline-workbench-preview"
-      className="grid min-w-0 overflow-hidden p-0"
+      className="grid h-full min-w-0 overflow-hidden p-0"
       style={{ gridTemplateRows: "auto minmax(0, 1fr)" }}
     >
       <div className="flex items-center justify-between gap-3 border-b border-border/60 px-3 py-2">

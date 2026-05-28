@@ -5,6 +5,7 @@ import {
   getClip,
   getHarnessState,
   getTimelineEditor,
+  getTimelineRuler,
   getTimelineRulerLane,
 } from "./playwright/support/workbench";
 
@@ -33,6 +34,7 @@ test("renders timeline as the primary workbench canvas", async ({ page }) => {
   await expect(page.locator("[data-slot='timeline-workbench-assets']")).toBeVisible();
   await expect(page.locator("[data-slot='timeline-workbench-inspector']")).toBeVisible();
   await expect(page.locator("[data-slot='timeline-workbench-preview']")).toBeVisible();
+  expect(timelineBox!.y).toBeGreaterThan(previewBox!.y + previewBox!.height);
   expect(timelineBox!.height).toBeGreaterThan(previewBox!.height);
 });
 
@@ -106,6 +108,39 @@ test("virtualizes large timeline rows", async ({ page }) => {
   await expect
     .poll(async () => page.locator("[data-slot='timeline-editor-track']").count())
     .toBeLessThan(20);
+});
+
+test("keeps timeline ruler visible while scrolling tracks", async ({ page }) => {
+  await page.goto("/?fixture=large");
+
+  const editor = getTimelineEditor(page);
+  const ruler = getTimelineRuler(page);
+  const before = await ruler.boundingBox();
+  expect(before).not.toBeNull();
+
+  await editor.evaluate((element) => {
+    element.scrollTop = 280;
+  });
+
+  const after = await ruler.boundingBox();
+  expect(after).not.toBeNull();
+  expect(Math.round(after!.y)).toBe(Math.round(before!.y));
+
+  const rulerOnTop = await page.evaluate(() => {
+    const editor = document.querySelector("[data-slot='timeline-editor']");
+    const ruler = document.querySelector("[data-slot='timeline-editor-ruler']");
+    const editorBox = editor?.getBoundingClientRect();
+    const box = ruler?.getBoundingClientRect();
+    const target = box
+      ? document.elementFromPoint(
+          Math.min(box.right - 1, Math.max(box.left + 1, (editorBox?.left ?? box.left) + 120)),
+          box.top + box.height / 2,
+        )
+      : null;
+
+    return Boolean(target?.closest("[data-slot='timeline-editor-ruler']"));
+  });
+  expect(rulerOnTop).toBe(true);
 });
 
 test("keeps workbench panels usable on a small viewport", async ({ page }) => {

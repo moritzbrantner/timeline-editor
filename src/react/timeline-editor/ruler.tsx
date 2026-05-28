@@ -141,13 +141,13 @@ export function TimelineEditorRuler<TTrackData extends Record<string, unknown>, 
     <>
       <div
         data-slot="timeline-editor-ruler"
-        className="grid border-b bg-muted/40"
+        className="sticky top-0 z-50 grid border-b bg-card shadow-sm"
         style={{
           gridTemplateColumns: `${timelineEditorTrackHeaderWidthPx}px ${timelineWidthPx}px`,
           height: timelineEditorRulerHeightPx,
         }}
       >
-        <div className="border-r bg-muted/20" />
+        <div className="border-r bg-card" />
         {getTimelineContextMenuContext ? (
           <TimelineEditorContextMenuTarget
             contentProps={{ "data-slot": "timeline-editor-ruler-menu" }}
