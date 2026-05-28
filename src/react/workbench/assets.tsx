@@ -1,6 +1,15 @@
 "use client";
 
-import { useMemo, useRef, useState, type DragEvent, type MouseEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 
 import { Badge, Button, Input, WorkbenchPanel, cn } from "@moritzbrantner/ui";
 
@@ -127,7 +136,9 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
   const [kindFilter, setKindFilter] = useState("");
   const [mediaTypeFilter, setMediaTypeFilter] = useState("");
   const [compatibleOnly, setCompatibleOnly] = useState(false);
+  const panelContentRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const suppressAssetActivationUntilRef = useRef(0);
   const filterOptions = useMemo(
     () => ({
       kinds: [...new Set(assets.map((asset) => asset.kind).filter(Boolean))].sort(),
@@ -183,10 +194,35 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
       })),
     );
   };
+  useEffect(() => {
+    const ownerDocument = panelContentRef.current?.ownerDocument ?? document;
+    const suppressClickThrough = (event: Event) => {
+      const target = event.target;
+
+      if (
+        !(target instanceof Element) ||
+        panelContentRef.current?.contains(target) ||
+        !isTimelineWorkbenchAssetOverlayTarget(target)
+      ) {
+        return;
+      }
+
+      suppressAssetActivationUntilRef.current = Date.now() + 700;
+    };
+
+    ownerDocument.addEventListener("pointerdown", suppressClickThrough, true);
+    ownerDocument.addEventListener("mousedown", suppressClickThrough, true);
+
+    return () => {
+      ownerDocument.removeEventListener("pointerdown", suppressClickThrough, true);
+      ownerDocument.removeEventListener("mousedown", suppressClickThrough, true);
+    };
+  }, []);
+  const isAssetActivationSuppressed = () => Date.now() < suppressAssetActivationUntilRef.current;
 
   return (
     <WorkbenchPanel side="left" className={cn("min-w-64 p-0", className)}>
-      <div className="grid gap-3 p-3">
+      <div ref={panelContentRef} className="grid gap-3 p-3">
         <div className="flex items-center justify-between gap-3">
           <div className="text-sm font-medium">Assets</div>
           <div className="flex items-center gap-2">
@@ -302,38 +338,74 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
                 selectedTrack,
               );
               const startAssetDrag = (event: DragEvent<HTMLElement>) => {
+                if (isTimelineWorkbenchAssetInteractiveTarget(event.target, event.currentTarget)) {
+                  event.preventDefault();
+                  return;
+                }
+
                 event.dataTransfer.effectAllowed = "copy";
                 event.dataTransfer.setData(timelineWorkbenchAssetDragDataType, asset.id);
                 event.dataTransfer.setData("text/plain", asset.label);
                 onAssetDragStart?.(asset);
               };
               const prepareAssetDrag = (event: MouseEvent<HTMLElement>) => {
-                if (event.button === 0 && !readOnly && compatibility.compatible) {
+                if (
+                  event.button === 0 &&
+                  !readOnly &&
+                  compatibility.compatible &&
+                  !isTimelineWorkbenchAssetInteractiveTarget(event.target, event.currentTarget)
+                ) {
                   onAssetDragStart?.(asset);
                 }
               };
+              const insertAsset = () => {
+                if (!readOnly && compatibility.compatible && !isAssetActivationSuppressed()) {
+                  onInsertAsset(asset);
+                  onAssetDragEnd?.();
+                }
+              };
+              const handleAssetClick = (event: MouseEvent<HTMLElement>) => {
+                if (isTimelineWorkbenchAssetInteractiveTarget(event.target, event.currentTarget)) {
+                  return;
+                }
+
+                insertAsset();
+              };
+              const handleAssetKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+                if (
+                  event.defaultPrevented ||
+                  isTimelineWorkbenchAssetInteractiveTarget(event.target, event.currentTarget) ||
+                  (event.key !== "Enter" && event.key !== " ")
+                ) {
+                  return;
+                }
+
+                event.preventDefault();
+                insertAsset();
+              };
 
               return (
-                <Button
+                <div
                   key={asset.id}
-                  type="button"
-                  variant="ghost"
+                  role="button"
+                  tabIndex={readOnly || !compatibility.compatible ? -1 : 0}
+                  aria-disabled={readOnly || !compatibility.compatible}
                   aria-label={asset.label}
-                  className="h-auto justify-start border border-border bg-background px-3 py-2 text-left"
-                  disabled={readOnly || !compatibility.compatible}
+                  className={cn(
+                    "inline-flex h-auto w-full items-center justify-start rounded-md border border-border bg-background px-3 py-2 text-left text-sm transition-colors",
+                    readOnly || !compatibility.compatible
+                      ? "cursor-not-allowed opacity-50"
+                      : "cursor-pointer hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  )}
                   draggable={!readOnly && compatibility.compatible}
-                  onClick={() => {
-                    if (compatibility.compatible) {
-                      onInsertAsset(asset);
-                      onAssetDragEnd?.();
-                    }
-                  }}
+                  onClick={handleAssetClick}
+                  onKeyDown={handleAssetKeyDown}
                   onMouseDown={prepareAssetDrag}
                   onDragStart={startAssetDrag}
                   onDragStartCapture={startAssetDrag}
                   onDragEnd={onAssetDragEnd}
                 >
-                  <div className="pointer-events-none grid gap-1">
+                  <div className="grid gap-1">
                     {renderAsset ? (
                       renderAsset(asset)
                     ) : (
@@ -347,7 +419,7 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
                     )}
                     <span className="text-[10px] text-muted-foreground">{compatibility.label}</span>
                   </div>
-                </Button>
+                </div>
               );
             })}
           </div>
@@ -382,4 +454,41 @@ function getTimelineWorkbenchAssetCompatibility<TAssetData>(
   }
 
   return { compatible: false, label: "No compatible track" };
+}
+
+function isTimelineWorkbenchAssetInteractiveTarget(
+  target: EventTarget | null,
+  currentTarget: EventTarget,
+) {
+  if (!(target instanceof Element) || !(currentTarget instanceof Element)) {
+    return false;
+  }
+
+  const interactiveTarget = target.closest(
+    "a,button,input,select,textarea,[role='button'],[role='menuitem'],[role='option'],[data-timeline-workbench-asset-action]",
+  );
+
+  return (
+    Boolean(interactiveTarget) &&
+    interactiveTarget !== currentTarget &&
+    currentTarget.contains(interactiveTarget)
+  );
+}
+
+function isTimelineWorkbenchAssetOverlayTarget(target: Element) {
+  return Boolean(
+    target.closest(
+      [
+        "[role='menu']",
+        "[role='menuitem']",
+        "[role='option']",
+        "[role='listbox']",
+        "[role='dialog']",
+        "[data-radix-popper-content-wrapper]",
+        "[data-slot='dropdown-menu-content']",
+        "[data-slot='context-menu-content']",
+        "[data-slot='popover-content']",
+      ].join(","),
+    ),
+  );
 }

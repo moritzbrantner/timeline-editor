@@ -1195,6 +1195,82 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     );
   });
 
+  test("lets custom asset actions handle clicks without inserting the asset", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks,
+    };
+    const handleAssetDelete = vi.fn();
+    const handleDocumentChange = vi.fn();
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        assets={[{ id: "asset", label: "Review note", kind: "review", durationMs: 1_000 }]}
+        renderAsset={(asset) => (
+          <div>
+            <span>{asset.label}</span>
+            <button
+              type="button"
+              aria-label="Delete asset"
+              onClick={() => handleAssetDelete(asset.id)}
+            >
+              Delete
+            </button>
+          </div>
+        )}
+        onDocumentChange={handleDocumentChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete asset" }));
+
+    expect(handleAssetDelete).toHaveBeenCalledWith("asset");
+    expect(handleDocumentChange).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Review note" }));
+
+    expect(handleDocumentChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tracks: expect.arrayContaining([
+          expect.objectContaining({
+            items: expect.arrayContaining([expect.objectContaining({ label: "Review note" })]),
+          }),
+        ]),
+      }),
+    );
+  });
+
+  test("ignores asset row click-through from portal menu actions", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks,
+    };
+    const handleDocumentChange = vi.fn();
+    const portalAction = globalThis.document.createElement("button");
+    portalAction.setAttribute("role", "menuitem");
+    portalAction.textContent = "Delete asset";
+    globalThis.document.body.append(portalAction);
+
+    try {
+      render(
+        <TimelineWorkbench
+          document={document}
+          assets={[{ id: "asset", label: "Review note", kind: "review", durationMs: 1_000 }]}
+          renderAsset={(asset) => asset.label}
+          onDocumentChange={handleDocumentChange}
+        />,
+      );
+
+      fireEvent.pointerDown(portalAction);
+      fireEvent.click(screen.getByRole("button", { name: "Review note" }));
+
+      expect(handleDocumentChange).not.toHaveBeenCalled();
+    } finally {
+      portalAction.remove();
+    }
+  });
+
   test("adds typed tracks from the workbench add track menu", () => {
     const document: TimelineEditorDocument = {
       durationMs: 8_000,
