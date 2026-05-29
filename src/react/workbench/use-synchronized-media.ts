@@ -10,7 +10,6 @@ export type TimelineWorkbenchSynchronizedMediaElementOptions = {
   item: TimelineEditorItem<unknown>;
   transport: TimelinePreviewTransportContext;
   currentTimeMs: number;
-  durationMs: number;
   sourceStartMs?: number;
   sourceEndMs?: number;
   muted?: boolean;
@@ -22,7 +21,6 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
   item,
   transport,
   currentTimeMs,
-  durationMs: _durationMs,
   sourceStartMs = 0,
   sourceEndMs,
   muted,
@@ -69,6 +67,7 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
     if (!active) {
       pauseTimelineWorkbenchMediaElement(element);
       seek();
+      setBlocked(false);
       return;
     }
 
@@ -77,26 +76,47 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
       if (driftMs > 40) {
         seek();
       }
+      setBlocked(false);
       return;
     }
 
     if (transport.playbackRate < 0) {
       pauseTimelineWorkbenchMediaElement(element);
       seek();
+      setBlocked(false);
       return;
     }
 
     element.playbackRate = transport.playbackRate;
     if (driftMs > 80) {
       seek();
+      setBlocked(false);
     }
 
-    const playResult = element.play();
+    let playResult: ReturnType<HTMLMediaElement["play"]> | undefined;
+
+    try {
+      playResult = element.play();
+    } catch {
+      setBlocked(true);
+      return;
+    }
 
     if (playResult && typeof playResult.catch === "function") {
       playResult.then(() => setBlocked(false)).catch(() => setBlocked(true));
+    } else {
+      setBlocked(false);
     }
-  }, [active, currentTimeMs, elementRef, localTimeMs, transport.playbackRate, transport.status]);
+  }, [
+    active,
+    currentTimeMs,
+    elementRef,
+    localTimeMs,
+    sourceEndMs,
+    sourceStartMs,
+    transport.playbackRate,
+    transport.status,
+  ]);
 
   useEffect(
     () => () => {
@@ -129,7 +149,8 @@ function getTimelineWorkbenchMediaLocalTimeMs(
 ) {
   const unclampedLocalTimeMs = currentTimeMs - item.startMs + options.sourceStartMs;
   const lowerBoundMs = Math.max(0, options.sourceStartMs);
-  const upperBoundMs = options.sourceEndMs ?? lowerBoundMs + item.durationMs;
+  const resolvedUpperBoundMs = options.sourceEndMs ?? lowerBoundMs + item.durationMs;
+  const upperBoundMs = Math.max(lowerBoundMs, resolvedUpperBoundMs);
 
   return Math.max(lowerBoundMs, Math.min(upperBoundMs, unclampedLocalTimeMs));
 }

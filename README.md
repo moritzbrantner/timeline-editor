@@ -49,10 +49,14 @@ shows items active at `document.currentTimeMs`. Use
 `previewMode="selection-first"` to preserve selected-items-first previewing, or
 `previewMode="mini-timeline"` for a compact read-only overview. The compact
 transport strip supports Space, J/K/L shuttle playback, frame stepping, and loop
-playback. It advances `document.currentTimeMs`, moves the main timeline
-playhead, and keeps the playhead visible with keep-visible scrolling while
-playing. Native media controls rendered by extensions remain independent manual
-browser controls; the workbench transport is the synchronized path.
+playback. Transport defaults to paused, `1x`, loop off; hosts can use
+`transportState`, `defaultTransportState`, and `onTransportStateChange` for
+controlled or observed playback. Loop playback uses a valid selected range and
+falls back to the whole document. It advances `document.currentTimeMs`, moves
+the main timeline playhead, and keeps the playhead visible with keep-visible
+scrolling while playing. Native media controls rendered by extensions remain
+independent manual browser controls; reverse synchronization uses
+timeline-driven seeking instead of native negative playback.
 
 ## Controlled Timeline
 

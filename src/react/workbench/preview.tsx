@@ -62,26 +62,6 @@ export function TimelineWorkbenchPreview<
   const previewItems = getTimelineWorkbenchPreviewItems(mode, document, selectedItems, activeItems);
   const progress =
     durationMs > 0 ? Math.min(100, Math.max(0, (currentTimeMs / durationMs) * 100)) : 0;
-  const previewItemValues = previewItems.map(({ item }) => item);
-  const shouldPreferExtensionPreview =
-    previewItemValues.length > 0 &&
-    !previewItemValues.some((item) => isTimelineWorkbenchVisualSceneItem(item));
-  const extensionPreview =
-    mode === "mini-timeline"
-      ? null
-      : getTimelineWorkbenchPreviewExtension(
-          shouldPreferExtensionPreview
-            ? previewItemValues
-            : previewItemValues.filter((item) => !isTimelineWorkbenchKnownSceneItem(item)),
-          extensions,
-        )?.renderPreview?.({
-          currentTimeMs,
-          document: document as TimelineEditorDocument<Record<string, unknown>, TItemData>,
-          durationMs,
-          items: previewItems.map(({ item }) => item),
-          selectedItems,
-          transport,
-        });
 
   return (
     <div
@@ -130,14 +110,15 @@ export function TimelineWorkbenchPreview<
             durationMs={durationMs}
           />
         ) : (
-          (extensionPreview ?? (
-            <TimelineWorkbenchScenePreview
-              currentTimeMs={currentTimeMs}
-              durationMs={durationMs}
-              items={previewItems}
-              transport={transport}
-            />
-          ))
+          <TimelineWorkbenchScenePreview
+            currentTimeMs={currentTimeMs}
+            document={document}
+            durationMs={durationMs}
+            extensions={extensions}
+            items={previewItems}
+            selectedItems={selectedItems}
+            transport={transport}
+          />
         )}
       </div>
     </div>
@@ -146,16 +127,22 @@ export function TimelineWorkbenchPreview<
 
 function TimelineWorkbenchScenePreview<TTrackData extends Record<string, unknown>, TItemData>({
   currentTimeMs,
+  document,
   durationMs,
+  extensions,
   items,
+  selectedItems,
   transport,
 }: {
   currentTimeMs: number;
+  document: TimelineEditorDocument<TTrackData, TItemData>;
   durationMs: number;
+  extensions: Array<TimelineEditorExtension<TItemData, TTrackData, unknown>>;
   items: Array<{
     item: TimelineEditorItem<TItemData>;
     track?: TimelineEditorTrack<TTrackData, TItemData>;
   }>;
+  selectedItems: Array<TimelineEditorItem<TItemData>>;
   transport: TimelinePreviewTransportContext;
 }) {
   const sceneItems = items.filter(({ item }) => isTimelineWorkbenchKnownSceneItem(item));
@@ -170,6 +157,36 @@ function TimelineWorkbenchScenePreview<TTrackData extends Record<string, unknown
     return mediaType === "audio";
   });
   const unknownItems = items.filter(({ item }) => !isTimelineWorkbenchKnownSceneItem(item));
+  const extension = getTimelineWorkbenchPreviewExtension(
+    unknownItems.map(({ item }) => item),
+    extensions,
+  );
+  const extensionPreview =
+    unknownItems.length > 0
+      ? extension?.renderPreview?.({
+          currentTimeMs,
+          document: document as TimelineEditorDocument<Record<string, unknown>, TItemData>,
+          durationMs,
+          items: unknownItems.map(({ item }) => item),
+          selectedItems,
+          transport,
+        })
+      : null;
+  const audioOnlyExtension = getTimelineWorkbenchPreviewExtension(
+    visualItems.length === 0 ? audioItems.map(({ item }) => item) : [],
+    extensions,
+  );
+  const audioOnlyExtensionPreview =
+    audioItems.length > 0 && visualItems.length === 0
+      ? audioOnlyExtension?.renderPreview?.({
+          currentTimeMs,
+          document: document as TimelineEditorDocument<Record<string, unknown>, TItemData>,
+          durationMs,
+          items: audioItems.map(({ item }) => item),
+          selectedItems,
+          transport,
+        })
+      : null;
 
   if (items.length === 0) {
     return (
@@ -184,13 +201,20 @@ function TimelineWorkbenchScenePreview<TTrackData extends Record<string, unknown
     );
   }
 
+  if (sceneItems.length === 0 && extensionPreview) {
+    return <>{extensionPreview}</>;
+  }
+
+  if (audioOnlyExtensionPreview) {
+    return <>{audioOnlyExtensionPreview}</>;
+  }
+
   return (
     <div data-slot="timeline-workbench-scene-preview" className="relative h-full w-full text-white">
       {visualItems.map(({ item, track }, index) => (
         <TimelineWorkbenchSceneLayer
           key={item.id}
           currentTimeMs={currentTimeMs}
-          durationMs={durationMs}
           item={item as TimelineEditorItem<unknown>}
           trackLabel={track?.label}
           transport={transport}
@@ -201,7 +225,6 @@ function TimelineWorkbenchScenePreview<TTrackData extends Record<string, unknown
         <TimelineWorkbenchSceneAudio
           key={item.id}
           currentTimeMs={currentTimeMs}
-          durationMs={durationMs}
           item={item as TimelineEditorItem<unknown>}
           transport={transport}
         />
@@ -221,13 +244,17 @@ function TimelineWorkbenchScenePreview<TTrackData extends Record<string, unknown
       ) : null}
       {unknownItems.length > 0 ? (
         <div className="absolute inset-x-4 bottom-4 z-50 grid max-h-40 gap-2 overflow-auto">
-          {unknownItems.slice(0, 4).map(({ item, track }) => (
-            <TimelineWorkbenchFallbackItemCard
-              key={item.id}
-              item={item}
-              trackLabel={track?.label}
-            />
-          ))}
+          {extensionPreview ?? (
+            <>
+              {unknownItems.slice(0, 4).map(({ item, track }) => (
+                <TimelineWorkbenchFallbackItemCard
+                  key={item.id}
+                  item={item}
+                  trackLabel={track?.label}
+                />
+              ))}
+            </>
+          )}
         </div>
       ) : null}
     </div>
@@ -236,14 +263,12 @@ function TimelineWorkbenchScenePreview<TTrackData extends Record<string, unknown
 
 function TimelineWorkbenchSceneLayer({
   currentTimeMs,
-  durationMs,
   item,
   trackLabel,
   transport,
   zIndex,
 }: {
   currentTimeMs: number;
-  durationMs: number;
   item: TimelineEditorItem<unknown>;
   trackLabel?: string;
   transport: TimelinePreviewTransportContext;
@@ -256,7 +281,6 @@ function TimelineWorkbenchSceneLayer({
     return (
       <TimelineWorkbenchSceneVideo
         currentTimeMs={currentTimeMs}
-        durationMs={durationMs}
         item={item}
         transport={transport}
         zIndex={zIndex}
@@ -305,13 +329,11 @@ function TimelineWorkbenchSceneLayer({
 
 function TimelineWorkbenchSceneVideo({
   currentTimeMs,
-  durationMs,
   item,
   transport,
   zIndex,
 }: {
   currentTimeMs: number;
-  durationMs: number;
   item: TimelineEditorItem<unknown>;
   transport: TimelinePreviewTransportContext;
   zIndex: number;
@@ -324,7 +346,6 @@ function TimelineWorkbenchSceneVideo({
     item,
     transport,
     currentTimeMs,
-    durationMs,
     sourceStartMs: getNumberField(data, "sourceStartMs"),
     sourceEndMs: getNumberField(data, "sourceEndMs"),
     muted: getBooleanField(data, "muted"),
@@ -363,12 +384,10 @@ function TimelineWorkbenchSceneVideo({
 
 function TimelineWorkbenchSceneAudio({
   currentTimeMs,
-  durationMs,
   item,
   transport,
 }: {
   currentTimeMs: number;
-  durationMs: number;
   item: TimelineEditorItem<unknown>;
   transport: TimelinePreviewTransportContext;
 }) {
@@ -380,7 +399,6 @@ function TimelineWorkbenchSceneAudio({
     item,
     transport,
     currentTimeMs,
-    durationMs,
     sourceStartMs: getNumberField(data, "sourceStartMs"),
     sourceEndMs: getNumberField(data, "sourceEndMs"),
     muted: getBooleanField(data, "muted"),
@@ -614,12 +632,6 @@ function isTimelineWorkbenchKnownSceneItem(item: TimelineEditorItem<unknown>) {
   return (
     mediaType === "audio" || mediaType === "video" || mediaType === "image" || mediaType === "text"
   );
-}
-
-function isTimelineWorkbenchVisualSceneItem(item: TimelineEditorItem<unknown>) {
-  const mediaType = getTimelineMediaTypeForItem(item);
-
-  return mediaType === "video" || mediaType === "image" || mediaType === "text";
 }
 
 function getTimelineWorkbenchItemData(item: TimelineEditorItem<unknown>) {

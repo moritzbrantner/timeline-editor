@@ -9,6 +9,7 @@ import {
   TimelineWorkbench,
   createTimelineAudioExtension,
   createTimelineAudioFileAsset,
+  createTimelineVideoExtension,
   type TimelineEditorDocument,
   type TimelineEditorEditPolicy,
   type TimelineEditorExtension,
@@ -17,6 +18,8 @@ import {
   type TimelineWorkbenchAsset,
   type TimelineWorkbenchImportSource,
   type TimelineWorkbenchSelection,
+  type TimelineWorkbenchTransportChangeReason,
+  type TimelineWorkbenchTransportState,
 } from "@moritzbrantner/timeline-editor";
 
 type HarnessState = {
@@ -33,6 +36,13 @@ type HarnessState = {
   range?: TimelineEditorSelection["range"];
   selectedItemId: string | null;
   selectedItemIds: string[];
+  transport?: TimelineWorkbenchTransportState;
+  transportChanges: Array<{
+    reason: TimelineWorkbenchTransportChangeReason;
+    state: TimelineWorkbenchTransportState;
+    currentTimeMs: number;
+    durationMs: number;
+  }>;
 };
 
 declare global {
@@ -181,6 +191,99 @@ const createLargeDocument = (): TimelineEditorDocument => ({
   })),
 });
 
+const createTransportMediaDocument = (): TimelineEditorDocument => ({
+  durationMs: 8_000,
+  currentTimeMs: 1_000,
+  tracks: [
+    {
+      id: "visuals",
+      label: "Visuals",
+      acceptsItemKinds: ["image", "video", "text"],
+      items: [
+        {
+          id: "hero-image",
+          trackId: "visuals",
+          label: "Hero Image",
+          kind: "image",
+          startMs: 0,
+          durationMs: 4_000,
+          color: "#2563eb",
+          data: {
+            mediaType: "image",
+            source: {
+              uri: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='360'%3E%3Crect width='640' height='360' fill='%232563eb'/%3E%3C/svg%3E",
+            },
+            alt: "Hero image",
+            fit: "cover",
+          },
+        },
+        {
+          id: "caption",
+          trackId: "visuals",
+          label: "Caption",
+          kind: "text",
+          startMs: 0,
+          durationMs: 4_000,
+          color: "#16a34a",
+          data: { mediaType: "text", text: "Transport caption" },
+        },
+      ],
+    },
+    {
+      id: "media",
+      label: "Media",
+      acceptsItemKinds: ["video", "audio"],
+      items: [
+        {
+          id: "demo-video",
+          trackId: "media",
+          label: "Demo Video",
+          kind: "video",
+          startMs: 500,
+          durationMs: 7_000,
+          color: "#f59e0b",
+          data: {
+            mediaType: "video",
+            source: { uri: "https://example.test/demo.mp4", label: "demo.mp4" },
+            poster:
+              "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='360'%3E%3Crect width='640' height='360' fill='%2316a34a'/%3E%3C/svg%3E",
+            fit: "contain",
+            muted: true,
+            volume: 0.4,
+            sourceStartMs: 250,
+          },
+        },
+        {
+          id: "demo-audio",
+          trackId: "media",
+          label: "Demo Audio",
+          kind: "audio",
+          startMs: 500,
+          durationMs: 7_000,
+          color: "#9333ea",
+          data: {
+            mediaType: "audio",
+            source: { uri: "https://example.test/demo.mp3", label: "demo.mp3" },
+            volume: 0.5,
+            sourceStartMs: 500,
+          },
+        },
+      ],
+    },
+  ] satisfies TimelineEditorTrack[],
+});
+
+const createTransportEndpointsDocument = (): TimelineEditorDocument => ({
+  ...createDocument(),
+  durationMs: 8_000,
+  currentTimeMs: 0,
+});
+
+const createLargeRightEdgeDocument = (): TimelineEditorDocument => ({
+  ...createLargeDocument(),
+  currentTimeMs: 9 * 60_000,
+});
+
 const timelineAssets = [
   {
     id: "prototype",
@@ -217,10 +320,61 @@ function App() {
   const frameRateParam = searchParams.get("frameRate");
   const initialFrameRate = frameRateParam ? Number(frameRateParam) : undefined;
   const [frameRate, setFrameRate] = useState<number | undefined>(initialFrameRate);
-  const [document, setDocument] = useState(() => createFixtureDocument(fixture));
-  const [selection, setSelection] = useState<TimelineEditorSelection>({ itemIds: [] });
+  const [document, setDocument] = useState(() => {
+    const fixtureDocument = createFixtureDocument(fixture);
+    const initialTime = searchParams.get("initialTimeMs");
+    const initialTimeMs = initialTime === null ? undefined : Number(initialTime);
+
+    return Number.isFinite(initialTimeMs)
+      ? { ...fixtureDocument, currentTimeMs: initialTimeMs }
+      : fixtureDocument;
+  });
+  const [selection, setSelection] = useState<TimelineEditorSelection>(() => ({
+    itemIds: [],
+    range: parseInitialRange(searchParams.get("initialRange")),
+  }));
   const changes = useRef<string[]>([]);
   const imports = useRef<HarnessState["imports"]>([]);
+  const transport = useRef<TimelineWorkbenchTransportState | undefined>(undefined);
+  const transportChanges = useRef<HarnessState["transportChanges"]>([]);
+
+  useEffect(() => {
+    if (searchParams.get("mockMedia") !== "true") {
+      return;
+    }
+
+    const play = HTMLMediaElement.prototype.play;
+    const pause = HTMLMediaElement.prototype.pause;
+    const pausedDescriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "paused");
+    const pausedState = new WeakMap<HTMLMediaElement, boolean>();
+
+    Object.defineProperty(HTMLMediaElement.prototype, "paused", {
+      configurable: true,
+      get() {
+        return pausedState.get(this) ?? true;
+      },
+    });
+
+    HTMLMediaElement.prototype.play = function mockPlay() {
+      pausedState.set(this, false);
+      this.dataset["playState"] = "playing";
+      return Promise.resolve();
+    };
+    HTMLMediaElement.prototype.pause = function mockPause() {
+      pausedState.set(this, true);
+      this.dataset["playState"] = "paused";
+    };
+
+    return () => {
+      HTMLMediaElement.prototype.play = play;
+      HTMLMediaElement.prototype.pause = pause;
+      if (pausedDescriptor) {
+        Object.defineProperty(HTMLMediaElement.prototype, "paused", pausedDescriptor);
+      } else {
+        delete (HTMLMediaElement.prototype as unknown as Record<string, unknown>)["paused"];
+      }
+    };
+  }, [searchParams]);
 
   useEffect(() => {
     window["__timelineEditorHarness"] = {
@@ -231,6 +385,8 @@ function App() {
       range: selection.range,
       selectedItemId: selection.itemIds[0] ?? null,
       selectedItemIds: selection.itemIds,
+      transport: transport.current,
+      transportChanges: transportChanges.current,
     };
   }, [document, frameRate, selection]);
 
@@ -259,6 +415,33 @@ function App() {
 
   const handleSelectedItemChange = (selection: TimelineWorkbenchSelection) => {
     recordChange(`selected:${selection.itemId ?? ""}`);
+  };
+
+  const handleTransportStateChange = (
+    state: TimelineWorkbenchTransportState,
+    context: {
+      reason: TimelineWorkbenchTransportChangeReason;
+      currentTimeMs: number;
+      durationMs: number;
+    },
+  ) => {
+    transport.current = state;
+    transportChanges.current = [
+      ...transportChanges.current,
+      {
+        reason: context.reason,
+        state,
+        currentTimeMs: context.currentTimeMs,
+        durationMs: context.durationMs,
+      },
+    ];
+
+    if (window["__timelineEditorHarness"]) {
+      window["__timelineEditorHarness"].transport = transport.current;
+      window["__timelineEditorHarness"].transportChanges = transportChanges.current;
+    }
+
+    recordChange(`transport:${context.reason}:${state.status}:${state.playbackRate}`);
   };
 
   const handleImportAssets = async (sources: TimelineWorkbenchImportSource[]) => {
@@ -361,8 +544,12 @@ function App() {
       onCurrentTimeChange={handleCurrentTimeChange}
       onSelectionChange={handleSelectionChange}
       onSelectedItemChange={handleSelectedItemChange}
+      onTransportStateChange={handleTransportStateChange}
       onSnapChange={(nextSnap) => recordChange(`snap:${JSON.stringify(nextSnap)}`)}
-      extensions={[createTimelineAudioExtension() as unknown as TimelineEditorExtension]}
+      extensions={[
+        createTimelineAudioExtension() as unknown as TimelineEditorExtension,
+        createTimelineVideoExtension() as unknown as TimelineEditorExtension,
+      ]}
       getTimelineContextMenuItems={
         timelineMenuFixture
           ? (context) => [
@@ -448,6 +635,10 @@ function createFixtureDocument(fixture: string): TimelineEditorDocument {
     return createLargeDocument();
   }
 
+  if (fixture === "large-right-edge") {
+    return createLargeRightEdgeDocument();
+  }
+
   if (fixture === "overlap-prevent") {
     return createOverlapPreventDocument();
   }
@@ -464,7 +655,36 @@ function createFixtureDocument(fixture: string): TimelineEditorDocument {
     return createPreviewModesDocument();
   }
 
+  if (fixture === "transport-media") {
+    return createTransportMediaDocument();
+  }
+
+  if (fixture === "transport-endpoints") {
+    return createTransportEndpointsDocument();
+  }
+
   return createDocument();
+}
+
+function parseInitialRange(value: string | null): TimelineEditorSelection["range"] {
+  if (!value) {
+    return undefined;
+  }
+
+  const match = /^(-?\d+(?:\.\d+)?)-(-?\d+(?:\.\d+)?)$/.exec(value);
+
+  if (!match) {
+    return undefined;
+  }
+
+  const startMs = Number(match[1]);
+  const endMs = Number(match[2]);
+
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+    return undefined;
+  }
+
+  return { startMs, endMs };
 }
 
 const root = document.getElementById("root");

@@ -86,7 +86,6 @@ export function createTimelineAudioExtension(
       ((context) =>
         createElement(TimelineAudioPreview, {
           currentTimeMs: context.currentTimeMs,
-          durationMs: context.durationMs,
           items: context.items,
           resolvePreviewSource,
           transport: context.transport,
@@ -148,13 +147,11 @@ export async function createTimelineAudioFileAsset(
 
 function TimelineAudioPreview({
   currentTimeMs,
-  durationMs,
   items,
   resolvePreviewSource,
   transport,
 }: {
   currentTimeMs: number;
-  durationMs: number;
   items: Array<TimelineEditorItem<TimelineAudioItemData>>;
   resolvePreviewSource: TimelineAudioPreviewSourceResolver;
   transport: TimelinePreviewTransportContext;
@@ -193,7 +190,6 @@ function TimelineAudioPreview({
           ? createElement(TimelineAudioPreviewPlayer, {
               key: source.uri,
               currentTimeMs,
-              durationMs,
               item,
               muted: item.data?.muted,
               sourceEndMs: item.data?.sourceEndMs,
@@ -217,7 +213,6 @@ function TimelineAudioPreview({
 
 function TimelineAudioPreviewPlayer({
   currentTimeMs,
-  durationMs,
   item,
   muted,
   sourceEndMs,
@@ -227,7 +222,6 @@ function TimelineAudioPreviewPlayer({
   volume,
 }: {
   currentTimeMs: number;
-  durationMs: number;
   item: TimelineEditorItem<TimelineAudioItemData>;
   muted?: boolean;
   sourceEndMs?: number;
@@ -242,7 +236,6 @@ function TimelineAudioPreviewPlayer({
     item: item as TimelineEditorItem<unknown>,
     transport,
     currentTimeMs,
-    durationMs,
     sourceStartMs,
     sourceEndMs,
     muted,

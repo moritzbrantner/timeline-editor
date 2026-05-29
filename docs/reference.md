@@ -81,10 +81,14 @@ and the main timeline follows with keep-visible scrolling while transport
 playback is active. Space toggles play/pause, K pauses, L shuttles forward
 through 1x/2x/4x, J shuttles backward through -1x/-2x/-4x, and Shift+L toggles
 loop playback. Loop uses the selected range when present and otherwise loops the
-whole document. Built-in media preview controls, such as native audio/video
-controls, remain independent manual controls while the workbench transport is
-the synchronized path. Reverse playback synchronizes media by seeking rather
-than relying on native negative playback rates.
+whole document. Transport defaults to paused, `1x`, and loop off; pass
+`transportState`, `defaultTransportState`, and `onTransportStateChange` to
+control or observe it. Built-in media preview controls, such as native
+audio/video controls, remain independent manual controls while the workbench
+transport is the synchronized path. Reverse playback synchronizes media by
+seeking rather than relying on native negative playback rates. Extension
+`renderPreview` fallback composes custom preview output with common compositor
+layers in mixed scenes, while all-custom previews may still own the whole body.
 
 ```tsx
 <TimelineWorkbench

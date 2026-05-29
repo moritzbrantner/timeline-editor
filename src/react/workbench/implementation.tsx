@@ -1934,7 +1934,6 @@ export function TimelineWorkbench<
         onPreviousFrame={() => stepCurrentTimeByFrame(-1)}
         onShuttleBackward={shuttleBackward}
         onShuttleForward={shuttleForward}
-        onStop={stopTransport}
         onToggleLoop={toggleLoop}
         onTogglePlay={toggleTransport}
       />

@@ -38,15 +38,23 @@ playhead advances too, and the timeline follows with keep-visible scrolling only
 when the playhead approaches or leaves the visible range. Space toggles
 play/pause, K pauses, L shuttles forward through 1x/2x/4x, J shuttles backward
 through -1x/-2x/-4x, and Shift+L toggles loop playback. Loop uses the selected
-range when present and otherwise loops the whole document. Native audio/video
-controls rendered by extensions are still independent browser media controls;
-they do not drive the synchronized workbench transport. Reverse media playback
-uses timeline-driven seeking because native negative media playback is not
-portable.
+range when it spans at least 1ms after clamping to the document; otherwise it
+loops the whole document. Native audio/video controls rendered by extensions are
+still independent browser media controls; they do not drive the synchronized
+workbench transport. Reverse media playback uses timeline-driven seeking because
+native negative media playback is not portable.
 
 Hosts can control transport with `transportState`, initialize uncontrolled
 transport with `defaultTransportState`, and observe changes with
-`onTransportStateChange`.
+`onTransportStateChange`. The uncontrolled defaults are paused, `1x`, and loop
+off.
+
+The scene compositor renders common image, video, text, and audio items in
+layer order for `active-scene` and `selection-first`. Custom items can still use
+an extension `renderPreview`; in mixed scenes that custom preview is composed as
+a bounded overlay instead of replacing common media layers. If every preview
+item belongs to a custom extension, that extension can own the full preview
+body.
 
 Empty states must expose document state, provide a concrete action, or be
 omitted. Avoid placeholder panels that only explain obvious UI behavior.

@@ -38,6 +38,31 @@ export type TimelineEditorHarnessState = {
   selectedItemIds: string[];
   range?: { startMs: number; endMs: number };
   frameRate?: number;
+  transport?: {
+    status: "paused" | "playing";
+    playbackRate: -4 | -2 | -1 | 1 | 2 | 4;
+    loop: boolean;
+  };
+  transportChanges: Array<{
+    reason:
+      | "play"
+      | "pause"
+      | "toggle-play"
+      | "stop"
+      | "shuttle-forward"
+      | "shuttle-backward"
+      | "loop-toggle"
+      | "ended"
+      | "document-change"
+      | "read-only";
+    state: {
+      status: "paused" | "playing";
+      playbackRate: -4 | -2 | -1 | 1 | 2 | 4;
+      loop: boolean;
+    };
+    currentTimeMs: number;
+    durationMs: number;
+  }>;
 };
 
 export type TimelineEditorHarnessItem = {

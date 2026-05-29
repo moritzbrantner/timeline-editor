@@ -94,8 +94,110 @@ beforeAll(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.useRealTimers();
 });
+
+function installMockMediaElement() {
+  type MediaState = {
+    currentTime: number;
+    muted: boolean;
+    paused: boolean;
+    playbackRate: number;
+    volume: number;
+  };
+  const states = new WeakMap<HTMLMediaElement, MediaState>();
+  const getState = (element: HTMLMediaElement) => {
+    let state = states.get(element);
+
+    if (!state) {
+      state = { currentTime: 0, muted: false, paused: true, playbackRate: 1, volume: 1 };
+      states.set(element, state);
+    }
+
+    return state;
+  };
+  const descriptors = {
+    currentTime: Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "currentTime"),
+    muted: Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "muted"),
+    paused: Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "paused"),
+    playbackRate: Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "playbackRate"),
+    volume: Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "volume"),
+  };
+
+  Object.defineProperty(HTMLMediaElement.prototype, "currentTime", {
+    configurable: true,
+    get() {
+      return getState(this).currentTime;
+    },
+    set(value: number) {
+      getState(this).currentTime = value;
+    },
+  });
+  Object.defineProperty(HTMLMediaElement.prototype, "muted", {
+    configurable: true,
+    get() {
+      return getState(this).muted;
+    },
+    set(value: boolean) {
+      getState(this).muted = value;
+    },
+  });
+  Object.defineProperty(HTMLMediaElement.prototype, "paused", {
+    configurable: true,
+    get() {
+      return getState(this).paused;
+    },
+  });
+  Object.defineProperty(HTMLMediaElement.prototype, "playbackRate", {
+    configurable: true,
+    get() {
+      return getState(this).playbackRate;
+    },
+    set(value: number) {
+      getState(this).playbackRate = value;
+    },
+  });
+  Object.defineProperty(HTMLMediaElement.prototype, "volume", {
+    configurable: true,
+    get() {
+      return getState(this).volume;
+    },
+    set(value: number) {
+      getState(this).volume = value;
+    },
+  });
+
+  const play = vi
+    .spyOn(HTMLMediaElement.prototype, "play")
+    .mockImplementation(function play(this: HTMLMediaElement) {
+      getState(this).paused = false;
+      this.dataset["playState"] = "playing";
+      return Promise.resolve();
+    });
+  const pause = vi
+    .spyOn(HTMLMediaElement.prototype, "pause")
+    .mockImplementation(function pause(this: HTMLMediaElement) {
+      getState(this).paused = true;
+      this.dataset["playState"] = "paused";
+    });
+
+  return {
+    play,
+    pause,
+    restore: () => {
+      play.mockRestore();
+      pause.mockRestore();
+      Object.entries(descriptors).forEach(([key, descriptor]) => {
+        if (descriptor) {
+          Object.defineProperty(HTMLMediaElement.prototype, key, descriptor);
+        } else {
+          delete (HTMLMediaElement.prototype as unknown as Record<string, unknown>)[key];
+        }
+      });
+    },
+  };
+}
 
 describe("@moritzbrantner/timeline-editor React workbench", () => {
   test("commits drag edits once and undo returns to the pre-drag document", () => {
@@ -1511,9 +1613,7 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     expect(container.querySelector("[data-slot='timeline-workbench-transport']")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
     expect(screen.getByText("1x")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Loop playback" }).getAttribute("aria-pressed")).toBe(
-      "false",
-    );
+    expect(screen.getByRole("button", { name: "Loop" }).getAttribute("aria-pressed")).toBe("false");
 
     rerender(
       <TimelineWorkbench
@@ -1524,9 +1624,7 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
 
     expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
     expect(screen.getByText("-2x")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Loop playback" }).getAttribute("aria-pressed")).toBe(
-      "true",
-    );
+    expect(screen.getByRole("button", { name: "Loop" }).getAttribute("aria-pressed")).toBe("true");
   });
 
   test("emits transport state change reasons from transport controls", () => {
@@ -1559,7 +1657,7 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
       expect.objectContaining({ reason: "shuttle-backward" }),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Loop playback" }));
+    fireEvent.click(screen.getByRole("button", { name: "Loop" }));
     expect(handleTransportStateChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ loop: true }),
       expect.objectContaining({ reason: "loop-toggle" }),
@@ -1664,6 +1762,430 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     render(<TimelineWorkbench document={document} readOnly />);
 
     expect(screen.getByRole("button", { name: "Play" })).toHaveProperty("disabled", true);
+  });
+
+  test("defaultTransportState initializes uncontrolled transport", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+      tracks,
+    };
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        defaultTransportState={{ status: "playing", playbackRate: 2, loop: true }}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+    expect(screen.getByText("2x")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Loop" }).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  test("controlled transport emits changes without mutating the visible state", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+      tracks,
+    };
+    const handleTransportStateChange = vi.fn();
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        transportState={{ status: "paused", playbackRate: 1, loop: false }}
+        onTransportStateChange={handleTransportStateChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+
+    expect(handleTransportStateChange).toHaveBeenCalledWith(
+      { status: "playing", playbackRate: 1, loop: false },
+      expect.objectContaining({ reason: "toggle-play" }),
+    );
+    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+    expect(screen.getByText("1x")).toBeTruthy();
+  });
+
+  test("K stops playback and resets the playback rate to 1x", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+      tracks,
+    };
+    const handleTransportStateChange = vi.fn();
+
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        defaultTransportState={{ status: "playing", playbackRate: 4 }}
+        onTransportStateChange={handleTransportStateChange}
+      />,
+    );
+    fireEvent.keyDown(container.querySelector("[data-slot='timeline-workbench']")!, { key: "k" });
+
+    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+    expect(screen.getByText("1x")).toBeTruthy();
+    expect(handleTransportStateChange).toHaveBeenLastCalledWith(
+      { status: "paused", playbackRate: 1, loop: false },
+      expect.objectContaining({ reason: "stop" }),
+    );
+  });
+
+  test("playback starts from opposite endpoints when requested at an edge", () => {
+    let document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 8_000,
+      tracks,
+    };
+
+    function StatefulWorkbench() {
+      const [stateDocument, setStateDocument] = useState(document);
+      document = stateDocument;
+
+      return <TimelineWorkbench document={stateDocument} onDocumentChange={setStateDocument} />;
+    }
+
+    const { unmount } = render(<StatefulWorkbench />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    expect(document.currentTimeMs).toBe(0);
+
+    unmount();
+    document = { durationMs: 8_000, currentTimeMs: 0, tracks };
+    const rendered = render(<StatefulWorkbench />);
+
+    fireEvent.keyDown(rendered.container.querySelector("[data-slot='timeline-workbench']")!, {
+      key: "j",
+    });
+    expect(document.currentTimeMs).toBe(8_000);
+    expect(
+      rendered.container.querySelector("[data-slot='timeline-workbench-transport-rate']")
+        ?.textContent,
+    ).toBe("-1x");
+  });
+
+  test("non-loop playback clamps at both ends and emits ended", () => {
+    vi.useFakeTimers();
+    let document: TimelineEditorDocument = {
+      durationMs: 200,
+      currentTimeMs: 190,
+      tracks,
+    };
+    const handleTransportStateChange = vi.fn();
+
+    function StatefulWorkbench() {
+      const [stateDocument, setStateDocument] = useState(document);
+      document = stateDocument;
+
+      return (
+        <TimelineWorkbench
+          document={stateDocument}
+          onDocumentChange={setStateDocument}
+          onTransportStateChange={handleTransportStateChange}
+        />
+      );
+    }
+
+    const { unmount } = render(<StatefulWorkbench />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    act(() => {
+      for (let index = 0; index < 8; index += 1) {
+        vi.advanceTimersByTime(16);
+      }
+    });
+    expect(document.currentTimeMs).toBe(200);
+    expect(handleTransportStateChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: "paused" }),
+      expect.objectContaining({ reason: "ended" }),
+    );
+
+    unmount();
+    document = { durationMs: 200, currentTimeMs: 10, tracks };
+    const rendered = render(<StatefulWorkbench />);
+    fireEvent.keyDown(rendered.container.querySelector("[data-slot='timeline-workbench']")!, {
+      key: "j",
+    });
+    act(() => {
+      for (let index = 0; index < 8; index += 1) {
+        vi.advanceTimersByTime(16);
+      }
+    });
+    expect(document.currentTimeMs).toBe(0);
+    expect(handleTransportStateChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: "paused" }),
+      expect.objectContaining({ reason: "ended" }),
+    );
+  });
+
+  test("loop playback falls back to the whole document without a valid selected range", () => {
+    vi.useFakeTimers();
+    let document: TimelineEditorDocument = {
+      durationMs: 1_000,
+      currentTimeMs: 990,
+      tracks,
+    };
+
+    function StatefulWorkbench() {
+      const [stateDocument, setStateDocument] = useState(document);
+      document = stateDocument;
+
+      return (
+        <TimelineWorkbench
+          document={stateDocument}
+          defaultTransportState={{ status: "playing", loop: true }}
+          selection={{ itemIds: [], range: { startMs: 500, endMs: 500.5 } }}
+          onDocumentChange={setStateDocument}
+        />
+      );
+    }
+
+    render(<StatefulWorkbench />);
+    act(() => {
+      for (let index = 0; index < 8; index += 1) {
+        vi.advanceTimersByTime(16);
+      }
+    });
+
+    expect(document.currentTimeMs).toBeGreaterThanOrEqual(0);
+    expect(document.currentTimeMs).toBeLessThan(200);
+  });
+
+  test("read-only becoming true pauses active transport", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+      tracks,
+    };
+    const handleTransportStateChange = vi.fn();
+    const { rerender } = render(
+      <TimelineWorkbench
+        document={document}
+        defaultTransportState={{ status: "playing" }}
+        onTransportStateChange={handleTransportStateChange}
+      />,
+    );
+
+    rerender(
+      <TimelineWorkbench
+        document={document}
+        readOnly
+        defaultTransportState={{ status: "playing" }}
+        onTransportStateChange={handleTransportStateChange}
+      />,
+    );
+
+    expect(handleTransportStateChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: "paused" }),
+      expect.objectContaining({ reason: "read-only" }),
+    );
+  });
+
+  test("synchronized media applies local time, source bounds, rate, volume, and mute", async () => {
+    const media = installMockMediaElement();
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineAudioItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 1_250,
+      tracks: [
+        {
+          id: "audio",
+          label: "Audio",
+          acceptsItemKinds: ["audio"],
+          items: [
+            {
+              id: "voice",
+              trackId: "audio",
+              label: "Voiceover",
+              kind: "audio",
+              startMs: 1_000,
+              durationMs: 2_000,
+              data: {
+                mediaType: "audio",
+                muted: true,
+                volume: 0.25,
+                sourceStartMs: 500,
+                sourceEndMs: 1_500,
+                source: { uri: "blob:voice", mimeType: "audio/wav" },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        defaultTransportState={{ status: "playing", playbackRate: 2 }}
+        extensions={[createTimelineAudioExtension()]}
+      />,
+    );
+    const player = container.querySelector(
+      "[data-slot='timeline-media-audio-preview-player']",
+    ) as HTMLAudioElement;
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(player.currentTime).toBe(0.75);
+    expect(player.playbackRate).toBe(2);
+    expect(player.muted).toBe(true);
+    expect(player.volume).toBe(0.25);
+    expect(media.play).toHaveBeenCalled();
+    expect(player.dataset["playState"]).toBe("playing");
+    media.restore();
+  });
+
+  test("reverse synchronized media pauses and seeks instead of playing", () => {
+    const media = installMockMediaElement();
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineVideoItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 1_500,
+      tracks: [
+        {
+          id: "video",
+          label: "Video",
+          acceptsItemKinds: ["video"],
+          items: [
+            {
+              id: "clip",
+              trackId: "video",
+              label: "Clip",
+              kind: "video",
+              startMs: 1_000,
+              durationMs: 2_000,
+              data: {
+                mediaType: "video",
+                source: { uri: "blob:clip" },
+                poster: "blob:poster",
+                sourceStartMs: 250,
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        defaultTransportState={{ status: "playing", playbackRate: -1 }}
+        extensions={[createTimelineVideoExtension()]}
+      />,
+    );
+    const player = container.querySelector(
+      "[data-slot='timeline-workbench-scene-video']",
+    ) as HTMLVideoElement;
+
+    expect(player.currentTime).toBe(0.75);
+    expect(player.poster).toContain("blob:poster");
+    expect(media.play).not.toHaveBeenCalled();
+    expect(media.pause).not.toHaveBeenCalled();
+    media.restore();
+  });
+
+  test("media play failures are contained and reported as blocked", async () => {
+    const media = installMockMediaElement();
+    media.play.mockImplementationOnce(() => Promise.reject(new Error("blocked")));
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineAudioItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "audio",
+          label: "Audio",
+          acceptsItemKinds: ["audio"],
+          items: [
+            {
+              id: "voice",
+              trackId: "audio",
+              label: "Voiceover",
+              kind: "audio",
+              startMs: 0,
+              durationMs: 2_000,
+              data: { mediaType: "audio", source: { uri: "blob:voice" } },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        defaultTransportState={{ status: "playing" }}
+        extensions={[createTimelineAudioExtension()]}
+      />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector("[data-slot='timeline-media-playback-blocked']")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+
+    media.play.mockImplementationOnce(() => {
+      throw new Error("blocked");
+    });
+    render(
+      <TimelineWorkbench
+        document={document}
+        defaultTransportState={{ status: "playing" }}
+        extensions={[createTimelineAudioExtension()]}
+      />,
+    );
+    expect(screen.getAllByRole("button", { name: "Pause" }).length).toBeGreaterThan(0);
+    media.restore();
+  });
+
+  test("mixed common and custom preview items compose extension fallback with scene layers", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 4_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "scene",
+          label: "Scene",
+          items: [
+            {
+              id: "image",
+              trackId: "scene",
+              label: "Image",
+              kind: "image",
+              startMs: 0,
+              durationMs: 2_000,
+              data: {
+                mediaType: "image",
+                source: { uri: "data:image/gif;base64,R0lGODlhAQABAIAAAAUEBA==" },
+              },
+            },
+            {
+              id: "custom",
+              trackId: "scene",
+              label: "Custom",
+              kind: "custom-preview",
+              startMs: 0,
+              durationMs: 2_000,
+            },
+          ],
+        },
+      ],
+    };
+    const extensions = [
+      {
+        id: "custom-preview",
+        itemKinds: ["custom-preview"],
+        renderPreview: ({ items }) => <div data-slot="custom-preview">{items[0]?.label}</div>,
+      },
+    ] satisfies Array<TimelineEditorExtension>;
+
+    const { container } = render(<TimelineWorkbench document={document} extensions={extensions} />);
+
+    expect(container.querySelector("[data-slot='timeline-workbench-scene-image']")).toBeTruthy();
+    expect(container.querySelector("[data-slot='custom-preview']")?.textContent).toBe("Custom");
   });
 
   test("renders playable audio preview from the built-in audio extension", () => {

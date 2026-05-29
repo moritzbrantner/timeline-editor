@@ -19,7 +19,6 @@ type TimelineWorkbenchTransportProps = {
   onPreviousFrame: () => void;
   onShuttleBackward: () => void;
   onShuttleForward: () => void;
-  onStop: () => void;
   onToggleLoop: () => void;
   onTogglePlay: () => void;
 };
@@ -37,7 +36,6 @@ export function TimelineWorkbenchTransport({
   onPreviousFrame,
   onShuttleBackward,
   onShuttleForward,
-  onStop: _onStop,
   onToggleLoop,
   onTogglePlay,
 }: TimelineWorkbenchTransportProps) {
@@ -58,7 +56,7 @@ export function TimelineWorkbenchTransport({
           |&lt;
         </TransportButton>
         <TransportButton
-          label="Previous frame"
+          label="Step back one frame"
           disabled={disabled || frameStepMs <= 0}
           onClick={onPreviousFrame}
         >
@@ -79,7 +77,7 @@ export function TimelineWorkbenchTransport({
           L
         </TransportButton>
         <TransportButton
-          label="Next frame"
+          label="Step ahead one frame"
           disabled={disabled || frameStepMs <= 0}
           onClick={onNextFrame}
         >
@@ -89,7 +87,7 @@ export function TimelineWorkbenchTransport({
           &gt;|
         </TransportButton>
         <TransportButton
-          label="Loop playback"
+          label="Loop"
           disabled={disabled}
           pressed={transportState.loop}
           onClick={onToggleLoop}

@@ -53,7 +53,6 @@ export function createTimelineVideoExtension(): TimelineEditorExtension<Timeline
     renderPreview: (context) =>
       createElement(TimelineVideoPreview, {
         currentTimeMs: context.currentTimeMs,
-        durationMs: context.durationMs,
         items: context.items,
         transport: context.transport,
       }),
@@ -62,12 +61,10 @@ export function createTimelineVideoExtension(): TimelineEditorExtension<Timeline
 
 function TimelineVideoPreview({
   currentTimeMs,
-  durationMs,
   items,
   transport,
 }: {
   currentTimeMs: number;
-  durationMs: number;
   items: Array<TimelineEditorItem<TimelineVideoItemData>>;
   transport: TimelinePreviewTransportContext;
 }) {
@@ -84,7 +81,6 @@ function TimelineVideoPreview({
         ? createElement(TimelineVideoPreviewPlayer, {
             key: item.id,
             currentTimeMs,
-            durationMs,
             item,
             poster: item.data?.poster,
             sourceEndMs: item.data?.sourceEndMs,
@@ -107,7 +103,6 @@ function TimelineVideoPreview({
 
 function TimelineVideoPreviewPlayer({
   currentTimeMs,
-  durationMs,
   item,
   poster,
   sourceEndMs,
@@ -116,7 +111,6 @@ function TimelineVideoPreviewPlayer({
   transport,
 }: {
   currentTimeMs: number;
-  durationMs: number;
   item: TimelineEditorItem<TimelineVideoItemData>;
   poster?: string;
   sourceEndMs?: number;
@@ -130,7 +124,6 @@ function TimelineVideoPreviewPlayer({
     item: item as TimelineEditorItem<unknown>,
     transport,
     currentTimeMs,
-    durationMs,
     sourceStartMs,
     sourceEndMs,
     muted: item.data?.muted,
