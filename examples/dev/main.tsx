@@ -6,12 +6,16 @@ import { createRoot } from "react-dom/client";
 
 import {
   TimelineWorkbench,
+  createTimelineAudioExtension,
   formatTimelineEditorTimeMs,
   type TimelineEditorDocument,
   type TimelineEditorItem,
   type TimelineEditorSelection,
   type TimelineWorkbenchAsset,
 } from "@moritzbrantner/timeline-editor";
+
+const zooAudioFileName = "Me at the zoo [jNQXAC9IVRw].mp3";
+const zooAudioUrl = `/${encodeURIComponent(zooAudioFileName)}`;
 
 const initialDocument: TimelineEditorDocument = {
   durationMs: 18_000,
@@ -61,6 +65,15 @@ const initialDocument: TimelineEditorDocument = {
           startMs: 800,
           durationMs: 9_000,
           color: "#16a34a",
+          data: {
+            mediaType: "audio",
+            source: {
+              label: "Me at the zoo",
+              uri: zooAudioUrl,
+              mimeType: "audio/mpeg",
+            },
+            volume: 0.85,
+          },
         },
         {
           id: "music-bed",
@@ -133,9 +146,19 @@ const assets = [
     id: "sound-effect",
     label: "Sound effect",
     kind: "audio",
+    mediaType: "audio",
     durationMs: 1_200,
     color: "#16a34a",
-    description: "Audio cue",
+    description: "MP3 audio cue",
+    data: {
+      mediaType: "audio",
+      source: {
+        label: "Me at the zoo [jNQXAC9IVRw].mp3",
+        uri: zooAudioUrl,
+        mimeType: "audio/mpeg",
+      },
+      volume: 0.85,
+    },
   },
   {
     id: "annotation",
@@ -196,6 +219,7 @@ function App() {
           pixelsPerSecond={84}
           snapMs={100}
           assets={assets}
+          extensions={[createTimelineAudioExtension()]}
           inspectorSchema={{
             transformFields: [
               { id: "x", label: "X", step: 1, defaultValue: 0 },

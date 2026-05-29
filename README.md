@@ -38,6 +38,12 @@ and media data helpers are pure functions. `TimelineEditor` and
 selection, viewport, clipboard, hotkey, and history state when they pass the
 matching props.
 
+`createTimelineAudioExtension()` from `./audio` includes a default browser audio
+preview for audio items with a playable `data.source.uri`. Browser `File`
+imports remain host-owned through `onImportAssets`; use
+`createTimelineAudioFileAsset(file)` to turn an audio file into an asset and
+keep ownership of the returned object URL cleanup callback.
+
 ## Controlled Timeline
 
 ```tsx
@@ -98,6 +104,7 @@ import {
   type TimelineEditorSelection,
   type TimelineEditorViewport,
 } from "@moritzbrantner/timeline-editor";
+import { createTimelineAudioExtension } from "@moritzbrantner/timeline-editor/audio";
 
 export function WorkbenchExample({ initialDocument }: { initialDocument: TimelineEditorDocument }) {
   const [document, setDocument] = useState(initialDocument);
@@ -116,6 +123,7 @@ export function WorkbenchExample({ initialDocument }: { initialDocument: Timelin
       clipboard={clipboard}
       history={history}
       assets={[{ id: "scene", label: "Scene", kind: "video", durationMs: 2_000 }]}
+      extensions={[createTimelineAudioExtension()]}
       onDocumentChange={setDocument}
       onSelectionChange={setSelection}
       onViewportChange={setViewport}

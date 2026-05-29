@@ -107,7 +107,10 @@ then by normalized `extension.mediaTypes`, then by the consumer
 `renderTimelineItem` fallback.
 
 ```tsx
-import { createTimelineAudioExtension } from "@moritzbrantner/timeline-editor/audio";
+import {
+  createTimelineAudioExtension,
+  createTimelineAudioFileAsset,
+} from "@moritzbrantner/timeline-editor/audio";
 import { createTimelineTextExtension } from "@moritzbrantner/timeline-editor/text";
 import { createTimelineVideoExtension } from "@moritzbrantner/timeline-editor/video";
 
@@ -121,21 +124,26 @@ import { createTimelineVideoExtension } from "@moritzbrantner/timeline-editor/vi
 />;
 ```
 
-Built-in display-only media foundations are available from media-specific
-subpaths:
+Built-in media foundations are available from media-specific subpaths:
 
 - `@moritzbrantner/timeline-editor/media-types` for media type normalization and media-specific validation helpers.
 - `@moritzbrantner/timeline-editor/text` for ASS-like timed text cues.
-- `@moritzbrantner/timeline-editor/audio` for source metadata, volume/mute state, and waveform display.
+- `@moritzbrantner/timeline-editor/audio` for source metadata, volume/mute state, waveform display, browser audio preview, and audio `File` to asset conversion.
 - `@moritzbrantner/timeline-editor/video` for source metadata, poster, and thumbnail strips.
 - `@moritzbrantner/timeline-editor/image` for still image thumbnails and dimensions.
 - `@moritzbrantner/timeline-editor/data` for numeric data series and compact sparkline display.
 
 ## Limitations
 
-Built-in media extensions describe item data for display only. They do not
-decode media, generate waveforms or thumbnails, play audio/video, export renders,
-apply effects, or implement transitions.
+`createTimelineAudioExtension()` renders native browser audio controls in the
+preview panel for audio items with `data.source.uri`. Use
+`createTimelineAudioFileAsset(file)` inside a host `onImportAssets` callback to
+create audio assets from browser files; keep the returned cleanup callback so
+object URLs can be revoked when they are no longer used.
+
+Built-in media extensions do not decode media, generate waveforms or thumbnails,
+export renders, apply effects, or implement transitions. Audio preview is browser
+media playback, not a synchronized timeline transport.
 
 ```tsx
 import { TimelineWorkbench, type TimelineEditorDocument } from "@moritzbrantner/timeline-editor";

@@ -14,5 +14,16 @@ Workbench assets are descriptive source records. Insertion resolves a compatible
 unlocked track by `kind` and creates a timeline item unless `onAssetInsert` is
 provided, in which case the host owns insertion.
 
+File import is also host-owned. `TimelineWorkbench` exposes selected `File`
+objects through `onImportAssets`, but it does not import browser files by itself.
+For audio imports, `createTimelineAudioFileAsset(file)` from
+`@moritzbrantner/timeline-editor/audio` creates an `audio` asset with source
+metadata and a playable object URL. Keep the returned cleanup callback and
+revoke it when the imported source is no longer used.
+
+When `createTimelineAudioExtension()` is included in `extensions`, the preview
+panel renders native browser audio controls for selected or active audio items
+that include `data.source.uri`.
+
 Empty states must expose document state, provide a concrete action, or be
 omitted. Avoid placeholder panels that only explain obvious UI behavior.

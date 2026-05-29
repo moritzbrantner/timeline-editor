@@ -1,3 +1,6 @@
+import path from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
 import {
@@ -312,6 +315,83 @@ test("imports a file asset through host callback", async ({ page }) => {
         trackId: "planning",
       }),
     );
+});
+
+test("imports an audio file asset and previews it", async ({ page }) => {
+  await page.goto("/?importAssets=true");
+  const audioPath = path.resolve(process.cwd(), "examples/Me at the zoo [jNQXAC9IVRw].mp3");
+  const audioFile = existsSync(audioPath)
+    ? {
+        name: "Me at the zoo [jNQXAC9IVRw].mp3",
+        mimeType: "audio/mpeg",
+        buffer: readFileSync(audioPath),
+      }
+    : {
+        name: "audio-preview-fixture.mp3",
+        mimeType: "audio/mpeg",
+        buffer: Buffer.from("fake audio"),
+      };
+
+  await page.locator("[data-slot='timeline-workbench-file-import']").setInputFiles(audioFile);
+
+  await expect
+    .poll(async () => (await getHarnessState(page)).imports)
+    .toEqual([
+      expect.objectContaining({
+        fileName: audioFile.name,
+        label: audioFile.name,
+        mimeType: "audio/mpeg",
+        type: "file",
+      }),
+    ]);
+  await expect(page.getByRole("button", { name: audioFile.name })).toBeVisible();
+
+  await clickAsset(page, audioFile.name, { expectedItemDelta: 1 });
+
+  await expect(getClip(page, audioFile.name)).toBeVisible();
+  await expect
+    .poll(async () => {
+      const state = await getHarnessState(page);
+      const item = state.document.tracks
+        .flatMap((track) => track.items)
+        .find((candidate) => candidate.label === audioFile.name) as
+        | {
+            kind?: string;
+            data?: {
+              mediaType?: string;
+              source?: { label?: string; mimeType?: string; uri?: string };
+            };
+          }
+        | undefined;
+
+      return item
+        ? {
+            kind: item.kind,
+            mediaType: item.data?.mediaType,
+            sourceLabel: item.data?.source?.label,
+            sourceMimeType: item.data?.source?.mimeType,
+            hasSourceUri: Boolean(item.data?.source?.uri),
+          }
+        : undefined;
+    })
+    .toEqual({
+      kind: "audio",
+      mediaType: "audio",
+      sourceLabel: audioFile.name,
+      sourceMimeType: "audio/mpeg",
+      hasSourceUri: true,
+    });
+  await expect
+    .poll(async () => {
+      const state = await getHarnessState(page);
+      const selectedItem = state.document.tracks
+        .flatMap((track) => track.items)
+        .find((item) => item.id === state.selectedItemId);
+
+      return selectedItem?.label;
+    })
+    .toBe(audioFile.name);
+  await expect(page.locator("[data-slot='timeline-media-audio-preview-player']")).toBeVisible();
 });
 
 test("hides import controls without importer", async ({ page }) => {

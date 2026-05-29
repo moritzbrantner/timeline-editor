@@ -1,6 +1,8 @@
-import { createElement } from "react";
+import { createElement, useEffect, useRef } from "react";
 
+import type { TimelineEditorItem } from "./core";
 import type { TimelineEditorExtension } from "./react/workbench/types";
+import type { TimelineWorkbenchAsset } from "./react/workbench/types";
 import type { TimelineMediaDisplayRange, TimelineMediaSourceRef } from "./media-types";
 
 export type TimelineAudioItemData = TimelineMediaDisplayRange & {
@@ -17,7 +19,37 @@ export type TimelineAudioItemData = TimelineMediaDisplayRange & {
 
 export type { TimelineMediaDisplayRange, TimelineMediaSourceRef } from "./media-types";
 
-export function createTimelineAudioExtension(): TimelineEditorExtension<TimelineAudioItemData> {
+export type TimelineAudioPreviewSourceResolver = (
+  item: TimelineEditorItem<TimelineAudioItemData>,
+) => TimelineMediaSourceRef | undefined;
+
+export type TimelineAudioExtensionOptions = {
+  resolvePreviewSource?: TimelineAudioPreviewSourceResolver;
+  renderPreview?: TimelineEditorExtension<TimelineAudioItemData>["renderPreview"];
+};
+
+export type TimelineAudioFileAssetOptions = {
+  id?: string;
+  label?: string;
+  durationMs?: number;
+  color?: string;
+  waveform?: number[];
+  sourceId?: string;
+  metadata?: Record<string, unknown>;
+  createObjectUrl?: (file: File) => string;
+};
+
+export type TimelineAudioFileAssetResult = {
+  asset: TimelineWorkbenchAsset<TimelineAudioItemData>;
+  objectUrl?: string;
+  revoke?: () => void;
+};
+
+export function createTimelineAudioExtension(
+  options: TimelineAudioExtensionOptions = {},
+): TimelineEditorExtension<TimelineAudioItemData> {
+  const resolvePreviewSource = options.resolvePreviewSource ?? getTimelineAudioPreviewSource;
+
   return {
     id: "timeline-audio",
     itemKinds: ["audio"],
@@ -45,7 +77,161 @@ export function createTimelineAudioExtension(): TimelineEditorExtension<Timeline
           ? createTimelineAudioWaveform(item.data.waveform, item.data.color)
           : null,
       ),
+    renderPreview:
+      options.renderPreview ??
+      ((context) =>
+        createElement(TimelineAudioPreview, {
+          items: context.items,
+          resolvePreviewSource,
+        })),
   };
+}
+
+export async function createTimelineAudioFileAsset(
+  file: File,
+  options: TimelineAudioFileAssetOptions = {},
+): Promise<TimelineAudioFileAssetResult> {
+  const createObjectUrl =
+    options.createObjectUrl ??
+    (typeof URL !== "undefined" && typeof URL.createObjectURL === "function"
+      ? (source: File) => URL.createObjectURL(source)
+      : undefined);
+  const objectUrl = createObjectUrl?.(file);
+  const label = options.label ?? file.name;
+  const durationMs =
+    options.durationMs ??
+    (objectUrl ? await loadTimelineAudioDurationMs(objectUrl).catch(() => undefined) : undefined) ??
+    1_000;
+  const source: TimelineMediaSourceRef = {
+    id: options.sourceId,
+    uri: objectUrl,
+    label,
+    mimeType: file.type || undefined,
+    metadata: {
+      fileName: file.name,
+      lastModified: file.lastModified,
+      size: file.size,
+      ...options.metadata,
+    },
+  };
+
+  return {
+    asset: {
+      id: options.id ?? createTimelineAudioFileAssetId(label),
+      label,
+      kind: "audio",
+      mediaType: "audio",
+      durationMs,
+      color: options.color,
+      description: file.type || "Audio file",
+      data: {
+        mediaType: "audio",
+        source,
+        waveform: options.waveform,
+        color: options.color,
+      },
+    },
+    objectUrl,
+    revoke:
+      objectUrl && typeof URL !== "undefined" && typeof URL.revokeObjectURL === "function"
+        ? () => URL.revokeObjectURL(objectUrl)
+        : undefined,
+  };
+}
+
+function TimelineAudioPreview({
+  items,
+  resolvePreviewSource,
+}: {
+  items: Array<TimelineEditorItem<TimelineAudioItemData>>;
+  resolvePreviewSource: TimelineAudioPreviewSourceResolver;
+}) {
+  const audioItems = items.filter(isTimelineAudioItem);
+
+  return createElement(
+    "div",
+    {
+      "data-slot": "timeline-media-audio-preview",
+      className: "grid w-full max-w-xl gap-2 text-white",
+    },
+    audioItems.map((item) => {
+      const source = resolvePreviewSource(item);
+      const sourceLabel = [source?.label, source?.mimeType].filter(Boolean).join(" · ");
+
+      return createElement(
+        "div",
+        {
+          key: item.id,
+          "data-slot": "timeline-media-audio-preview-item",
+          className: "grid gap-2 rounded border border-white/10 bg-white/10 px-3 py-2",
+        },
+        createElement("div", { className: "truncate text-sm font-medium" }, item.label),
+        sourceLabel
+          ? createElement(
+              "div",
+              {
+                "data-slot": "timeline-media-audio-preview-source",
+                className: "truncate text-xs text-white/60",
+              },
+              sourceLabel,
+            )
+          : null,
+        source?.uri
+          ? createElement(TimelineAudioPreviewPlayer, {
+              key: source.uri,
+              muted: item.data?.muted,
+              src: source.uri,
+              volume: item.data?.volume,
+            })
+          : createElement(
+              "div",
+              {
+                "data-slot": "timeline-media-audio-preview-source",
+                className: "text-xs text-white/60",
+              },
+              "No audio source",
+            ),
+      );
+    }),
+  );
+}
+
+function TimelineAudioPreviewPlayer({
+  muted,
+  src,
+  volume,
+}: {
+  muted?: boolean;
+  src: string;
+  volume?: number;
+}) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (audioRef.current && volume !== undefined) {
+      audioRef.current.volume = Math.max(0, Math.min(1, volume));
+    }
+  }, [volume]);
+
+  return createElement("audio", {
+    ref: audioRef,
+    controls: true,
+    "data-slot": "timeline-media-audio-preview-player",
+    className: "w-full",
+    muted,
+    preload: "metadata",
+    src,
+  });
+}
+
+function getTimelineAudioPreviewSource(item: TimelineEditorItem<TimelineAudioItemData>) {
+  return item.data?.source;
+}
+
+function isTimelineAudioItem(
+  item: TimelineEditorItem<TimelineAudioItemData>,
+): item is TimelineEditorItem<TimelineAudioItemData> {
+  return item.kind === "audio" || item.data?.mediaType === "audio";
 }
 
 function getTimelineAudioStateLabel(data: TimelineAudioItemData | undefined) {
@@ -79,4 +265,59 @@ function createTimelineAudioWaveform(waveform: number[], color?: string) {
       }),
     ),
   );
+}
+
+function createTimelineAudioFileAssetId(label: string) {
+  const slug = label
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-|-$/g, "");
+
+  return slug ? `audio-${slug}` : "audio-file";
+}
+
+function loadTimelineAudioDurationMs(uri: string) {
+  if (typeof document === "undefined") {
+    return Promise.resolve(undefined);
+  }
+
+  return new Promise<number | undefined>((resolve) => {
+    const audio = document.createElement("audio");
+    let settled = false;
+    const timeout = globalThis.setTimeout(() => settle(), 4_000);
+    const cleanup = () => {
+      globalThis.clearTimeout(timeout);
+      audio.removeAttribute("src");
+      try {
+        audio.load();
+      } catch {
+        // Some test DOM implementations expose media elements without load support.
+      }
+    };
+    const settle = (durationMs?: number) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      cleanup();
+      resolve(durationMs);
+    };
+
+    audio.preload = "metadata";
+    audio.onloadedmetadata = () => {
+      const durationMs = Number.isFinite(audio.duration)
+        ? Math.max(1, Math.round(audio.duration * 1_000))
+        : undefined;
+
+      settle(durationMs);
+    };
+    audio.onerror = () => settle();
+    audio.src = uri;
+    try {
+      audio.load();
+    } catch {
+      settle();
+    }
+  });
 }

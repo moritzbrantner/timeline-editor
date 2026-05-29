@@ -7,8 +7,11 @@ import { ActionMenu, Button } from "@moritzbrantner/ui";
 import {
   TimelineEditor,
   TimelineWorkbench,
+  createTimelineAudioExtension,
+  createTimelineAudioFileAsset,
   type TimelineEditorDocument,
   type TimelineEditorEditPolicy,
+  type TimelineEditorExtension,
   type TimelineEditorSelection,
   type TimelineEditorTrack,
   type TimelineWorkbenchAsset,
@@ -43,7 +46,7 @@ const createDocument = (): TimelineEditorDocument => ({
     {
       id: "planning",
       label: "Planning",
-      acceptsItemKinds: ["task", "review"],
+      acceptsItemKinds: ["task", "review", "audio"],
       items: [
         {
           id: "brief",
@@ -221,7 +224,7 @@ function App() {
     recordChange(`selected:${selection.itemId ?? ""}`);
   };
 
-  const handleImportAssets = (sources: TimelineWorkbenchImportSource[]) => {
+  const handleImportAssets = async (sources: TimelineWorkbenchImportSource[]) => {
     const nextImports = sources.map((source) => ({
       type: source.type,
       label: source.label,
@@ -239,29 +242,38 @@ function App() {
       `import:${nextImports.map((source) => source.fileName ?? source.label).join(",")}`,
     );
 
-    return sources.map((source) => {
-      const label = source.label ?? source.file?.name ?? "Imported asset";
+    return Promise.all(
+      sources.map(async (source) => {
+        const label = source.label ?? source.file?.name ?? "Imported asset";
 
-      return {
-        asset: {
-          id: `imported-${label
-            .toLowerCase()
-            .replaceAll(/[^a-z0-9]+/g, "-")
-            .replaceAll(/^-|-$/g, "")}`,
-          label,
-          kind: "task",
-          mediaType: "video",
-          durationMs: 750,
-          color: "#f59e0b",
-          description: "Imported file",
-          data: {
-            fileName: source.file?.name,
-            imported: true,
+        if (source.file?.type.startsWith("audio/")) {
+          return createTimelineAudioFileAsset(source.file, {
+            durationMs: 750,
+            color: "#16a34a",
+          });
+        }
+
+        return {
+          asset: {
+            id: `imported-${label
+              .toLowerCase()
+              .replaceAll(/[^a-z0-9]+/g, "-")
+              .replaceAll(/^-|-$/g, "")}`,
+            label,
+            kind: "task",
             mediaType: "video",
-          },
-        } satisfies TimelineWorkbenchAsset,
-      };
-    });
+            durationMs: 750,
+            color: "#f59e0b",
+            description: "Imported file",
+            data: {
+              fileName: source.file?.name,
+              imported: true,
+              mediaType: "video",
+            },
+          } satisfies TimelineWorkbenchAsset,
+        };
+      }),
+    );
   };
 
   if (largeFixture && searchParams.get("surface") !== "workbench") {
@@ -293,7 +305,7 @@ function App() {
       frameRate={frameRate}
       snapMs={100}
       assets={emptyAssetsFixture ? [] : timelineAssets}
-      acceptedImportTypes={["video/*"]}
+      acceptedImportTypes={["audio/*", "video/*"]}
       inspectorSchema={
         transformInspectorFixture
           ? {
@@ -313,6 +325,7 @@ function App() {
       onSelectionChange={handleSelectionChange}
       onSelectedItemChange={handleSelectedItemChange}
       onSnapChange={(nextSnap) => recordChange(`snap:${JSON.stringify(nextSnap)}`)}
+      extensions={[createTimelineAudioExtension() as unknown as TimelineEditorExtension]}
       getTimelineContextMenuItems={
         timelineMenuFixture
           ? (context) => [

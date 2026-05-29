@@ -1,16 +1,22 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect } from "storybook/test";
 
 import {
   TimelineWorkbench,
+  createTimelineAudioExtension,
+  createTimelineAudioFileAsset,
   type TimelineEditorDocument,
   type TimelineEditorEditPolicy,
+  type TimelineEditorExtension,
   type TimelineEditorSelection,
   type TimelineWorkbenchAsset,
   type TimelineWorkbenchInspectorSchema,
   type TimelineWorkbenchImportSource,
 } from "@moritzbrantner/timeline-editor";
+
+const zooAudioFileName = "Me at the zoo [jNQXAC9IVRw].mp3";
+const zooAudioUrl = `/${encodeURIComponent(zooAudioFileName)}`;
 
 const editingDocument: TimelineEditorDocument = {
   durationMs: 18_000,
@@ -59,6 +65,11 @@ const editingDocument: TimelineEditorDocument = {
           startMs: 800,
           durationMs: 9_000,
           color: "#16a34a",
+          data: {
+            mediaType: "audio",
+            source: { label: "Me at the zoo", uri: zooAudioUrl, mimeType: "audio/mpeg" },
+            volume: 0.85,
+          },
         },
         {
           id: "music-bed",
@@ -183,9 +194,19 @@ const assets = [
     id: "sound-effect",
     label: "Sound effect",
     kind: "audio",
+    mediaType: "audio",
     durationMs: 1_200,
     color: "#16a34a",
     description: "Audio cue",
+    data: {
+      mediaType: "audio",
+      source: {
+        label: "Me at the zoo [jNQXAC9IVRw].mp3",
+        uri: zooAudioUrl,
+        mimeType: "audio/mpeg",
+      },
+      volume: 0.85,
+    },
   },
   {
     id: "annotation",
@@ -219,22 +240,52 @@ function TimelineWorkbenchStory({
   const [document, setDocument] = useState(initialDocument);
   const [selection, setSelection] = useState<TimelineEditorSelection>({ itemIds: [] });
   const [importedAssets, setImportedAssets] = useState<TimelineWorkbenchAsset[]>([]);
+  const importCleanupRef = useRef<Array<() => void>>([]);
   const resolvedAssets = initialAssets.concat(importedAssets);
 
-  const handleImportAssets = (sources: TimelineWorkbenchImportSource[]) => {
-    const nextAssets = sources.map((source) => ({
-      id: `imported-${source.label ?? source.file?.name ?? "asset"}`,
-      label: source.label ?? source.file?.name ?? "Imported asset",
-      kind: "video",
-      mediaType: "video",
-      durationMs: 1_000,
-      color: "#f59e0b",
-      description: "Imported file",
-    })) satisfies TimelineWorkbenchAsset[];
+  useEffect(
+    () => () => {
+      for (const revoke of importCleanupRef.current) {
+        revoke();
+      }
+    },
+    [],
+  );
+
+  const handleImportAssets = async (sources: TimelineWorkbenchImportSource[]) => {
+    const results = await Promise.all(
+      sources.map(async (source) => {
+        if (source.file?.type.startsWith("audio/")) {
+          const result = await createTimelineAudioFileAsset(source.file, {
+            durationMs: 1_000,
+            color: "#16a34a",
+          });
+
+          if (result.revoke) {
+            importCleanupRef.current.push(result.revoke);
+          }
+
+          return result;
+        }
+
+        return {
+          asset: {
+            id: `imported-${source.label ?? source.file?.name ?? "asset"}`,
+            label: source.label ?? source.file?.name ?? "Imported asset",
+            kind: "video",
+            mediaType: "video",
+            durationMs: 1_000,
+            color: "#f59e0b",
+            description: "Imported file",
+          } satisfies TimelineWorkbenchAsset,
+        };
+      }),
+    );
+    const nextAssets = results.map((result) => result.asset);
 
     setImportedAssets((currentAssets) => currentAssets.concat(nextAssets));
 
-    return nextAssets.map((asset) => ({ asset }));
+    return results;
   };
 
   return (
@@ -249,6 +300,7 @@ function TimelineWorkbenchStory({
         assets={resolvedAssets}
         inspectorSchema={inspectorSchema}
         acceptedImportTypes={acceptedImportTypes}
+        extensions={[createTimelineAudioExtension() as unknown as TimelineEditorExtension]}
         onImportAssets={importAssets ? handleImportAssets : undefined}
         onDocumentChange={setDocument}
         onSelectionChange={setSelection}
@@ -291,7 +343,7 @@ export const ReadOnlyWorkbench: Story = {
 
 export const AssetImport: Story = {
   args: {
-    acceptedImportTypes: ["video/*"],
+    acceptedImportTypes: ["audio/*", "video/*"],
     document: editingDocument,
     importAssets: true,
   },

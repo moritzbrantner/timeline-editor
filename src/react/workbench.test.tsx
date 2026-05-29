@@ -15,6 +15,7 @@ import {
 } from "@moritzbrantner/timeline-editor";
 import {
   createTimelineAudioExtension,
+  createTimelineAudioFileAsset,
   type TimelineAudioItemData,
 } from "@moritzbrantner/timeline-editor/audio";
 import {
@@ -1219,6 +1220,231 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
             ]),
           }),
         ]),
+      }),
+    );
+  });
+
+  test("renders playable audio preview from the built-in audio extension", () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineAudioItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "audio",
+          label: "Audio",
+          acceptsItemKinds: ["audio"],
+          items: [
+            {
+              id: "voice",
+              trackId: "audio",
+              label: "Voiceover",
+              kind: "audio",
+              startMs: 0,
+              durationMs: 3_000,
+              data: {
+                mediaType: "audio",
+                muted: true,
+                volume: 0.35,
+                source: {
+                  label: "voice.wav",
+                  uri: "blob:voice",
+                  mimeType: "audio/wav",
+                },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        selection={{ itemIds: ["voice"], anchorItemId: "voice" }}
+        extensions={[createTimelineAudioExtension()]}
+      />,
+    );
+    const player = container.querySelector(
+      "[data-slot='timeline-media-audio-preview-player']",
+    ) as HTMLAudioElement | null;
+
+    expect(container.querySelector("[data-slot='timeline-media-audio-preview']")).toBeTruthy();
+    expect(screen.getByText("voice.wav · audio/wav")).toBeTruthy();
+    expect(player).toBeTruthy();
+    expect(player?.src).toContain("blob:voice");
+    expect(player?.muted).toBe(true);
+    expect(player?.volume).toBe(0.35);
+  });
+
+  test("shows a compact audio preview state when the source is not playable", () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineAudioItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "audio",
+          label: "Audio",
+          acceptsItemKinds: ["audio"],
+          items: [
+            {
+              id: "voice",
+              trackId: "audio",
+              label: "Voiceover",
+              kind: "audio",
+              startMs: 0,
+              durationMs: 3_000,
+              data: {
+                mediaType: "audio",
+                source: { label: "voice.wav" },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        selection={{ itemIds: ["voice"], anchorItemId: "voice" }}
+        extensions={[createTimelineAudioExtension()]}
+      />,
+    );
+
+    expect(screen.getAllByText("voice.wav").length).toBeGreaterThan(0);
+    expect(screen.getByText("No audio source")).toBeTruthy();
+    expect(container.querySelector("[data-slot='timeline-media-audio-preview-player']")).toBeNull();
+  });
+
+  test("allows consumers to replace the built-in audio preview renderer", () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineAudioItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "audio",
+          label: "Audio",
+          acceptsItemKinds: ["audio"],
+          items: [
+            {
+              id: "voice",
+              trackId: "audio",
+              label: "Voiceover",
+              kind: "audio",
+              startMs: 0,
+              durationMs: 3_000,
+              data: { mediaType: "audio", source: { uri: "blob:voice" } },
+            },
+          ],
+        },
+      ],
+    };
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        selection={{ itemIds: ["voice"], anchorItemId: "voice" }}
+        extensions={[
+          createTimelineAudioExtension({
+            renderPreview: () => <div>Custom audio preview</div>,
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Custom audio preview")).toBeTruthy();
+    expect(screen.queryByText("No audio source")).toBeNull();
+  });
+
+  test("creates browser audio assets from files", async () => {
+    const file = new File(["audio"], "click.wav", {
+      type: "audio/wav",
+      lastModified: 12,
+    });
+    const revokeObjectUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+
+    const result = await createTimelineAudioFileAsset(file, {
+      createObjectUrl: () => "blob:click",
+      durationMs: 750,
+      color: "#16a34a",
+      waveform: [0.2, 0.8],
+    });
+
+    expect(result.objectUrl).toBe("blob:click");
+    expect(result.asset).toEqual(
+      expect.objectContaining({
+        id: "audio-click-wav",
+        label: "click.wav",
+        kind: "audio",
+        mediaType: "audio",
+        durationMs: 750,
+        color: "#16a34a",
+        data: expect.objectContaining({
+          mediaType: "audio",
+          waveform: [0.2, 0.8],
+          source: expect.objectContaining({
+            uri: "blob:click",
+            label: "click.wav",
+            mimeType: "audio/wav",
+            metadata: expect.objectContaining({
+              fileName: "click.wav",
+              lastModified: 12,
+              size: 5,
+            }),
+          }),
+        }),
+      }),
+    );
+
+    result.revoke?.();
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:click");
+    revokeObjectUrl.mockRestore();
+  });
+
+  test("asset insertion preserves audio file asset data", async () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineAudioItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 500,
+      tracks: [{ id: "audio", label: "Audio", acceptsItemKinds: ["audio"], items: [] }],
+    };
+    const file = new File(["audio"], "music.mp3", { type: "audio/mpeg" });
+    const result = await createTimelineAudioFileAsset(file, {
+      createObjectUrl: () => "blob:music",
+      durationMs: 1_200,
+    });
+    const handleDocumentChange = vi.fn();
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        assets={[result.asset]}
+        extensions={[createTimelineAudioExtension()]}
+        onDocumentChange={handleDocumentChange}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "music.mp3" })[0]!);
+
+    expect(handleDocumentChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tracks: [
+          expect.objectContaining({
+            id: "audio",
+            items: [
+              expect.objectContaining({
+                kind: "audio",
+                data: expect.objectContaining({
+                  mediaType: "audio",
+                  source: expect.objectContaining({
+                    uri: "blob:music",
+                    label: "music.mp3",
+                    mimeType: "audio/mpeg",
+                  }),
+                }),
+              }),
+            ],
+          }),
+        ],
       }),
     );
   });
