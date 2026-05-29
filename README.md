@@ -38,9 +38,9 @@ and media data helpers are pure functions. `TimelineEditor` and
 selection, viewport, clipboard, hotkey, and history state when they pass the
 matching props.
 
-`createTimelineAudioExtension()` from `./audio` includes a default browser audio
-preview for audio items with a playable `data.source.uri`. Browser `File`
-imports remain host-owned through `onImportAssets`; use
+`createTimelineAudioExtension()` from `./audio` includes audio source metadata
+and waveform item rendering. Browser `File` imports remain host-owned through
+`onImportAssets`; use
 `createTimelineAudioFileAsset(file)` to turn an audio file into an asset and
 keep ownership of the returned object URL cleanup callback.
 
@@ -52,11 +52,14 @@ transport strip supports Space, J/K/L shuttle playback, frame stepping, and loop
 playback. Transport defaults to paused, `1x`, loop off; hosts can use
 `transportState`, `defaultTransportState`, and `onTransportStateChange` for
 controlled or observed playback. Loop playback uses a valid selected range and
-falls back to the whole document. It advances `document.currentTimeMs`, moves
-the main timeline playhead, and keeps the playhead visible with keep-visible
-scrolling while playing. Native media controls rendered by extensions remain
-independent manual browser controls; reverse synchronization uses
-timeline-driven seeking instead of native negative playback.
+falls back to the whole document, wrapping at exact selected-range or document
+boundaries. It advances `document.currentTimeMs`, moves the main timeline
+playhead, and keeps the playhead visible with keep-visible scrolling while
+playing. Workbench audio preview is timeline-driven and hidden rather than a
+native audio player: it starts with the workbench transport and pauses when the
+transport stops. Video controls remain independent manual browser controls;
+reverse synchronization uses timeline-driven seeking instead of native negative
+playback.
 
 ## Controlled Timeline
 

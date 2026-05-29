@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeAll, describe, expect, test, vi } from "vitest";
 
@@ -173,13 +173,19 @@ function installMockMediaElement() {
     .mockImplementation(function play(this: HTMLMediaElement) {
       getState(this).paused = false;
       this.dataset["playState"] = "playing";
+      this.dataset["playCount"] = String(Number(this.dataset["playCount"] ?? "0") + 1);
       return Promise.resolve();
     });
   const pause = vi
     .spyOn(HTMLMediaElement.prototype, "pause")
     .mockImplementation(function pause(this: HTMLMediaElement) {
+      const wasPaused = getState(this).paused && this.dataset["playState"] !== "playing";
+
       getState(this).paused = true;
       this.dataset["playState"] = "paused";
+      if (!wasPaused) {
+        this.dataset["pauseCount"] = String(Number(this.dataset["pauseCount"] ?? "0") + 1);
+      }
     });
 
   return {
@@ -1752,6 +1758,72 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     expect(currentDocument.currentTimeMs).toBeLessThan(2_000);
   });
 
+  test("loop playback wraps cleanly from exact selected range boundaries", () => {
+    let document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 2_000,
+      tracks,
+    };
+
+    function StatefulWorkbench() {
+      const [stateDocument, setStateDocument] = useState(document);
+      document = stateDocument;
+
+      return (
+        <TimelineWorkbench
+          document={stateDocument}
+          defaultTransportState={{ loop: true }}
+          selection={{ itemIds: [], range: { startMs: 1_000, endMs: 2_000 } }}
+          onDocumentChange={setStateDocument}
+        />
+      );
+    }
+
+    const { unmount } = render(<StatefulWorkbench />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    expect(document.currentTimeMs).toBe(1_000);
+
+    unmount();
+    document = {
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+      tracks,
+    };
+    const rendered = render(<StatefulWorkbench />);
+
+    fireEvent.keyDown(rendered.container.querySelector("[data-slot='timeline-workbench']")!, {
+      key: "j",
+    });
+    expect(document.currentTimeMs).toBe(2_000);
+  });
+
+  test("full document loop wraps from the exact document end", () => {
+    let document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 8_000,
+      tracks,
+    };
+
+    function StatefulWorkbench() {
+      const [stateDocument, setStateDocument] = useState(document);
+      document = stateDocument;
+
+      return (
+        <TimelineWorkbench
+          document={stateDocument}
+          defaultTransportState={{ loop: true }}
+          onDocumentChange={setStateDocument}
+        />
+      );
+    }
+
+    render(<StatefulWorkbench />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    expect(document.currentTimeMs).toBe(0);
+  });
+
   test("read-only workbench disables preview playback", () => {
     const document: TimelineEditorDocument = {
       durationMs: 8_000,
@@ -2024,18 +2096,90 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
       />,
     );
     const player = container.querySelector(
-      "[data-slot='timeline-media-audio-preview-player']",
+      "[data-slot='timeline-workbench-scene-audio']",
     ) as HTMLAudioElement;
     await act(async () => {
       await Promise.resolve();
+      await Promise.resolve();
     });
 
+    expect(container.querySelector("[data-slot='timeline-media-audio-preview-player']")).toBeNull();
     expect(player.currentTime).toBe(0.75);
     expect(player.playbackRate).toBe(2);
     expect(player.muted).toBe(true);
     expect(player.volume).toBe(0.25);
     expect(media.play).toHaveBeenCalled();
     expect(player.dataset["playState"]).toBe("playing");
+    media.restore();
+  });
+
+  test("forward synchronized media starts once while timeline playback continues", async () => {
+    const media = installMockMediaElement();
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineAudioItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "audio",
+          label: "Audio",
+          acceptsItemKinds: ["audio"],
+          items: [
+            {
+              id: "voice",
+              trackId: "audio",
+              label: "Voiceover",
+              kind: "audio",
+              startMs: 0,
+              durationMs: 3_000,
+              data: {
+                mediaType: "audio",
+                source: { uri: "blob:voice", mimeType: "audio/wav" },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const rendered = render(
+      <TimelineWorkbench
+        document={document}
+        transportState={{ status: "playing", playbackRate: 1, loop: false }}
+        extensions={[createTimelineAudioExtension()]}
+      />,
+    );
+    const player = rendered.container.querySelector(
+      "[data-slot='timeline-workbench-scene-audio']",
+    ) as HTMLAudioElement;
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(media.play).toHaveBeenCalledTimes(1);
+    expect(player.dataset["playCount"]).toBe("1");
+
+    rendered.rerender(
+      <TimelineWorkbench
+        document={{ ...document, currentTimeMs: 1_080 }}
+        transportState={{ status: "playing", playbackRate: 1, loop: false }}
+        extensions={[createTimelineAudioExtension()]}
+      />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(media.play).toHaveBeenCalledTimes(1);
+
+    rendered.rerender(
+      <TimelineWorkbench
+        document={{ ...document, currentTimeMs: 1_120 }}
+        transportState={{ status: "paused", playbackRate: 1, loop: false }}
+        extensions={[createTimelineAudioExtension()]}
+      />,
+    );
+    expect(media.pause).toHaveBeenCalledTimes(1);
+    expect(player.dataset["playState"]).toBe("paused");
     media.restore();
   });
 
@@ -2122,9 +2266,12 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     );
     await act(async () => {
       await Promise.resolve();
+      await Promise.resolve();
     });
 
-    expect(container.querySelector("[data-slot='timeline-media-playback-blocked']")).toBeTruthy();
+    await waitFor(() => {
+      expect(container.querySelector("[data-slot='timeline-media-playback-blocked']")).toBeTruthy();
+    });
     expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
 
     media.play.mockImplementationOnce(() => {
@@ -2188,7 +2335,7 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     expect(container.querySelector("[data-slot='custom-preview']")?.textContent).toBe("Custom");
   });
 
-  test("renders playable audio preview from the built-in audio extension", () => {
+  test("renders hidden synchronized audio instead of a native preview player", () => {
     const document: TimelineEditorDocument<Record<string, unknown>, TimelineAudioItemData> = {
       durationMs: 4_000,
       currentTimeMs: 1_000,
@@ -2229,11 +2376,11 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
       />,
     );
     const player = container.querySelector(
-      "[data-slot='timeline-media-audio-preview-player']",
+      "[data-slot='timeline-workbench-scene-audio']",
     ) as HTMLAudioElement | null;
 
-    expect(container.querySelector("[data-slot='timeline-media-audio-preview']")).toBeTruthy();
-    expect(screen.getByText("voice.wav · audio/wav")).toBeTruthy();
+    expect(container.querySelector("[data-slot='timeline-media-audio-preview-player']")).toBeNull();
+    expect(screen.getAllByText("Voiceover").length).toBeGreaterThan(0);
     expect(player).toBeTruthy();
     expect(player?.src).toContain("blob:voice");
     expect(player?.muted).toBe(true);
@@ -2275,12 +2422,11 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
       />,
     );
 
-    expect(screen.getAllByText("voice.wav").length).toBeGreaterThan(0);
-    expect(screen.getByText("No audio source")).toBeTruthy();
+    expect(screen.getAllByText("Voiceover").length).toBeGreaterThan(0);
     expect(container.querySelector("[data-slot='timeline-media-audio-preview-player']")).toBeNull();
   });
 
-  test("allows consumers to replace the built-in audio preview renderer", () => {
+  test("does not use custom audio preview renderers for known workbench audio scenes", () => {
     const document: TimelineEditorDocument<Record<string, unknown>, TimelineAudioItemData> = {
       durationMs: 4_000,
       currentTimeMs: 1_000,
@@ -2304,7 +2450,7 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
       ],
     };
 
-    render(
+    const { container } = render(
       <TimelineWorkbench
         document={document}
         selection={{ itemIds: ["voice"], anchorItemId: "voice" }}
@@ -2316,8 +2462,9 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
       />,
     );
 
-    expect(screen.getByText("Custom audio preview")).toBeTruthy();
-    expect(screen.queryByText("No audio source")).toBeNull();
+    expect(screen.queryByText("Custom audio preview")).toBeNull();
+    expect(container.querySelector("[data-slot='timeline-workbench-scene-audio']")).toBeTruthy();
+    expect(container.querySelector("[data-slot='timeline-media-audio-preview-player']")).toBeNull();
   });
 
   test("creates browser audio assets from files", async () => {

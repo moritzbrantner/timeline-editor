@@ -81,12 +81,15 @@ and the main timeline follows with keep-visible scrolling while transport
 playback is active. Space toggles play/pause, K pauses, L shuttles forward
 through 1x/2x/4x, J shuttles backward through -1x/-2x/-4x, and Shift+L toggles
 loop playback. Loop uses the selected range when present and otherwise loops the
-whole document. Transport defaults to paused, `1x`, and loop off; pass
+whole document, wrapping at exact range or document boundaries. Transport
+defaults to paused, `1x`, and loop off; pass
 `transportState`, `defaultTransportState`, and `onTransportStateChange` to
-control or observe it. Built-in media preview controls, such as native
-audio/video controls, remain independent manual controls while the workbench
-transport is the synchronized path. Reverse playback synchronizes media by
-seeking rather than relying on native negative playback rates. Extension
+control or observe it. Workbench audio preview is synchronized through hidden
+media elements instead of native audio controls: audio starts with the workbench
+transport and pauses when it pauses, stops, or ends. Video controls remain
+independent manual controls while the workbench transport is the synchronized
+path. Reverse playback synchronizes media by seeking rather than relying on
+native negative playback rates. Extension
 `renderPreview` fallback composes custom preview output with common compositor
 layers in mixed scenes, while all-custom previews may still own the whole body.
 
@@ -150,23 +153,25 @@ Built-in media foundations are available from media-specific subpaths:
 
 - `@moritzbrantner/timeline-editor/media-types` for media type normalization and media-specific validation helpers.
 - `@moritzbrantner/timeline-editor/text` for ASS-like timed text cues.
-- `@moritzbrantner/timeline-editor/audio` for source metadata, volume/mute state, waveform display, browser audio preview, and audio `File` to asset conversion.
+- `@moritzbrantner/timeline-editor/audio` for source metadata, volume/mute state, waveform display, synchronized workbench audio preview, and audio `File` to asset conversion.
 - `@moritzbrantner/timeline-editor/video` for source metadata, poster, and thumbnail strips.
 - `@moritzbrantner/timeline-editor/image` for still image thumbnails and dimensions.
 - `@moritzbrantner/timeline-editor/data` for numeric data series and compact sparkline display.
 
 ## Limitations
 
-`createTimelineAudioExtension()` renders native browser audio controls in the
-preview panel for audio items with `data.source.uri`. Use
+`createTimelineAudioExtension()` renders audio item metadata and supports
+synchronized hidden workbench preview playback for audio items with
+`data.source.uri`. Use
 `createTimelineAudioFileAsset(file)` inside a host `onImportAssets` callback to
 create audio assets from browser files; keep the returned cleanup callback so
 object URLs can be revoked when they are no longer used.
 
 Built-in media extensions do not decode media, generate waveforms or thumbnails,
-export renders, apply effects, or implement transitions. Native browser media
-controls remain available for manual preview, while workbench transport playback
-synchronizes active media elements to the timeline playhead.
+export renders, apply effects, or implement transitions. Workbench audio preview
+is timeline-driven rather than a native audio player, while video controls remain
+available for manual preview. Workbench transport playback synchronizes active
+media elements to the timeline playhead.
 
 ```tsx
 import { TimelineWorkbench, type TimelineEditorDocument } from "@moritzbrantner/timeline-editor";

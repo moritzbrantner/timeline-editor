@@ -391,7 +391,9 @@ test("imports an audio file asset and previews it", async ({ page }) => {
       return selectedItem?.label;
     })
     .toBe(audioFile.name);
-  await expect(page.locator("[data-slot='timeline-media-audio-preview-player']")).toBeVisible();
+  await expect(page.locator("[data-slot='timeline-media-audio-preview-player']")).toHaveCount(0);
+  await expect(page.locator("[data-slot='timeline-workbench-scene-audio']")).toHaveCount(1);
+  await expect(page.getByText(audioFile.name).first()).toBeVisible();
 });
 
 test("hides import controls without importer", async ({ page }) => {

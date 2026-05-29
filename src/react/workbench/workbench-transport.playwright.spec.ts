@@ -97,6 +97,18 @@ test("selected range and full document loop wrap playback", async ({ page }) => 
     .toBeLessThan(1_000);
 });
 
+test("selected range loop wraps immediately from exact boundaries", async ({ page }) => {
+  await page.goto("/?fixture=transport-endpoints&initialTimeMs=2000&initialRange=1000-2000");
+
+  await getTransportButton(page, "Loop").click();
+  await getTransportButton(page, "Play").click();
+
+  await expect
+    .poll(async () => (await getHarnessState(page)).document.currentTimeMs ?? 0)
+    .toBeLessThan(2_000);
+  expect((await getHarnessState(page)).document.currentTimeMs ?? 0).toBeGreaterThanOrEqual(1_000);
+});
+
 test("keep-visible follow scrolls forward and reverse while transport is active", async ({
   page,
 }) => {
@@ -129,6 +141,7 @@ test("preview modes expose scene, selected item, and mini timeline views", async
   await expect(page.locator("[data-slot='timeline-workbench-scene-video']")).toBeVisible();
   await expect(page.locator("[data-slot='timeline-workbench-scene-text']")).toBeVisible();
   await expect(page.locator("[data-slot='timeline-workbench-scene-audio']")).toHaveCount(1);
+  await expect(page.locator("[data-slot='timeline-media-audio-preview-player']")).toHaveCount(0);
 
   await page.getByRole("button", { exact: true, name: "Caption" }).click();
   await page.getByRole("radio", { name: "Selection" }).click();
@@ -157,6 +170,8 @@ test("mocked media synchronizes to workbench transport without owning native con
 
       return {
         audioCurrentTime: audio?.currentTime ?? null,
+        audioPauseCount: Number.parseInt(audio?.dataset["pauseCount"] ?? "0", 10),
+        audioPlayCount: Number.parseInt(audio?.dataset["playCount"] ?? "0", 10),
         audioPlayState: audio?.dataset["playState"],
         videoCurrentTime: video?.currentTime ?? null,
         videoPlaybackRate: video?.playbackRate ?? null,
@@ -176,11 +191,19 @@ test("mocked media synchronizes to workbench transport without owning native con
 
   await getTransportButton(page, "Play").click();
   await expect.poll(async () => (await getMediaState()).videoPlayState).toBe("playing");
+  await expect.poll(async () => (await getMediaState()).audioPlayState).toBe("playing");
   const playing = await getMediaState();
   expect(playing.videoCurrentTime).not.toBeNull();
   expect(playing.audioCurrentTime).not.toBeNull();
+  expect(playing.audioPlayCount).toBe(1);
   expect(playing.videoPlaybackRate).toBe(1);
+  await page.waitForTimeout(250);
+  expect((await getMediaState()).audioPlayCount).toBe(1);
+  await getTransportButton(page, "Pause").click();
+  await expect.poll(async () => (await getHarnessState(page)).transport?.status).toBe("paused");
+  await expect.poll(async () => (await getMediaState()).audioPlayState).toBe("paused");
 
+  await getTransportButton(page, "Play").click();
   await getTransportButton(page, "Shuttle backward").click();
   await expect.poll(async () => (await getHarnessState(page)).transport?.playbackRate).toBe(-1);
   const reversed = await getMediaState();

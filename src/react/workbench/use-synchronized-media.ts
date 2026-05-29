@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 
 import { getTimelineEditorItemEndMs, type TimelineEditorItem } from "../../core";
 import type { TimelinePreviewTransportContext } from "./types";
@@ -27,11 +27,19 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
   volume,
 }: TimelineWorkbenchSynchronizedMediaElementOptions) {
   const [blocked, setBlocked] = useState(false);
+  const blockedRef = useRef(false);
+  const playbackStartedRef = useRef(false);
+  const lastPlayAttemptSignatureRef = useRef<string | null>(null);
+  const lastSourceTimingKeyRef = useRef<string | null>(null);
   const localTimeMs = getTimelineWorkbenchMediaLocalTimeMs(item, currentTimeMs, {
     sourceStartMs,
     sourceEndMs,
   });
   const active = currentTimeMs >= item.startMs && currentTimeMs <= getTimelineEditorItemEndMs(item);
+  const setBlockedState = (nextBlocked: boolean) => {
+    blockedRef.current = nextBlocked;
+    setBlocked(nextBlocked);
+  };
 
   useEffect(() => {
     const element = elementRef.current;
@@ -58,54 +66,93 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
 
     const localTimeSeconds = localTimeMs / 1_000;
     const driftMs = Math.abs(element.currentTime - localTimeSeconds) * 1_000;
+    const sourceTimingKey = `${item.id}:${item.startMs}:${item.durationMs}:${sourceStartMs}:${
+      sourceEndMs ?? ""
+    }`;
     const seek = () => {
       if (Number.isFinite(localTimeSeconds)) {
         element.currentTime = localTimeSeconds;
       }
     };
+    const resetPlaybackAttempt = () => {
+      playbackStartedRef.current = false;
+      lastPlayAttemptSignatureRef.current = null;
+    };
+
+    if (lastSourceTimingKeyRef.current !== sourceTimingKey) {
+      lastSourceTimingKeyRef.current = sourceTimingKey;
+      resetPlaybackAttempt();
+      setBlockedState(false);
+    }
 
     if (!active) {
-      pauseTimelineWorkbenchMediaElement(element);
+      pauseTimelineWorkbenchMediaElement(element, playbackStartedRef.current);
       seek();
-      setBlocked(false);
+      resetPlaybackAttempt();
+      setBlockedState(false);
       return;
     }
 
     if (transport.status !== "playing") {
-      pauseTimelineWorkbenchMediaElement(element);
+      pauseTimelineWorkbenchMediaElement(
+        element,
+        playbackStartedRef.current || element.dataset["playState"] === "playing",
+      );
       if (driftMs > 40) {
         seek();
       }
-      setBlocked(false);
+      resetPlaybackAttempt();
+      setBlockedState(false);
       return;
     }
 
     if (transport.playbackRate < 0) {
-      pauseTimelineWorkbenchMediaElement(element);
+      pauseTimelineWorkbenchMediaElement(element, playbackStartedRef.current);
       seek();
-      setBlocked(false);
+      resetPlaybackAttempt();
+      setBlockedState(false);
       return;
     }
 
     element.playbackRate = transport.playbackRate;
     if (driftMs > 80) {
       seek();
-      setBlocked(false);
+      setBlockedState(false);
     }
+
+    const playAttemptSignature = `${sourceTimingKey}:${transport.playbackRate}:${Math.floor(
+      localTimeMs / 250,
+    )}`;
+    const shouldStartPlayback = element.paused || blockedRef.current || !playbackStartedRef.current;
+
+    if (!shouldStartPlayback || lastPlayAttemptSignatureRef.current === playAttemptSignature) {
+      return;
+    }
+
+    lastPlayAttemptSignatureRef.current = playAttemptSignature;
+    playbackStartedRef.current = true;
 
     let playResult: ReturnType<HTMLMediaElement["play"]> | undefined;
 
     try {
       playResult = element.play();
     } catch {
-      setBlocked(true);
+      playbackStartedRef.current = false;
+      setBlockedState(true);
       return;
     }
 
     if (playResult && typeof playResult.catch === "function") {
-      playResult.then(() => setBlocked(false)).catch(() => setBlocked(true));
+      playResult
+        .then(() => {
+          setBlockedState(false);
+        })
+        .catch(() => {
+          playbackStartedRef.current = false;
+          setBlockedState(true);
+        });
     } else {
-      setBlocked(false);
+      setBlockedState(false);
     }
   }, [
     active,
@@ -130,13 +177,16 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
   return { blocked, localTimeMs };
 }
 
-function pauseTimelineWorkbenchMediaElement(element: HTMLMediaElement) {
-  if (element.paused) {
+function pauseTimelineWorkbenchMediaElement(element: HTMLMediaElement, force = false) {
+  if (!force && element.paused) {
     return;
   }
 
   try {
     element.pause();
+    if (element.dataset["playState"]) {
+      element.dataset["playState"] = "paused";
+    }
   } catch {
     // Test DOMs and some browser edge cases can expose media elements without usable controls.
   }

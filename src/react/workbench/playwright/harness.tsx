@@ -347,6 +347,8 @@ function App() {
     const pause = HTMLMediaElement.prototype.pause;
     const pausedDescriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "paused");
     const pausedState = new WeakMap<HTMLMediaElement, boolean>();
+    const getCount = (element: HTMLMediaElement, key: "playCount" | "pauseCount") =>
+      Number.parseInt(element.dataset[key] ?? "0", 10) || 0;
 
     Object.defineProperty(HTMLMediaElement.prototype, "paused", {
       configurable: true,
@@ -358,11 +360,17 @@ function App() {
     HTMLMediaElement.prototype.play = function mockPlay() {
       pausedState.set(this, false);
       this.dataset["playState"] = "playing";
+      this.dataset["playCount"] = String(getCount(this, "playCount") + 1);
       return Promise.resolve();
     };
     HTMLMediaElement.prototype.pause = function mockPause() {
+      const wasPaused = pausedState.get(this) ?? this.dataset["playState"] !== "playing";
+
       pausedState.set(this, true);
       this.dataset["playState"] = "paused";
+      if (!wasPaused) {
+        this.dataset["pauseCount"] = String(getCount(this, "pauseCount") + 1);
+      }
     };
 
     return () => {

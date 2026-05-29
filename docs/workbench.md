@@ -21,9 +21,11 @@ For audio imports, `createTimelineAudioFileAsset(file)` from
 metadata and a playable object URL. Keep the returned cleanup callback and
 revoke it when the imported source is no longer used.
 
-When `createTimelineAudioExtension()` is included in `extensions`, the preview
-panel renders native browser audio controls for selected or active audio items
-that include `data.source.uri`.
+When `createTimelineAudioExtension()` is included in `extensions`, audio items
+with `data.source.uri` synchronize through hidden preview media while the
+workbench transport is playing. The workbench preview does not render native
+audio controls; audio starts with the timeline transport and pauses when the
+transport pauses, stops, or ends.
 
 The preview panel has three modes. `active-scene` is the default and previews
 items active at `document.currentTimeMs`; `selection-first` previews selected
@@ -39,10 +41,11 @@ when the playhead approaches or leaves the visible range. Space toggles
 play/pause, K pauses, L shuttles forward through 1x/2x/4x, J shuttles backward
 through -1x/-2x/-4x, and Shift+L toggles loop playback. Loop uses the selected
 range when it spans at least 1ms after clamping to the document; otherwise it
-loops the whole document. Native audio/video controls rendered by extensions are
-still independent browser media controls; they do not drive the synchronized
-workbench transport. Reverse media playback uses timeline-driven seeking because
-native negative media playback is not portable.
+loops the whole document. Forward playback wraps at the selected range end or
+document end, and reverse playback wraps at the selected range start or document
+start. Video controls remain independent browser media controls; they do not
+drive the synchronized workbench transport. Reverse media playback uses
+timeline-driven seeking because native negative media playback is not portable.
 
 Hosts can control transport with `transportState`, initialize uncontrolled
 transport with `defaultTransportState`, and observe changes with

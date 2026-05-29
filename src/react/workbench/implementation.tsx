@@ -390,8 +390,19 @@ export function TimelineWorkbench<
 
       const duration = durationMsRef.current;
       const currentTime = documentRef.current.currentTimeMs ?? 0;
+      const loopRange = getTimelineWorkbenchTransportLoopRange(
+        transportStateRef.current.loop,
+        resolvedSelectionRef.current.range,
+        duration,
+      );
 
-      if (rate > 0 && currentTime >= duration) {
+      if (loopRange) {
+        if (rate > 0 && currentTime >= loopRange.endMs) {
+          commitPreviewCurrentTime(loopRange.startMs);
+        } else if (rate < 0 && currentTime <= loopRange.startMs) {
+          commitPreviewCurrentTime(loopRange.endMs);
+        }
+      } else if (rate > 0 && currentTime >= duration) {
         commitPreviewCurrentTime(0);
       } else if (rate < 0 && currentTime <= 0) {
         commitPreviewCurrentTime(duration);
@@ -2127,11 +2138,11 @@ function resolveTimelineWorkbenchPlaybackTime(
     return { timeMs: Math.max(0, Math.min(durationMs, nextTimeMs)), ended: false };
   }
 
-  if (nextTimeMs > endMs) {
+  if (nextTimeMs >= endMs) {
     return { timeMs: startMs + positiveModulo(nextTimeMs - endMs, spanMs), ended: false };
   }
 
-  if (nextTimeMs < startMs) {
+  if (nextTimeMs <= startMs) {
     return { timeMs: endMs - positiveModulo(startMs - nextTimeMs, spanMs), ended: false };
   }
 

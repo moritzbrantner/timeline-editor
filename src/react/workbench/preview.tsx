@@ -172,22 +172,6 @@ function TimelineWorkbenchScenePreview<TTrackData extends Record<string, unknown
           transport,
         })
       : null;
-  const audioOnlyExtension = getTimelineWorkbenchPreviewExtension(
-    visualItems.length === 0 ? audioItems.map(({ item }) => item) : [],
-    extensions,
-  );
-  const audioOnlyExtensionPreview =
-    audioItems.length > 0 && visualItems.length === 0
-      ? audioOnlyExtension?.renderPreview?.({
-          currentTimeMs,
-          document: document as TimelineEditorDocument<Record<string, unknown>, TItemData>,
-          durationMs,
-          items: audioItems.map(({ item }) => item),
-          selectedItems,
-          transport,
-        })
-      : null;
-
   if (items.length === 0) {
     return (
       <div className="grid h-full place-items-center p-4">
@@ -203,10 +187,6 @@ function TimelineWorkbenchScenePreview<TTrackData extends Record<string, unknown
 
   if (sceneItems.length === 0 && extensionPreview) {
     return <>{extensionPreview}</>;
-  }
-
-  if (audioOnlyExtensionPreview) {
-    return <>{audioOnlyExtensionPreview}</>;
   }
 
   return (
@@ -372,6 +352,7 @@ function TimelineWorkbenchSceneVideo({
       />
       {sync.blocked ? (
         <div
+          data-slot="timeline-media-playback-blocked"
           className="absolute right-3 top-3 rounded bg-black/70 px-2 py-1 text-xs"
           style={{ zIndex: zIndex + 1 }}
         >
@@ -419,7 +400,10 @@ function TimelineWorkbenchSceneAudio({
         src={sourceUri}
       />
       {sync.blocked ? (
-        <div className="absolute right-3 top-3 z-50 rounded bg-black/70 px-2 py-1 text-xs">
+        <div
+          data-slot="timeline-media-playback-blocked"
+          className="absolute right-3 top-3 z-50 rounded bg-black/70 px-2 py-1 text-xs"
+        >
           Media playback blocked
         </div>
       ) : null}
