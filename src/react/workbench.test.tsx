@@ -2170,10 +2170,36 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
       await Promise.resolve();
     });
     expect(media.play).toHaveBeenCalledTimes(1);
+    expect(player.currentTime).toBe(1);
 
     rendered.rerender(
       <TimelineWorkbench
-        document={{ ...document, currentTimeMs: 1_120 }}
+        document={{ ...document, currentTimeMs: 1_300 }}
+        transportState={{ status: "playing", playbackRate: 1, loop: false }}
+        extensions={[createTimelineAudioExtension()]}
+      />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(media.play).toHaveBeenCalledTimes(1);
+    expect(player.currentTime).toBe(1);
+
+    rendered.rerender(
+      <TimelineWorkbench
+        document={{ ...document, currentTimeMs: 2_000 }}
+        transportState={{ status: "playing", playbackRate: 1, loop: false }}
+        extensions={[createTimelineAudioExtension()]}
+      />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(player.currentTime).toBe(2);
+
+    rendered.rerender(
+      <TimelineWorkbench
+        document={{ ...document, currentTimeMs: 2_040 }}
         transportState={{ status: "paused", playbackRate: 1, loop: false }}
         extensions={[createTimelineAudioExtension()]}
       />,
@@ -2285,6 +2311,59 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
       />,
     );
     expect(screen.getAllByRole("button", { name: "Pause" }).length).toBeGreaterThan(0);
+    media.restore();
+  });
+
+  test("preloads loop audio at the loop start without taking over playback", () => {
+    const media = installMockMediaElement();
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineAudioItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 3_000,
+      tracks: [
+        {
+          id: "audio",
+          label: "Audio",
+          acceptsItemKinds: ["audio"],
+          items: [
+            {
+              id: "voice",
+              trackId: "audio",
+              label: "Voiceover",
+              kind: "audio",
+              startMs: 1_000,
+              durationMs: 800,
+              data: {
+                mediaType: "audio",
+                sourceStartMs: 250,
+                source: { uri: "blob:voice" },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        selection={{ itemIds: [], range: { startMs: 1_000, endMs: 1_800 } }}
+        transportState={{ status: "paused", playbackRate: 1, loop: true }}
+        extensions={[createTimelineAudioExtension()]}
+      />,
+    );
+    const preload = container.querySelector(
+      "[data-slot='timeline-workbench-scene-audio-preload']",
+    ) as HTMLAudioElement | null;
+
+    expect(container.querySelector("[data-slot='timeline-workbench-scene-audio']")).toBeNull();
+    expect(preload).toBeTruthy();
+    expect(preload?.src).toContain("blob:voice");
+    expect(preload?.preload).toBe("auto");
+    act(() => {
+      preload?.dispatchEvent(new Event("loadedmetadata"));
+    });
+    expect(preload?.currentTime).toBe(0.25);
+    expect(media.play).not.toHaveBeenCalled();
     media.restore();
   });
 

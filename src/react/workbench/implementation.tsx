@@ -1920,6 +1920,7 @@ export function TimelineWorkbench<
       document={document}
       durationMs={durationMs}
       extensions={extensions}
+      loopRange={transportLoopRange}
       mode={resolvedPreviewMode}
       readOnly={readOnly}
       selectedItems={selectedItems}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 
 import { ToggleGroup, ToggleGroupItem } from "@moritzbrantner/ui";
 
@@ -9,6 +9,7 @@ import {
   getTimelineEditorItemEndMs,
   type TimelineEditorDocument,
   type TimelineEditorItem,
+  type TimelineEditorTimeRange,
   type TimelineEditorTrack,
 } from "../../core";
 import { getTimelineMediaTypeForItem } from "../../media-types";
@@ -30,6 +31,7 @@ type TimelineWorkbenchPreviewProps<
   durationMs: number;
   extensions?: Array<TimelineEditorExtension<TItemData, TTrackData, TAssetData>>;
   mode: TimelineWorkbenchPreviewMode;
+  loopRange?: TimelineEditorTimeRange;
   readOnly: boolean;
   selectedItems: Array<TimelineEditorItem<TItemData>>;
   transport: TimelinePreviewTransportContext;
@@ -45,6 +47,7 @@ export function TimelineWorkbenchPreview<
   document,
   durationMs,
   extensions = [],
+  loopRange,
   mode,
   readOnly: _readOnly,
   selectedItems,
@@ -116,6 +119,7 @@ export function TimelineWorkbenchPreview<
             durationMs={durationMs}
             extensions={extensions}
             items={previewItems}
+            loopRange={loopRange}
             selectedItems={selectedItems}
             transport={transport}
           />
@@ -131,6 +135,7 @@ function TimelineWorkbenchScenePreview<TTrackData extends Record<string, unknown
   durationMs,
   extensions,
   items,
+  loopRange,
   selectedItems,
   transport,
 }: {
@@ -142,9 +147,15 @@ function TimelineWorkbenchScenePreview<TTrackData extends Record<string, unknown
     item: TimelineEditorItem<TItemData>;
     track?: TimelineEditorTrack<TTrackData, TItemData>;
   }>;
+  loopRange?: TimelineEditorTimeRange;
   selectedItems: Array<TimelineEditorItem<TItemData>>;
   transport: TimelinePreviewTransportContext;
 }) {
+  const audioPreloads = getTimelineWorkbenchSceneAudioPreloads(
+    document as TimelineEditorDocument<Record<string, unknown>, unknown>,
+    currentTimeMs,
+    loopRange,
+  );
   const sceneItems = items.filter(({ item }) => isTimelineWorkbenchKnownSceneItem(item));
   const visualItems = sceneItems.filter(({ item }) => {
     const mediaType = getTimelineMediaTypeForItem(item as TimelineEditorItem<unknown>);
@@ -174,23 +185,32 @@ function TimelineWorkbenchScenePreview<TTrackData extends Record<string, unknown
       : null;
   if (items.length === 0) {
     return (
-      <div className="grid h-full place-items-center p-4">
-        <div className="grid gap-1 text-center text-white">
-          <div className="text-sm font-medium">0 active items</div>
-          <div className="text-xs text-white/60">
-            {formatTimelineEditorTimeMs(currentTimeMs)} / {formatTimelineEditorTimeMs(durationMs)}
+      <>
+        <TimelineWorkbenchSceneAudioPreloads preloads={audioPreloads} />
+        <div className="grid h-full place-items-center p-4">
+          <div className="grid gap-1 text-center text-white">
+            <div className="text-sm font-medium">0 active items</div>
+            <div className="text-xs text-white/60">
+              {formatTimelineEditorTimeMs(currentTimeMs)} / {formatTimelineEditorTimeMs(durationMs)}
+            </div>
           </div>
         </div>
-      </div>
+      </>
     );
   }
 
   if (sceneItems.length === 0 && extensionPreview) {
-    return <>{extensionPreview}</>;
+    return (
+      <>
+        <TimelineWorkbenchSceneAudioPreloads preloads={audioPreloads} />
+        {extensionPreview}
+      </>
+    );
   }
 
   return (
     <div data-slot="timeline-workbench-scene-preview" className="relative h-full w-full text-white">
+      <TimelineWorkbenchSceneAudioPreloads preloads={audioPreloads} />
       {visualItems.map(({ item, track }, index) => (
         <TimelineWorkbenchSceneLayer
           key={item.id}
@@ -396,7 +416,7 @@ function TimelineWorkbenchSceneAudio({
         ref={audioRef}
         data-slot="timeline-workbench-scene-audio"
         muted={getBooleanField(data, "muted")}
-        preload="metadata"
+        preload="auto"
         src={sourceUri}
       />
       {sync.blocked ? (
@@ -408,6 +428,99 @@ function TimelineWorkbenchSceneAudio({
         </div>
       ) : null}
     </>
+  );
+}
+
+type TimelineWorkbenchSceneAudioPreload = {
+  key: string;
+  item: TimelineEditorItem<unknown>;
+  sourceEndMs?: number;
+  sourceStartMs?: number;
+  src: string;
+  targetTimeMs: number;
+};
+
+const audioPreloadLookaheadMs = 1_000;
+
+function TimelineWorkbenchSceneAudioPreloads({
+  preloads,
+}: {
+  preloads: TimelineWorkbenchSceneAudioPreload[];
+}) {
+  return (
+    <>
+      {preloads.map((preload) => (
+        <TimelineWorkbenchSceneAudioPreloadElement key={preload.key} preload={preload} />
+      ))}
+    </>
+  );
+}
+
+function TimelineWorkbenchSceneAudioPreloadElement({
+  preload,
+}: {
+  preload: TimelineWorkbenchSceneAudioPreload;
+}) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const targetLocalTimeSeconds =
+    getTimelineWorkbenchPreloadLocalTimeMs(preload.item, preload.targetTimeMs, {
+      sourceEndMs: preload.sourceEndMs,
+      sourceStartMs: preload.sourceStartMs ?? 0,
+    }) / 1_000;
+
+  useEffect(() => {
+    const element = audioRef.current;
+
+    if (!element) {
+      return;
+    }
+
+    const seekToTarget = () => {
+      if (!Number.isFinite(targetLocalTimeSeconds)) {
+        return;
+      }
+
+      try {
+        if (Math.abs(element.currentTime - targetLocalTimeSeconds) > 0.05) {
+          element.currentTime = targetLocalTimeSeconds;
+        }
+      } catch {
+        // Some media sources cannot seek until enough metadata has loaded.
+      }
+    };
+
+    if (element.readyState >= 1) {
+      seekToTarget();
+    }
+
+    element.addEventListener("loadedmetadata", seekToTarget);
+    element.addEventListener("canplay", seekToTarget);
+
+    return () => {
+      element.removeEventListener("loadedmetadata", seekToTarget);
+      element.removeEventListener("canplay", seekToTarget);
+    };
+  }, [targetLocalTimeSeconds]);
+
+  return (
+    <audio
+      ref={audioRef}
+      aria-hidden="true"
+      data-slot="timeline-workbench-scene-audio-preload"
+      muted
+      preload="auto"
+      src={preload.src}
+      style={{
+        height: 1,
+        left: 0,
+        opacity: 0,
+        pointerEvents: "none",
+        position: "absolute",
+        top: 0,
+        width: 1,
+      }}
+      tabIndex={-1}
+    />
   );
 }
 
@@ -608,6 +721,85 @@ function getTimelineWorkbenchPreviewExtension<
         return mediaType ? extension.mediaTypes?.includes(mediaType) : false;
       }),
   );
+}
+
+function getTimelineWorkbenchSceneAudioPreloads(
+  document: TimelineEditorDocument<Record<string, unknown>, unknown>,
+  currentTimeMs: number,
+  loopRange: TimelineEditorTimeRange | undefined,
+): TimelineWorkbenchSceneAudioPreload[] {
+  const ranges = [
+    {
+      id: "cursor",
+      startMs: Math.max(0, currentTimeMs),
+      endMs: Math.max(0, currentTimeMs + audioPreloadLookaheadMs),
+    },
+  ];
+
+  if (loopRange && loopRange.endMs > loopRange.startMs) {
+    ranges.push({
+      id: "loop",
+      startMs: Math.max(0, loopRange.startMs),
+      endMs: Math.max(0, Math.min(loopRange.endMs, loopRange.startMs + audioPreloadLookaheadMs)),
+    });
+  }
+
+  const seen = new Set<string>();
+  const preloads: TimelineWorkbenchSceneAudioPreload[] = [];
+
+  for (const track of document.tracks) {
+    for (const item of track.items) {
+      if (getTimelineMediaTypeForItem(item as TimelineEditorItem<unknown>) !== "audio") {
+        continue;
+      }
+
+      const data = getTimelineWorkbenchItemData(item as TimelineEditorItem<unknown>);
+      const src = getTimelineWorkbenchSourceUri(data);
+
+      if (!src) {
+        continue;
+      }
+
+      const itemEndMs = getTimelineEditorItemEndMs(item);
+
+      for (const range of ranges) {
+        if (range.endMs < item.startMs || range.startMs > itemEndMs) {
+          continue;
+        }
+
+        const key = `${range.id}:${item.id}`;
+
+        if (seen.has(key)) {
+          continue;
+        }
+
+        seen.add(key);
+        preloads.push({
+          key,
+          item: item as TimelineEditorItem<unknown>,
+          sourceEndMs: getNumberField(data, "sourceEndMs"),
+          sourceStartMs: getNumberField(data, "sourceStartMs"),
+          src,
+          targetTimeMs: Math.max(item.startMs, Math.min(itemEndMs, range.startMs)),
+        });
+      }
+    }
+  }
+
+  return preloads.slice(0, 8);
+}
+
+function getTimelineWorkbenchPreloadLocalTimeMs(
+  item: TimelineEditorItem<unknown>,
+  currentTimeMs: number,
+  options: { sourceStartMs: number; sourceEndMs?: number },
+) {
+  const unclampedLocalTimeMs = currentTimeMs - item.startMs + options.sourceStartMs;
+  const lowerBoundMs = Math.max(0, options.sourceStartMs);
+  const resolvedUpperBoundMs = options.sourceEndMs ?? lowerBoundMs + item.durationMs;
+  const upperBoundMs = Math.max(lowerBoundMs, resolvedUpperBoundMs);
+
+  return Math.max(lowerBoundMs, Math.min(upperBoundMs, unclampedLocalTimeMs));
 }
 
 function isTimelineWorkbenchKnownSceneItem(item: TimelineEditorItem<unknown>) {

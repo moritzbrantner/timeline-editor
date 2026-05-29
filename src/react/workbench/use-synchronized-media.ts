@@ -16,6 +16,10 @@ export type TimelineWorkbenchSynchronizedMediaElementOptions = {
   volume?: number;
 };
 
+const forwardPlaybackSeekThresholdMs = 500;
+const pausedSeekThresholdMs = 40;
+const startupSeekThresholdMs = 80;
+
 export function useTimelineWorkbenchSynchronizedMediaElement({
   elementRef,
   item,
@@ -31,6 +35,12 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
   const playbackStartedRef = useRef(false);
   const lastPlayAttemptSignatureRef = useRef<string | null>(null);
   const lastSourceTimingKeyRef = useRef<string | null>(null);
+  const lastSyncSnapshotRef = useRef<{
+    currentTimeMs: number;
+    playbackRate: number;
+    sourceTimingKey: string;
+    status: TimelinePreviewTransportContext["status"];
+  } | null>(null);
   const localTimeMs = getTimelineWorkbenchMediaLocalTimeMs(item, currentTimeMs, {
     sourceStartMs,
     sourceEndMs,
@@ -69,6 +79,16 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
     const sourceTimingKey = `${item.id}:${item.startMs}:${item.durationMs}:${sourceStartMs}:${
       sourceEndMs ?? ""
     }`;
+    const previousSnapshot = lastSyncSnapshotRef.current;
+    const sourceTimingChanged = lastSourceTimingKeyRef.current !== sourceTimingKey;
+    const rememberSyncSnapshot = () => {
+      lastSyncSnapshotRef.current = {
+        currentTimeMs,
+        playbackRate: transport.playbackRate,
+        sourceTimingKey,
+        status: transport.status,
+      };
+    };
     const seek = () => {
       if (Number.isFinite(localTimeSeconds)) {
         element.currentTime = localTimeSeconds;
@@ -79,7 +99,7 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
       lastPlayAttemptSignatureRef.current = null;
     };
 
-    if (lastSourceTimingKeyRef.current !== sourceTimingKey) {
+    if (sourceTimingChanged) {
       lastSourceTimingKeyRef.current = sourceTimingKey;
       resetPlaybackAttempt();
       setBlockedState(false);
@@ -90,6 +110,7 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
       seek();
       resetPlaybackAttempt();
       setBlockedState(false);
+      rememberSyncSnapshot();
       return;
     }
 
@@ -98,11 +119,12 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
         element,
         playbackStartedRef.current || element.dataset["playState"] === "playing",
       );
-      if (driftMs > 40) {
+      if (driftMs > pausedSeekThresholdMs) {
         seek();
       }
       resetPlaybackAttempt();
       setBlockedState(false);
+      rememberSyncSnapshot();
       return;
     }
 
@@ -111,11 +133,27 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
       seek();
       resetPlaybackAttempt();
       setBlockedState(false);
+      rememberSyncSnapshot();
       return;
     }
 
     element.playbackRate = transport.playbackRate;
-    if (driftMs > 80) {
+    const previousTimelineDeltaMs = previousSnapshot
+      ? currentTimeMs - previousSnapshot.currentTimeMs
+      : 0;
+    const shouldSeekForwardPlayback =
+      sourceTimingChanged ||
+      !playbackStartedRef.current ||
+      previousSnapshot?.status !== "playing" ||
+      previousSnapshot?.playbackRate !== transport.playbackRate ||
+      previousSnapshot?.sourceTimingKey !== sourceTimingKey ||
+      previousTimelineDeltaMs < -pausedSeekThresholdMs ||
+      Math.abs(previousTimelineDeltaMs) > forwardPlaybackSeekThresholdMs;
+
+    if (
+      driftMs > startupSeekThresholdMs &&
+      (shouldSeekForwardPlayback || driftMs > forwardPlaybackSeekThresholdMs)
+    ) {
       seek();
       setBlockedState(false);
     }
@@ -126,6 +164,7 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
     const shouldStartPlayback = element.paused || blockedRef.current || !playbackStartedRef.current;
 
     if (!shouldStartPlayback || lastPlayAttemptSignatureRef.current === playAttemptSignature) {
+      rememberSyncSnapshot();
       return;
     }
 
@@ -139,6 +178,7 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
     } catch {
       playbackStartedRef.current = false;
       setBlockedState(true);
+      rememberSyncSnapshot();
       return;
     }
 
@@ -154,6 +194,8 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
     } else {
       setBlockedState(false);
     }
+
+    rememberSyncSnapshot();
   }, [
     active,
     currentTimeMs,
