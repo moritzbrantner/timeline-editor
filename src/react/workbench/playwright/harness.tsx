@@ -114,6 +114,19 @@ const createNoMarkersDocument = (): TimelineEditorDocument => ({
 const createLargeDocument = (): TimelineEditorDocument => ({
   durationMs: 10 * 60_000,
   currentTimeMs: 0,
+  groups: [
+    {
+      id: "collapsed-program",
+      label: "Collapsed Program",
+      trackIds: Array.from({ length: 20 }, (_, index) => `track-${index + 1}`),
+      collapsed: true,
+    },
+    {
+      id: "active-program",
+      label: "Active Program",
+      trackIds: Array.from({ length: 20 }, (_, index) => `track-${index + 21}`),
+    },
+  ],
   tracks: Array.from({ length: 200 }, (_, trackIndex) => ({
     id: `track-${trackIndex + 1}`,
     label: `Track ${trackIndex + 1}`,
@@ -251,7 +264,7 @@ function App() {
     });
   };
 
-  if (largeFixture) {
+  if (largeFixture && searchParams.get("surface") !== "workbench") {
     return (
       <div className="p-4">
         <TimelineEditor
@@ -275,6 +288,7 @@ function App() {
       selection={selection}
       readOnly={readOnly}
       editPolicy={editPolicy}
+      virtualization={largeFixture ? { rows: true, rowOverscanPx: 80 } : undefined}
       pixelsPerSecond={80}
       frameRate={frameRate}
       snapMs={100}

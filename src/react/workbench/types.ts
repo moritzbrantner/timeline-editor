@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from "react";
 
 import type { MenuActionItem } from "@moritzbrantner/ui";
 
+import type { TimelineEditorHistory } from "../../history";
 import type {
   TimelineEditorDocument,
   TimelineEditorEditPolicy,
@@ -242,6 +243,8 @@ export type TimelineWorkbenchProps<
   virtualization?: TimelineEditorVirtualizationOptions;
   clipboard?: TimelineEditorClipboard<TItemData>;
   onClipboardChange?: (clipboard: TimelineEditorClipboard<TItemData> | undefined) => void;
+  history?: TimelineEditorHistory<TTrackData, TItemData>;
+  onHistoryChange?: (history: TimelineEditorHistory<TTrackData, TItemData>) => void;
   hotkeys?: Partial<TimelineEditorHotkeys>;
   onHotkeysChange?: (hotkeys: Partial<TimelineEditorHotkeys>) => void;
   extensions?: Array<TimelineEditorExtension<TItemData, TTrackData, TAssetData>>;

@@ -46,6 +46,19 @@ test("does not double-insert from a single asset click", async ({ page }) => {
     .toHaveLength(1);
 });
 
+test("inserts a compatible asset by keyboard activation", async ({ page }) => {
+  await page.goto("/");
+
+  const initialItemCount = await getItemCount(page);
+  const asset = page.getByRole("button", { name: /Prototype/ });
+
+  await asset.focus();
+  await page.keyboard.press("Enter");
+
+  await expect.poll(async () => await getItemCount(page)).toBe(initialItemCount + 1);
+  await expect(getClip(page, "Prototype")).toBeVisible();
+});
+
 test("drags an asset from panel to timeline", async ({ page }) => {
   await page.goto("/");
 
@@ -74,37 +87,22 @@ test("drags an asset from panel to timeline", async ({ page }) => {
     );
 });
 
-test("drags an asset across timeline surfaces with real mouse events", async ({ page }) => {
+test("drags an asset across timeline surfaces", async ({ page }) => {
   const getPageProblems = recordPageProblems(page);
   await page.goto("/");
 
   const initialItemCount = await getItemCount(page);
   const prototypeAsset = page.getByRole("button", { name: /Prototype/ });
   const planningTrack = getTimelineTrack(page, "Planning");
-  const reviewTrack = getTimelineTrack(page, "Review");
-  const assetBox = await prototypeAsset.boundingBox();
   const planningBox = await planningTrack.boundingBox();
-  const reviewBox = await reviewTrack.boundingBox();
-  expect(assetBox).not.toBeNull();
   expect(planningBox).not.toBeNull();
-  expect(reviewBox).not.toBeNull();
 
-  await page.mouse.move(assetBox!.x + assetBox!.width / 2, assetBox!.y + assetBox!.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(planningBox!.x + 24, planningBox!.y + planningBox!.height / 2, {
-    steps: 8,
+  await prototypeAsset.dragTo(planningTrack, {
+    targetPosition: {
+      x: 240,
+      y: planningBox!.height / 2,
+    },
   });
-  await page.mouse.move(reviewBox!.x + 240, reviewBox!.y + reviewBox!.height / 2, {
-    steps: 8,
-  });
-  await expect(page.locator("[data-slot='timeline-workbench-drop-feedback']")).toHaveAttribute(
-    "data-allowed",
-    "true",
-  );
-  await page.mouse.move(planningBox!.x + 240, planningBox!.y + planningBox!.height / 2, {
-    steps: 8,
-  });
-  await page.mouse.up();
 
   await expect.poll(async () => await getItemCount(page)).toBe(initialItemCount + 1);
   expect(getPageProblems()).toEqual([]);

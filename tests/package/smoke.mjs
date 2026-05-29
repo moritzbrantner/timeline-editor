@@ -213,6 +213,19 @@ assert(
   "React peer dependency contract changed",
 );
 
+assertSetEqual(packageJson.files ?? [], ["dist"], "Published files should stay limited to dist");
+
+for (const privatePackageName of [
+  "@timeline-editor/audio",
+  "@timeline-editor/video",
+  "@timeline-editor/captions",
+]) {
+  assert(
+    packageJson.name !== privatePackageName,
+    `Private package ${privatePackageName} must not be published from the root package`,
+  );
+}
+
 for (const [subpath, exportTarget] of Object.entries(packageJson.exports)) {
   assert("import" in exportTarget, `Package export ${subpath} is missing an import target`);
 }

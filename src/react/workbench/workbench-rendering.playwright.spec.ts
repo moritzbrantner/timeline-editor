@@ -7,6 +7,8 @@ import {
   getTimelineEditor,
   getTimelineRuler,
   getTimelineRulerLane,
+  getTimelineTrack,
+  selectContextMenuItem,
 } from "./playwright/support/workbench";
 
 test("renders default workbench shell", async ({ page }) => {
@@ -108,6 +110,31 @@ test("virtualizes large timeline rows", async ({ page }) => {
   await expect
     .poll(async () => page.locator("[data-slot='timeline-editor-track']").count())
     .toBeLessThan(20);
+});
+
+test("keeps a large virtualized workbench editable", async ({ page }) => {
+  await page.goto("/?fixture=large&surface=workbench&showPreviewPanel=false");
+
+  await expect.poll(async () => (await getHarnessState(page)).document.tracks.length).toBe(200);
+  await expect(page.locator("[data-slot='timeline-editor-tracks']").last()).toHaveAttribute(
+    "data-virtualized",
+    "true",
+  );
+
+  await clickClip(page, "Item 21-1");
+  await page.keyboard.press("Delete");
+  await expect
+    .poll(async () =>
+      (await getHarnessState(page)).document.tracks
+        .find((track) => track.id === "track-21")
+        ?.items.some((item) => item.id === "track-21-item-1"),
+    )
+    .toBe(false);
+
+  const track = getTimelineTrack(page, "Track 21");
+  await track.click({ button: "right" });
+  await selectContextMenuItem(page, "Remove Track");
+  await expect.poll(async () => (await getHarnessState(page)).document.tracks.length).toBe(199);
 });
 
 test("keeps timeline ruler visible while scrolling tracks", async ({ page }) => {

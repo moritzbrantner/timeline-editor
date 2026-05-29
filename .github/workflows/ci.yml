@@ -34,6 +34,9 @@ jobs:
       - name: Test Storybook
         run: bun run test:storybook
 
+      - name: Build Storybook
+        run: bun run build-storybook
+
       - name: Build
         run: bun run build
 

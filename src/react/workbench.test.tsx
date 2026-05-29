@@ -4,6 +4,7 @@ import { beforeAll, describe, expect, test, vi } from "vitest";
 
 import {
   TimelineWorkbench,
+  createTimelineEditorHistory,
   normalizeTimelineEditorTracks,
   parseTimelineEditorDocument,
   serializeTimelineEditorDocument,
@@ -129,6 +130,52 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
     expect(currentDocument.tracks[0]?.items[0]?.startMs).toBe(1_000);
+  });
+
+  test("supports controlled workbench history state", () => {
+    const document: TimelineEditorDocument = {
+      tracks,
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+    };
+    const handleHistoryChange = vi.fn();
+    let currentDocument = document;
+
+    function ControlledHistoryWorkbench() {
+      const [stateDocument, setStateDocument] = useState(document);
+      const [history, setHistory] = useState(() => createTimelineEditorHistory());
+      currentDocument = stateDocument;
+
+      return (
+        <TimelineWorkbench
+          document={stateDocument}
+          selectedItemId="brief"
+          history={history}
+          onHistoryChange={(nextHistory) => {
+            handleHistoryChange(nextHistory);
+            setHistory(nextHistory);
+          }}
+          onDocumentChange={(nextDocument) => {
+            currentDocument = nextDocument;
+            setStateDocument(nextDocument);
+          }}
+        />
+      );
+    }
+
+    render(<ControlledHistoryWorkbench />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate" }));
+
+    expect(handleHistoryChange).toHaveBeenCalledWith(
+      expect.objectContaining({ undoStack: expect.arrayContaining([expect.anything()]) }),
+    );
+    expect(currentDocument.tracks[0]?.items).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+
+    expect(handleHistoryChange).toHaveBeenCalledTimes(2);
+    expect(currentDocument.tracks[0]?.items).toHaveLength(1);
   });
 
   test("moves multi-selection items during a single drag commit", () => {
