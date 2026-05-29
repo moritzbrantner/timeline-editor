@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import {
@@ -96,6 +96,7 @@ import type {
   TimelineWorkbenchImportSource,
   TimelineWorkbenchImportState,
   TimelineWorkbenchInspectorContext,
+  TimelineWorkbenchPreviewMode,
   TimelineWorkbenchProps,
   TimelineWorkbenchTimelineContextMenuContext,
 } from "./types";
@@ -111,6 +112,7 @@ export type {
   TimelineWorkbenchInspectorSchema,
   TimelineWorkbenchItemContextMenuContext,
   TimelineWorkbenchProps,
+  TimelineWorkbenchPreviewMode,
   TimelineWorkbenchSelection,
   TimelineWorkbenchTimelineContextMenuContext,
   TimelineWorkbenchTimelineContextMenuFactory,
@@ -142,6 +144,8 @@ export function TimelineWorkbench<
   onHistoryChange,
   hotkeys,
   onHotkeysChange,
+  previewMode,
+  onPreviewModeChange,
   onSnapChange,
   extensions = [],
   inspectorSchema,
@@ -190,7 +194,12 @@ export function TimelineWorkbench<
   const [customHotkeys, setCustomHotkeys] = useState<
     Partial<typeof defaultTimelineWorkbenchHotkeys>
   >({});
+  const [internalPreviewMode, setInternalPreviewMode] =
+    useState<TimelineWorkbenchPreviewMode>("active-scene");
   const [draggedAssetId, setDraggedAssetId] = useState<string | null>(null);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const previewAnimationFrameRef = useRef<number | null>(null);
+  const previewLastFrameTimestampRef = useRef<number | null>(null);
   const [importedAssets, setImportedAssets] = useState<Array<TimelineWorkbenchAsset<TAssetData>>>(
     [],
   );
@@ -206,6 +215,7 @@ export function TimelineWorkbench<
   const currentTimeMs = document.currentTimeMs ?? 0;
   const frameStepMs = frameDurationMs ?? resolvedSnapMs;
   const resolvedTool = tool ?? internalTool;
+  const resolvedPreviewMode = previewMode ?? internalPreviewMode;
   const resolvedHotkeys = { ...defaultTimelineWorkbenchHotkeys, ...hotkeys, ...customHotkeys };
   const resolvedClipboard = clipboard ?? internalClipboard;
   const defaultSnapTargets: TimelineEditorSnapOptions["targets"] = [
@@ -277,6 +287,118 @@ export function TimelineWorkbench<
 
     onDocumentChange?.(nextDocument);
   };
+
+  const documentRef = useRef(document);
+  const durationMsRef = useRef(durationMs);
+  const onCurrentTimeChangeRef = useRef(onCurrentTimeChange);
+  const commitDocumentRef = useRef(commitDocument);
+
+  useEffect(() => {
+    documentRef.current = document;
+    durationMsRef.current = durationMs;
+    onCurrentTimeChangeRef.current = onCurrentTimeChange;
+    commitDocumentRef.current = commitDocument;
+  });
+
+  const cancelPreviewAnimationFrame = useCallback(() => {
+    if (previewAnimationFrameRef.current !== null) {
+      cancelAnimationFrame(previewAnimationFrameRef.current);
+      previewAnimationFrameRef.current = null;
+    }
+
+    previewLastFrameTimestampRef.current = null;
+  }, []);
+
+  const commitPreviewCurrentTime = useCallback((timeMs: number) => {
+    const currentDocument = documentRef.current;
+    const nextDocument = setTimelineEditorCurrentTime(currentDocument, timeMs, {
+      durationMs: durationMsRef.current,
+      snapMs: 0,
+    });
+
+    onCurrentTimeChangeRef.current?.(nextDocument.currentTimeMs ?? 0);
+    commitDocumentRef.current(nextDocument);
+  }, []);
+
+  const pausePreviewPlayback = useCallback(() => {
+    setIsPreviewPlaying(false);
+    cancelPreviewAnimationFrame();
+  }, [cancelPreviewAnimationFrame]);
+
+  const playPreviewPlayback = useCallback(() => {
+    if (readOnly || durationMsRef.current <= 0) {
+      return;
+    }
+
+    const currentTimeMs = documentRef.current.currentTimeMs ?? 0;
+
+    if (currentTimeMs >= durationMsRef.current) {
+      return;
+    }
+
+    previewLastFrameTimestampRef.current = null;
+    setIsPreviewPlaying(true);
+  }, [readOnly]);
+
+  const commitPreviewMode = (mode: TimelineWorkbenchPreviewMode) => {
+    if (previewMode === undefined) {
+      setInternalPreviewMode(mode);
+    }
+
+    onPreviewModeChange?.(mode);
+  };
+
+  useEffect(() => {
+    if (!isPreviewPlaying) {
+      cancelPreviewAnimationFrame();
+      return;
+    }
+
+    const tick = (timestamp: number) => {
+      const lastTimestamp = previewLastFrameTimestampRef.current;
+      previewLastFrameTimestampRef.current = timestamp;
+
+      if (lastTimestamp !== null) {
+        const currentTime = documentRef.current.currentTimeMs ?? 0;
+        const nextTime = Math.min(durationMsRef.current, currentTime + timestamp - lastTimestamp);
+        commitPreviewCurrentTime(nextTime);
+
+        if (nextTime >= durationMsRef.current) {
+          setIsPreviewPlaying(false);
+          previewAnimationFrameRef.current = null;
+          previewLastFrameTimestampRef.current = null;
+          return;
+        }
+      }
+
+      previewAnimationFrameRef.current = requestAnimationFrame(tick);
+    };
+
+    previewAnimationFrameRef.current = requestAnimationFrame(tick);
+
+    return cancelPreviewAnimationFrame;
+  }, [cancelPreviewAnimationFrame, commitPreviewCurrentTime, isPreviewPlaying]);
+
+  useEffect(() => {
+    if (isPreviewPlaying && (readOnly || durationMs <= 0 || currentTimeMs >= durationMs)) {
+      pausePreviewPlayback();
+    }
+  }, [currentTimeMs, durationMs, isPreviewPlaying, pausePreviewPlayback, readOnly]);
+
+  const previousDocumentRef = useRef(document);
+
+  useEffect(() => {
+    const previousDocument = previousDocumentRef.current;
+    previousDocumentRef.current = document;
+
+    if (
+      isPreviewPlaying &&
+      previousDocument !== document &&
+      !isTimelineWorkbenchCurrentTimeOnlyChange(previousDocument, document)
+    ) {
+      pausePreviewPlayback();
+    }
+  }, [document, isPreviewPlaying, pausePreviewPlayback]);
 
   const commitClipboard = (nextClipboard: TimelineEditorClipboard<TItemData> | undefined) => {
     if (!clipboard) {
@@ -1563,7 +1685,13 @@ export function TimelineWorkbench<
       document={document}
       durationMs={durationMs}
       extensions={extensions}
+      isPlaying={isPreviewPlaying}
+      mode={resolvedPreviewMode}
+      readOnly={readOnly}
       selectedItems={selectedItems}
+      onModeChange={commitPreviewMode}
+      onPause={pausePreviewPlayback}
+      onPlay={playPreviewPlayback}
     />
   ) : null;
   const canvasPanel = (
@@ -1593,6 +1721,7 @@ export function TimelineWorkbench<
         trackGroupMenuItems={trackGroupMenuItems}
         trackKinds={trackKinds}
         formatTrackKind={formatTimelineWorkbenchTrackKind}
+        followCurrentTime={isPreviewPlaying ? "keep-visible" : "off"}
         onAddTrack={addTrack}
         onCurrentTimeChange={onCurrentTimeChange}
         onDocumentChange={commitDocument}

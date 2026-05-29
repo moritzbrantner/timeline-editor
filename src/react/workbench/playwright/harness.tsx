@@ -114,6 +114,43 @@ const createNoMarkersDocument = (): TimelineEditorDocument => ({
   markers: [],
 });
 
+const createPreviewModesDocument = (): TimelineEditorDocument => ({
+  tracks: [
+    {
+      id: "scene",
+      label: "Scene",
+      acceptsItemKinds: ["task"],
+      items: [
+        {
+          id: "active-scene",
+          trackId: "scene",
+          label: "Active Scene",
+          kind: "task",
+          startMs: 500,
+          durationMs: 2_000,
+          color: "#2563eb",
+        },
+        {
+          id: "selected-scene",
+          trackId: "scene",
+          label: "Selected Scene",
+          kind: "task",
+          startMs: 5_000,
+          durationMs: 1_000,
+          color: "#16a34a",
+        },
+      ],
+    },
+    {
+      id: "notes",
+      label: "Notes",
+      items: [],
+    },
+  ] satisfies TimelineEditorTrack[],
+  durationMs: 8_000,
+  currentTimeMs: 1_000,
+});
+
 const createLargeDocument = (): TimelineEditorDocument => ({
   durationMs: 10 * 60_000,
   currentTimeMs: 0,
@@ -421,6 +458,10 @@ function createFixtureDocument(fixture: string): TimelineEditorDocument {
 
   if (fixture === "no-markers") {
     return createNoMarkersDocument();
+  }
+
+  if (fixture === "preview-modes") {
+    return createPreviewModesDocument();
   }
 
   return createDocument();

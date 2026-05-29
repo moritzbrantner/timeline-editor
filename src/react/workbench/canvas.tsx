@@ -18,6 +18,7 @@ import {
   TimelineEditor,
   timelineEditorTrackHeaderWidthPx,
   type TimelineEditorItemContextMenuItems,
+  type TimelineEditorFollowCurrentTime,
   type TimelineEditorHotkeys,
   type TimelineEditorItemRenderContext,
   type TimelineEditorTimelineContextMenuItems,
@@ -57,6 +58,7 @@ type TimelineWorkbenchCanvasProps<
   resolvedSnapMs: number;
   resolvedViewport: TimelineEditorViewport;
   virtualization?: TimelineEditorVirtualizationOptions;
+  followCurrentTime?: TimelineEditorFollowCurrentTime;
   renderTimelineItem?: (context: TimelineEditorItemRenderContext<TItemData>) => React.ReactNode;
   renderTrackGroupHeader?: (context: TimelineEditorTrackGroupRenderContext) => React.ReactNode;
   getItemContextMenuItems: TimelineEditorItemContextMenuItems<TTrackData, TItemData>;
@@ -95,6 +97,7 @@ export function TimelineWorkbenchCanvas<
   resolvedSnapMs,
   resolvedViewport,
   virtualization,
+  followCurrentTime = "off",
   renderTimelineItem,
   renderTrackGroupHeader,
   getItemContextMenuItems,
@@ -249,6 +252,7 @@ export function TimelineWorkbenchCanvas<
           editPolicy={editPolicy}
           readOnly={readOnly}
           virtualization={virtualization}
+          followCurrentTime={followCurrentTime}
           hotkeys={{ ...defaultTimelineWorkbenchHotkeys, ...hotkeys }}
           onCurrentTimeChange={onCurrentTimeChange}
           onDocumentChange={onDocumentChange}

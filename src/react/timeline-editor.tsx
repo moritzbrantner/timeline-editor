@@ -3,6 +3,7 @@
 export { TimelineEditor } from "./timeline-editor/implementation";
 export type {
   TimelineEditorHotkeys,
+  TimelineEditorFollowCurrentTime,
   TimelineEditorItemContextMenuContext,
   TimelineEditorItemContextMenuItems,
   TimelineEditorItemRenderContext,

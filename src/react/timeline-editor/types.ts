@@ -133,6 +133,8 @@ export type TimelineEditorVirtualizationOptions = {
   rowOverscanPx?: number;
 };
 
+export type TimelineEditorFollowCurrentTime = "off" | "keep-visible";
+
 export type TimelineEditorProps<
   TTrackData extends Record<string, unknown> = Record<string, unknown>,
   TItemData = Record<string, unknown>,
@@ -148,6 +150,7 @@ export type TimelineEditorProps<
   snap?: Partial<TimelineEditorSnapOptions>;
   hotkeys?: Partial<TimelineEditorHotkeys>;
   virtualization?: TimelineEditorVirtualizationOptions;
+  followCurrentTime?: TimelineEditorFollowCurrentTime;
   onDocumentChange?: (document: TimelineEditorDocument<TTrackData, TItemData>) => void;
   onSelectionChange?: (selection: TimelineEditorSelection) => void;
   onViewportChange?: (viewport: TimelineEditorViewport) => void;

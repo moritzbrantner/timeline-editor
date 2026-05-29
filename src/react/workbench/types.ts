@@ -67,6 +67,8 @@ export type TimelineWorkbenchImportState = {
   error?: string;
 };
 
+export type TimelineWorkbenchPreviewMode = "active-scene" | "selection-first" | "mini-timeline";
+
 export type TimelineWorkbenchSelection<TData = Record<string, unknown>> = {
   item?: TimelineEditorItem<TData>;
   itemId?: string;
@@ -247,6 +249,8 @@ export type TimelineWorkbenchProps<
   onHistoryChange?: (history: TimelineEditorHistory<TTrackData, TItemData>) => void;
   hotkeys?: Partial<TimelineEditorHotkeys>;
   onHotkeysChange?: (hotkeys: Partial<TimelineEditorHotkeys>) => void;
+  previewMode?: TimelineWorkbenchPreviewMode;
+  onPreviewModeChange?: (mode: TimelineWorkbenchPreviewMode) => void;
   extensions?: Array<TimelineEditorExtension<TItemData, TTrackData, TAssetData>>;
   inspectorSchema?: TimelineWorkbenchInspectorSchema<TItemData>;
   assets?: Array<TimelineWorkbenchAsset<TAssetData>>;

@@ -44,6 +44,15 @@ imports remain host-owned through `onImportAssets`; use
 `createTimelineAudioFileAsset(file)` to turn an audio file into an asset and
 keep ownership of the returned object URL cleanup callback.
 
+`TimelineWorkbench` preview defaults to `previewMode="active-scene"`, which
+shows items active at `document.currentTimeMs`. Use
+`previewMode="selection-first"` to preserve selected-items-first previewing, or
+`previewMode="mini-timeline"` for a compact read-only overview. The preview play
+button is the synchronized workbench transport: it advances
+`document.currentTimeMs`, moves the main timeline playhead, and keeps the
+playhead visible with keep-visible scrolling. Native media controls rendered by
+extensions remain independent browser controls.
+
 ## Controlled Timeline
 
 ```tsx

@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
-import { beforeAll, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, test, vi } from "vitest";
 
 import {
   TimelineWorkbench,
@@ -91,6 +91,10 @@ beforeAll(() => {
       unobserve() {}
     },
   );
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("@moritzbrantner/timeline-editor React workbench", () => {
@@ -956,6 +960,50 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     }
   });
 
+  test("keeps followed current time visible without centering continuously", () => {
+    const baseDocument: TimelineEditorDocument = {
+      durationMs: 20_000,
+      currentTimeMs: 1_000,
+      tracks,
+    };
+    const handleViewportChange = vi.fn();
+    const restoreScrollSize = mockTimelineEditorScrollSize({
+      clientWidth: 320,
+      scrollWidth: 1_744,
+    });
+
+    try {
+      const { container, rerender } = render(
+        <TimelineEditor
+          document={baseDocument}
+          viewport={{ pixelsPerSecond: 80 }}
+          followCurrentTime="keep-visible"
+          onViewportChange={handleViewportChange}
+        />,
+      );
+      const editor = container.querySelector<HTMLElement>("[data-slot='timeline-editor']")!;
+
+      expect(editor.scrollLeft).toBe(0);
+      expect(handleViewportChange).not.toHaveBeenCalled();
+
+      rerender(
+        <TimelineEditor
+          document={{ ...baseDocument, currentTimeMs: 6_000 }}
+          viewport={{ pixelsPerSecond: 80 }}
+          followCurrentTime="keep-visible"
+          onViewportChange={handleViewportChange}
+        />,
+      );
+
+      expect(editor.scrollLeft).toBe(368);
+      expect(handleViewportChange).toHaveBeenCalledWith(
+        expect.objectContaining({ pixelsPerSecond: 80, scrollLeftMs: 2_800 }),
+      );
+    } finally {
+      restoreScrollSize();
+    }
+  });
+
   test("prevents ctrl-wheel browser default and reports zoom changes", () => {
     const document: TimelineEditorDocument = {
       durationMs: 8_000,
@@ -1222,6 +1270,245 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
         ]),
       }),
     );
+  });
+
+  test("defaults preview mode to active scene items", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "planning",
+          label: "Planning",
+          items: [
+            {
+              id: "active",
+              trackId: "planning",
+              label: "Active item",
+              startMs: 500,
+              durationMs: 1_000,
+            },
+            {
+              id: "selected",
+              trackId: "planning",
+              label: "Selected item",
+              startMs: 5_000,
+              durationMs: 1_000,
+            },
+          ],
+        },
+      ],
+    };
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        selection={{ itemIds: ["selected"], anchorItemId: "selected" }}
+      />,
+    );
+    const preview = within(container.querySelector("[data-slot='timeline-workbench-preview']")!);
+
+    expect(preview.getByText("Active item")).toBeTruthy();
+    expect(preview.queryByText("Selected item")).toBeNull();
+  });
+
+  test("renders controlled preview mode and preserves selection-first behavior", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "planning",
+          label: "Planning",
+          items: [
+            {
+              id: "active",
+              trackId: "planning",
+              label: "Active item",
+              startMs: 500,
+              durationMs: 1_000,
+            },
+            {
+              id: "selected",
+              trackId: "planning",
+              label: "Selected item",
+              startMs: 5_000,
+              durationMs: 1_000,
+            },
+          ],
+        },
+      ],
+    };
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        previewMode="selection-first"
+        selection={{ itemIds: ["selected"], anchorItemId: "selected" }}
+      />,
+    );
+    const preview = within(container.querySelector("[data-slot='timeline-workbench-preview']")!);
+
+    expect(preview.getByText("Selected item")).toBeTruthy();
+    expect(preview.queryByText("Active item")).toBeNull();
+  });
+
+  test("calls onPreviewModeChange when the preview mode changes", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+      tracks,
+    };
+    const handlePreviewModeChange = vi.fn();
+
+    render(<TimelineWorkbench document={document} onPreviewModeChange={handlePreviewModeChange} />);
+
+    fireEvent.click(screen.getByRole("radio", { name: "Timeline" }));
+
+    expect(handlePreviewModeChange).toHaveBeenCalledWith("mini-timeline");
+    expect(screen.getByRole("radio", { name: "Timeline" }).getAttribute("aria-checked")).toBe(
+      "true",
+    );
+  });
+
+  test("renders mini timeline preview rows and playhead", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+      tracks,
+    };
+    const { container } = render(
+      <TimelineWorkbench document={document} previewMode="mini-timeline" />,
+    );
+
+    expect(container.querySelector("[data-slot='timeline-workbench-mini-preview']")).toBeTruthy();
+    expect(
+      container.querySelectorAll("[data-slot='timeline-workbench-mini-preview-row']"),
+    ).toHaveLength(2);
+    expect(
+      container.querySelector("[data-slot='timeline-workbench-mini-preview-playhead']"),
+    ).toBeTruthy();
+  });
+
+  test("preview playback advances current time through document changes", () => {
+    vi.useFakeTimers();
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+      tracks,
+    };
+    let currentDocument = document;
+    const handleDocumentChange = vi.fn((nextDocument: TimelineEditorDocument) => {
+      currentDocument = nextDocument;
+    });
+
+    function StatefulWorkbench() {
+      const [stateDocument, setStateDocument] = useState(document);
+
+      return (
+        <TimelineWorkbench
+          document={stateDocument}
+          onDocumentChange={(nextDocument) => {
+            handleDocumentChange(nextDocument);
+            setStateDocument(nextDocument);
+          }}
+        />
+      );
+    }
+
+    render(<StatefulWorkbench />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    act(() => {
+      vi.advanceTimersByTime(160);
+    });
+
+    expect(handleDocumentChange).toHaveBeenCalled();
+    expect(currentDocument.currentTimeMs).toBeGreaterThan(1_000);
+  });
+
+  test("preview playback stops at document duration", () => {
+    vi.useFakeTimers();
+    const document: TimelineEditorDocument = {
+      durationMs: 1_100,
+      currentTimeMs: 1_084,
+      tracks,
+    };
+    let currentDocument = document;
+
+    function StatefulWorkbench() {
+      const [stateDocument, setStateDocument] = useState(document);
+      currentDocument = stateDocument;
+
+      return (
+        <TimelineWorkbench
+          document={stateDocument}
+          onDocumentChange={(nextDocument) => {
+            currentDocument = nextDocument;
+            setStateDocument(nextDocument);
+          }}
+        />
+      );
+    }
+
+    render(<StatefulWorkbench />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    act(() => {
+      for (let index = 0; index < 12; index += 1) {
+        vi.advanceTimersByTime(16);
+      }
+    });
+
+    expect(currentDocument.currentTimeMs).toBe(1_100);
+    expect(screen.getByRole("button", { name: "Play" })).toHaveProperty("disabled", true);
+  });
+
+  test("preview playback current-time updates do not create undo history entries", () => {
+    vi.useFakeTimers();
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+      tracks,
+    };
+    const handleHistoryChange = vi.fn();
+
+    function StatefulWorkbench() {
+      const [stateDocument, setStateDocument] = useState(document);
+      const [history, setHistory] = useState(() => createTimelineEditorHistory());
+
+      return (
+        <TimelineWorkbench
+          document={stateDocument}
+          history={history}
+          onHistoryChange={(nextHistory) => {
+            handleHistoryChange(nextHistory);
+            setHistory(nextHistory);
+          }}
+          onDocumentChange={setStateDocument}
+        />
+      );
+    }
+
+    render(<StatefulWorkbench />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    act(() => {
+      vi.advanceTimersByTime(160);
+    });
+
+    expect(handleHistoryChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Undo" })).toHaveProperty("disabled", true);
+  });
+
+  test("read-only workbench disables preview playback", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+      tracks,
+    };
+
+    render(<TimelineWorkbench document={document} readOnly />);
+
+    expect(screen.getByRole("button", { name: "Play" })).toHaveProperty("disabled", true);
   });
 
   test("renders playable audio preview from the built-in audio extension", () => {

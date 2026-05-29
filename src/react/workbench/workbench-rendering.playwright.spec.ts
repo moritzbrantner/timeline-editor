@@ -77,6 +77,68 @@ test("shows compact preview state when no item is active", async ({ page }) => {
   await expect(preview.getByText("0:07.5 / 0:08.0")).toBeVisible();
 });
 
+test("plays synchronized preview transport and follows the timeline playhead", async ({ page }) => {
+  await page.goto("/");
+
+  const editor = getTimelineEditor(page);
+  const beforeLeft = await page
+    .locator("[data-slot='timeline-editor-playhead']")
+    .last()
+    .evaluate((element) => getComputedStyle(element).left);
+
+  await page.getByRole("button", { name: "Play" }).click();
+
+  await expect
+    .poll(async () => (await getHarnessState(page)).document.currentTimeMs ?? 0)
+    .toBeGreaterThan(1_000);
+
+  const afterLeft = await page
+    .locator("[data-slot='timeline-editor-playhead']")
+    .last()
+    .evaluate((element) => getComputedStyle(element).left);
+  expect(Number.parseFloat(afterLeft)).toBeGreaterThan(Number.parseFloat(beforeLeft));
+  await expect(editor).toBeVisible();
+});
+
+test("preview playback scrolls an overflowing timeline only after the playhead leaves view", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 720 });
+  await page.goto("/?fixture=large&surface=workbench");
+
+  const editor = getTimelineEditor(page);
+  const initialScrollLeft = await editor.evaluate((element) => element.scrollLeft);
+
+  await page.getByRole("button", { name: "Play" }).click();
+
+  await expect
+    .poll(async () => editor.evaluate((element) => element.scrollLeft), { timeout: 8_000 })
+    .toBeGreaterThan(initialScrollLeft);
+});
+
+test("switches between all preview modes", async ({ page }) => {
+  await page.goto("/?fixture=preview-modes");
+
+  const preview = page.locator("[data-slot='timeline-workbench-preview']");
+
+  await expect(preview.getByText("Active Scene")).toBeVisible();
+  await expect(preview.getByText("Selected Scene")).toHaveCount(0);
+
+  await clickClip(page, "Selected Scene");
+  await page.getByRole("radio", { name: "Selection" }).click();
+  await expect(preview.getByText("Selected Scene")).toBeVisible();
+  await expect(preview.getByText("Active Scene")).toHaveCount(0);
+
+  await page.getByRole("radio", { name: "Timeline" }).click();
+  await expect(page.locator("[data-slot='timeline-workbench-mini-preview-row']")).toHaveCount(2);
+  await expect(
+    page.locator("[data-slot='timeline-workbench-mini-preview-playhead']"),
+  ).toBeVisible();
+
+  await page.getByRole("radio", { name: "Scene" }).click();
+  await expect(preview.getByText("Active Scene")).toBeVisible();
+});
+
 test("shows contextual toolbar actions for item selection", async ({ page }) => {
   await page.goto("/");
 

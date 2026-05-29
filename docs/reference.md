@@ -73,6 +73,14 @@ Use `onHotkeysChange` when the host app should persist the user overrides.
 Pass `inspectorSchema.transformFields` to enable default keyframe editing for
 numeric item transform values.
 
+The workbench preview defaults to `previewMode="active-scene"`. The other public
+modes are `selection-first` and `mini-timeline`; use `onPreviewModeChange` to
+persist user mode changes. Preview playback advances `document.currentTimeMs`
+through the workbench transport, so `onDocumentChange` receives playhead-only
+updates and the main timeline follows with keep-visible scrolling. Built-in
+media preview controls, such as native audio controls, remain independent from
+this synchronized transport.
+
 ```tsx
 <TimelineWorkbench
   document={document}
@@ -81,6 +89,8 @@ numeric item transform values.
   onClipboardChange={setClipboard}
   hotkeys={hotkeys}
   onHotkeysChange={setHotkeys}
+  previewMode={previewMode}
+  onPreviewModeChange={setPreviewMode}
   onDocumentChange={setDocument}
   onSelectionChange={setSelection}
 />
@@ -324,6 +334,8 @@ size problem.
   load with `migrateTimelineEditorDocument(stored).document`.
 - Hotkey persistence: pass `hotkeys` and persist changes from
   `onHotkeysChange`.
+- Preview mode persistence: pass `previewMode` and persist changes from
+  `onPreviewModeChange`. Omit both to use the internal `active-scene` default.
 - Read-only mode: pass `readOnly` to block pointer, keyboard, toolbar, and
   context-menu mutations.
 

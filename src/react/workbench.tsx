@@ -11,6 +11,7 @@ export type {
   TimelineWorkbenchInspectorContext,
   TimelineWorkbenchInspectorSchema,
   TimelineWorkbenchItemContextMenuContext,
+  TimelineWorkbenchPreviewMode,
   TimelineWorkbenchProps,
   TimelineWorkbenchSelection,
   TimelineWorkbenchTimelineContextMenuContext,

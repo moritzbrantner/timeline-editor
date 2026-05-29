@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@moritzbrantner/ui";
 
@@ -79,6 +79,7 @@ import {
 
 export type {
   TimelineEditorHotkeys,
+  TimelineEditorFollowCurrentTime,
   TimelineEditorItemContextMenuContext,
   TimelineEditorItemContextMenuItems,
   TimelineEditorItemRenderContext,
@@ -116,6 +117,7 @@ export function TimelineEditor<
   snap,
   hotkeys,
   virtualization,
+  followCurrentTime = "off",
   onDocumentChange,
   onSelectionChange,
   onViewportChange,
@@ -565,6 +567,63 @@ export function TimelineEditor<
     });
     onScroll?.(event);
   };
+
+  useLayoutEffect(() => {
+    const scroller = scrollerRef.current;
+
+    if (!scroller || followCurrentTime !== "keep-visible" || durationMs <= 0) {
+      return;
+    }
+
+    const playheadX =
+      timelineEditorTrackHeaderWidthPx +
+      (clampTimelineEditorTime(document.currentTimeMs ?? 0, 0, durationMs) / durationMs) *
+        timelineWidthPx;
+    const marginPx = 64;
+    const safeLeft = scroller.scrollLeft + marginPx;
+    const safeRight = scroller.scrollLeft + scroller.clientWidth - marginPx;
+    let nextScrollLeft = scroller.scrollLeft;
+
+    if (playheadX < safeLeft) {
+      nextScrollLeft = playheadX - marginPx;
+    } else if (playheadX > safeRight) {
+      nextScrollLeft = playheadX - scroller.clientWidth + marginPx;
+    }
+
+    nextScrollLeft = clampTimelineEditorTime(
+      nextScrollLeft,
+      0,
+      Math.max(0, scroller.scrollWidth - scroller.clientWidth),
+    );
+
+    if (Math.abs(scroller.scrollLeft - nextScrollLeft) < 1) {
+      return;
+    }
+
+    scroller.scrollLeft = nextScrollLeft;
+    setMeasuredViewport({
+      scrollLeftPx: nextScrollLeft,
+      scrollTopPx: scroller.scrollTop,
+      widthPx: scroller.clientWidth,
+      heightPx: scroller.clientHeight,
+    });
+    onViewportChange?.({
+      ...resolvedViewport,
+      scrollLeftMs: getTimelineEditorScrollLeftMs(
+        nextScrollLeft,
+        resolvedViewport.pixelsPerSecond,
+        durationMs,
+      ),
+    });
+  }, [
+    document.currentTimeMs,
+    durationMs,
+    followCurrentTime,
+    measuredViewport.widthPx,
+    onViewportChange,
+    resolvedViewport,
+    timelineWidthPx,
+  ]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     onPointerDown?.(event);
