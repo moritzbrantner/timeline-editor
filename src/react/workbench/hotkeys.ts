@@ -27,6 +27,11 @@ export const defaultTimelineWorkbenchHotkeys: TimelineEditorHotkeys = {
   toolRippleTrim: "R",
   toolSelect: "V",
   toolTrim: "T",
+  playPause: "Space",
+  stopPlayback: "K",
+  shuttleBackward: "J",
+  shuttleForward: "L",
+  toggleLoop: "Shift+L",
   ungroup: "Shift+Mod+G",
 };
 
@@ -65,6 +70,17 @@ export const timelineWorkbenchHotkeyGroups: TimelineWorkbenchHotkeyGroup[] = [
       { id: "nextMarker", label: "Next marker" },
       { id: "previousEdge", label: "Previous item edge" },
       { id: "nextEdge", label: "Next item edge" },
+    ],
+  },
+  {
+    id: "transport",
+    label: "Transport",
+    hotkeys: [
+      { id: "playPause", label: "Play / pause" },
+      { id: "stopPlayback", label: "Stop playback" },
+      { id: "shuttleBackward", label: "Shuttle backward" },
+      { id: "shuttleForward", label: "Shuttle forward" },
+      { id: "toggleLoop", label: "Loop playback" },
     ],
   },
   {

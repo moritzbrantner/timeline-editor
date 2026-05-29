@@ -1,8 +1,12 @@
 import { createElement, useEffect, useRef } from "react";
 
 import type { TimelineEditorItem } from "./core";
-import type { TimelineEditorExtension } from "./react/workbench/types";
+import type {
+  TimelineEditorExtension,
+  TimelinePreviewTransportContext,
+} from "./react/workbench/types";
 import type { TimelineWorkbenchAsset } from "./react/workbench/types";
+import { useTimelineWorkbenchSynchronizedMediaElement } from "./react/workbench/use-synchronized-media";
 import type { TimelineMediaDisplayRange, TimelineMediaSourceRef } from "./media-types";
 
 export type TimelineAudioItemData = TimelineMediaDisplayRange & {
@@ -81,8 +85,11 @@ export function createTimelineAudioExtension(
       options.renderPreview ??
       ((context) =>
         createElement(TimelineAudioPreview, {
+          currentTimeMs: context.currentTimeMs,
+          durationMs: context.durationMs,
           items: context.items,
           resolvePreviewSource,
+          transport: context.transport,
         })),
   };
 }
@@ -140,11 +147,17 @@ export async function createTimelineAudioFileAsset(
 }
 
 function TimelineAudioPreview({
+  currentTimeMs,
+  durationMs,
   items,
   resolvePreviewSource,
+  transport,
 }: {
+  currentTimeMs: number;
+  durationMs: number;
   items: Array<TimelineEditorItem<TimelineAudioItemData>>;
   resolvePreviewSource: TimelineAudioPreviewSourceResolver;
+  transport: TimelinePreviewTransportContext;
 }) {
   const audioItems = items.filter(isTimelineAudioItem);
 
@@ -179,8 +192,14 @@ function TimelineAudioPreview({
         source?.uri
           ? createElement(TimelineAudioPreviewPlayer, {
               key: source.uri,
+              currentTimeMs,
+              durationMs,
+              item,
               muted: item.data?.muted,
+              sourceEndMs: item.data?.sourceEndMs,
+              sourceStartMs: item.data?.sourceStartMs,
               src: source.uri,
+              transport,
               volume: item.data?.volume,
             })
           : createElement(
@@ -197,15 +216,38 @@ function TimelineAudioPreview({
 }
 
 function TimelineAudioPreviewPlayer({
+  currentTimeMs,
+  durationMs,
+  item,
   muted,
+  sourceEndMs,
+  sourceStartMs,
   src,
+  transport,
   volume,
 }: {
+  currentTimeMs: number;
+  durationMs: number;
+  item: TimelineEditorItem<TimelineAudioItemData>;
   muted?: boolean;
+  sourceEndMs?: number;
+  sourceStartMs?: number;
   src: string;
+  transport: TimelinePreviewTransportContext;
   volume?: number;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const sync = useTimelineWorkbenchSynchronizedMediaElement({
+    elementRef: audioRef,
+    item: item as TimelineEditorItem<unknown>,
+    transport,
+    currentTimeMs,
+    durationMs,
+    sourceStartMs,
+    sourceEndMs,
+    muted,
+    volume,
+  });
 
   useEffect(() => {
     if (audioRef.current && volume !== undefined) {
@@ -213,15 +255,29 @@ function TimelineAudioPreviewPlayer({
     }
   }, [volume]);
 
-  return createElement("audio", {
-    ref: audioRef,
-    controls: true,
-    "data-slot": "timeline-media-audio-preview-player",
-    className: "w-full",
-    muted,
-    preload: "metadata",
-    src,
-  });
+  return createElement(
+    "div",
+    { className: "grid gap-1" },
+    createElement("audio", {
+      ref: audioRef,
+      controls: true,
+      "data-slot": "timeline-media-audio-preview-player",
+      className: "w-full",
+      muted,
+      preload: "metadata",
+      src,
+    }),
+    sync.blocked
+      ? createElement(
+          "div",
+          {
+            "data-slot": "timeline-media-playback-blocked",
+            className: "text-xs text-white/60",
+          },
+          "Media playback blocked",
+        )
+      : null,
+  );
 }
 
 function getTimelineAudioPreviewSource(item: TimelineEditorItem<TimelineAudioItemData>) {

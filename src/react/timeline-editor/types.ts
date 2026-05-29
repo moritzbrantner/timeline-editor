@@ -46,6 +46,11 @@ export type TimelineEditorHotkeys = {
   nextMarker?: string;
   previousEdge?: string;
   nextEdge?: string;
+  playPause?: string;
+  stopPlayback?: string;
+  shuttleBackward?: string;
+  shuttleForward?: string;
+  toggleLoop?: string;
 };
 
 export type TimelineEditorItemRenderContext<TItemData = Record<string, unknown>> = {

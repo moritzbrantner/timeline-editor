@@ -39,7 +39,11 @@ export function matchesHotkey(event: KeyboardEvent, hotkey: string) {
     return false;
   }
 
-  return expectedKey === key || (expectedKey === "delete" && event.key === "Delete");
+  return (
+    expectedKey === key ||
+    (expectedKey === "delete" && event.key === "Delete") ||
+    (expectedKey === "space" && (event.key === " " || event.key === "Spacebar"))
+  );
 }
 
 export function isKeyboardEventFromEditableTarget(event: KeyboardEvent) {

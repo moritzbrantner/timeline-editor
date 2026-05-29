@@ -75,11 +75,16 @@ numeric item transform values.
 
 The workbench preview defaults to `previewMode="active-scene"`. The other public
 modes are `selection-first` and `mini-timeline`; use `onPreviewModeChange` to
-persist user mode changes. Preview playback advances `document.currentTimeMs`
-through the workbench transport, so `onDocumentChange` receives playhead-only
-updates and the main timeline follows with keep-visible scrolling. Built-in
-media preview controls, such as native audio controls, remain independent from
-this synchronized transport.
+persist user mode changes. The workbench transport advances
+`document.currentTimeMs`, so `onDocumentChange` receives playhead-only updates
+and the main timeline follows with keep-visible scrolling while transport
+playback is active. Space toggles play/pause, K pauses, L shuttles forward
+through 1x/2x/4x, J shuttles backward through -1x/-2x/-4x, and Shift+L toggles
+loop playback. Loop uses the selected range when present and otherwise loops the
+whole document. Built-in media preview controls, such as native audio/video
+controls, remain independent manual controls while the workbench transport is
+the synchronized path. Reverse playback synchronizes media by seeking rather
+than relying on native negative playback rates.
 
 ```tsx
 <TimelineWorkbench
@@ -91,6 +96,9 @@ this synchronized transport.
   onHotkeysChange={setHotkeys}
   previewMode={previewMode}
   onPreviewModeChange={setPreviewMode}
+  transportState={transportState}
+  defaultTransportState={{ loop: true }}
+  onTransportStateChange={setTransportState}
   onDocumentChange={setDocument}
   onSelectionChange={setSelection}
 />
@@ -152,8 +160,9 @@ create audio assets from browser files; keep the returned cleanup callback so
 object URLs can be revoked when they are no longer used.
 
 Built-in media extensions do not decode media, generate waveforms or thumbnails,
-export renders, apply effects, or implement transitions. Audio preview is browser
-media playback, not a synchronized timeline transport.
+export renders, apply effects, or implement transitions. Native browser media
+controls remain available for manual preview, while workbench transport playback
+synchronizes active media elements to the timeline playhead.
 
 ```tsx
 import { TimelineWorkbench, type TimelineEditorDocument } from "@moritzbrantner/timeline-editor";

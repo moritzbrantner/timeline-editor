@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useRef } from "react";
 
-import { Button, ToggleGroup, ToggleGroupItem } from "@moritzbrantner/ui";
+import { ToggleGroup, ToggleGroupItem } from "@moritzbrantner/ui";
 
 import {
   formatTimelineEditorTimeMs,
@@ -12,7 +12,13 @@ import {
   type TimelineEditorTrack,
 } from "../../core";
 import { getTimelineMediaTypeForItem } from "../../media-types";
-import type { TimelineEditorExtension, TimelineWorkbenchPreviewMode } from "./types";
+import { getTimelineTextDisplayText } from "../../text";
+import type {
+  TimelineEditorExtension,
+  TimelinePreviewTransportContext,
+  TimelineWorkbenchPreviewMode,
+} from "./types";
+import { useTimelineWorkbenchSynchronizedMediaElement } from "./use-synchronized-media";
 
 type TimelineWorkbenchPreviewProps<
   TTrackData extends Record<string, unknown>,
@@ -23,13 +29,11 @@ type TimelineWorkbenchPreviewProps<
   document: TimelineEditorDocument<TTrackData, TItemData>;
   durationMs: number;
   extensions?: Array<TimelineEditorExtension<TItemData, TTrackData, TAssetData>>;
-  isPlaying: boolean;
   mode: TimelineWorkbenchPreviewMode;
   readOnly: boolean;
   selectedItems: Array<TimelineEditorItem<TItemData>>;
+  transport: TimelinePreviewTransportContext;
   onModeChange: (mode: TimelineWorkbenchPreviewMode) => void;
-  onPause: () => void;
-  onPlay: () => void;
 };
 
 export function TimelineWorkbenchPreview<
@@ -41,13 +45,11 @@ export function TimelineWorkbenchPreview<
   document,
   durationMs,
   extensions = [],
-  isPlaying,
   mode,
-  readOnly,
+  readOnly: _readOnly,
   selectedItems,
+  transport,
   onModeChange,
-  onPause,
-  onPlay,
 }: TimelineWorkbenchPreviewProps<TTrackData, TItemData, TAssetData>) {
   const activeItems = document.tracks.flatMap((track) =>
     track.items
@@ -60,11 +62,17 @@ export function TimelineWorkbenchPreview<
   const previewItems = getTimelineWorkbenchPreviewItems(mode, document, selectedItems, activeItems);
   const progress =
     durationMs > 0 ? Math.min(100, Math.max(0, (currentTimeMs / durationMs) * 100)) : 0;
+  const previewItemValues = previewItems.map(({ item }) => item);
+  const shouldPreferExtensionPreview =
+    previewItemValues.length > 0 &&
+    !previewItemValues.some((item) => isTimelineWorkbenchVisualSceneItem(item));
   const extensionPreview =
     mode === "mini-timeline"
       ? null
       : getTimelineWorkbenchPreviewExtension(
-          previewItems.map(({ item }) => item),
+          shouldPreferExtensionPreview
+            ? previewItemValues
+            : previewItemValues.filter((item) => !isTimelineWorkbenchKnownSceneItem(item)),
           extensions,
         )?.renderPreview?.({
           currentTimeMs,
@@ -72,6 +80,7 @@ export function TimelineWorkbenchPreview<
           durationMs,
           items: previewItems.map(({ item }) => item),
           selectedItems,
+          transport,
         });
 
   return (
@@ -88,15 +97,6 @@ export function TimelineWorkbenchPreview<
           </div>
         </div>
         <div className="flex min-w-0 shrink-0 items-center gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={readOnly || durationMs <= 0 || currentTimeMs >= durationMs}
-            onClick={isPlaying ? onPause : onPlay}
-          >
-            {isPlaying ? "Pause" : "Play"}
-          </Button>
           <ToggleGroup
             type="single"
             value={mode}
@@ -130,38 +130,321 @@ export function TimelineWorkbenchPreview<
             durationMs={durationMs}
           />
         ) : (
-          <div className="grid h-full place-items-center p-4">
-            {extensionPreview ??
-              (previewItems.length === 0 ? (
-                <div className="grid gap-1 text-center text-white">
-                  <div className="text-sm font-medium">0 active items</div>
-                  <div className="text-xs text-white/60">
-                    {formatTimelineEditorTimeMs(currentTimeMs)} /{" "}
-                    {formatTimelineEditorTimeMs(durationMs)}
-                  </div>
-                </div>
-              ) : (
-                <div className="grid w-full max-w-md gap-2">
-                  {previewItems.slice(0, 4).map(({ item, track }) => (
-                    <div
-                      key={item.id}
-                      className="grid min-h-12 gap-1 rounded border border-white/10 bg-white/10 px-3 py-2 text-white shadow-sm"
-                      style={{
-                        borderLeftColor: item.color ?? "hsl(var(--primary))",
-                        borderLeftWidth: 4,
-                      }}
-                    >
-                      <div className="truncate text-sm font-medium">{item.label}</div>
-                      <div className="truncate text-xs text-white/60">
-                        {track?.label ?? item.kind ?? item.id}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ))}
-          </div>
+          (extensionPreview ?? (
+            <TimelineWorkbenchScenePreview
+              currentTimeMs={currentTimeMs}
+              durationMs={durationMs}
+              items={previewItems}
+              transport={transport}
+            />
+          ))
         )}
       </div>
+    </div>
+  );
+}
+
+function TimelineWorkbenchScenePreview<TTrackData extends Record<string, unknown>, TItemData>({
+  currentTimeMs,
+  durationMs,
+  items,
+  transport,
+}: {
+  currentTimeMs: number;
+  durationMs: number;
+  items: Array<{
+    item: TimelineEditorItem<TItemData>;
+    track?: TimelineEditorTrack<TTrackData, TItemData>;
+  }>;
+  transport: TimelinePreviewTransportContext;
+}) {
+  const sceneItems = items.filter(({ item }) => isTimelineWorkbenchKnownSceneItem(item));
+  const visualItems = sceneItems.filter(({ item }) => {
+    const mediaType = getTimelineMediaTypeForItem(item as TimelineEditorItem<unknown>);
+
+    return mediaType === "video" || mediaType === "image" || mediaType === "text";
+  });
+  const audioItems = sceneItems.filter(({ item }) => {
+    const mediaType = getTimelineMediaTypeForItem(item as TimelineEditorItem<unknown>);
+
+    return mediaType === "audio";
+  });
+  const unknownItems = items.filter(({ item }) => !isTimelineWorkbenchKnownSceneItem(item));
+
+  if (items.length === 0) {
+    return (
+      <div className="grid h-full place-items-center p-4">
+        <div className="grid gap-1 text-center text-white">
+          <div className="text-sm font-medium">0 active items</div>
+          <div className="text-xs text-white/60">
+            {formatTimelineEditorTimeMs(currentTimeMs)} / {formatTimelineEditorTimeMs(durationMs)}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div data-slot="timeline-workbench-scene-preview" className="relative h-full w-full text-white">
+      {visualItems.map(({ item, track }, index) => (
+        <TimelineWorkbenchSceneLayer
+          key={item.id}
+          currentTimeMs={currentTimeMs}
+          durationMs={durationMs}
+          item={item as TimelineEditorItem<unknown>}
+          trackLabel={track?.label}
+          transport={transport}
+          zIndex={index + 1}
+        />
+      ))}
+      {audioItems.map(({ item }) => (
+        <TimelineWorkbenchSceneAudio
+          key={item.id}
+          currentTimeMs={currentTimeMs}
+          durationMs={durationMs}
+          item={item as TimelineEditorItem<unknown>}
+          transport={transport}
+        />
+      ))}
+      {visualItems.length === 0 && unknownItems.length === 0 ? (
+        <div className="grid h-full place-items-center p-4">
+          <div className="grid w-full max-w-md gap-2">
+            {items.slice(0, 4).map(({ item, track }) => (
+              <TimelineWorkbenchFallbackItemCard
+                key={item.id}
+                item={item}
+                trackLabel={track?.label}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {unknownItems.length > 0 ? (
+        <div className="absolute inset-x-4 bottom-4 z-50 grid max-h-40 gap-2 overflow-auto">
+          {unknownItems.slice(0, 4).map(({ item, track }) => (
+            <TimelineWorkbenchFallbackItemCard
+              key={item.id}
+              item={item}
+              trackLabel={track?.label}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function TimelineWorkbenchSceneLayer({
+  currentTimeMs,
+  durationMs,
+  item,
+  trackLabel,
+  transport,
+  zIndex,
+}: {
+  currentTimeMs: number;
+  durationMs: number;
+  item: TimelineEditorItem<unknown>;
+  trackLabel?: string;
+  transport: TimelinePreviewTransportContext;
+  zIndex: number;
+}) {
+  const mediaType = getTimelineMediaTypeForItem(item);
+  const data = getTimelineWorkbenchItemData(item);
+
+  if (mediaType === "video") {
+    return (
+      <TimelineWorkbenchSceneVideo
+        currentTimeMs={currentTimeMs}
+        durationMs={durationMs}
+        item={item}
+        transport={transport}
+        zIndex={zIndex}
+      />
+    );
+  }
+
+  if (mediaType === "image") {
+    const sourceUri = getTimelineWorkbenchSourceUri(data) ?? getStringField(data, "src");
+
+    return sourceUri ? (
+      <img
+        alt={getStringField(data, "alt") ?? item.label}
+        data-slot="timeline-workbench-scene-image"
+        className="absolute inset-0 h-full w-full"
+        src={sourceUri}
+        style={{ objectFit: getTimelineWorkbenchObjectFit(data), zIndex }}
+      />
+    ) : (
+      <TimelineWorkbenchSourceState item={item} label="No image source" zIndex={zIndex} />
+    );
+  }
+
+  if (mediaType === "text") {
+    const text = getTimelineTextDisplayText(
+      data as Parameters<typeof getTimelineTextDisplayText>[0],
+      item.label,
+      currentTimeMs - item.startMs,
+    );
+
+    return (
+      <div
+        data-slot="timeline-workbench-scene-text"
+        className="absolute inset-x-4 bottom-4 grid justify-items-center"
+        style={{ zIndex }}
+      >
+        <div className="max-w-[80%] rounded bg-black/70 px-3 py-2 text-center text-sm shadow">
+          {text}
+        </div>
+      </div>
+    );
+  }
+
+  return <TimelineWorkbenchFallbackItemCard item={item} trackLabel={trackLabel} />;
+}
+
+function TimelineWorkbenchSceneVideo({
+  currentTimeMs,
+  durationMs,
+  item,
+  transport,
+  zIndex,
+}: {
+  currentTimeMs: number;
+  durationMs: number;
+  item: TimelineEditorItem<unknown>;
+  transport: TimelinePreviewTransportContext;
+  zIndex: number;
+}) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const data = getTimelineWorkbenchItemData(item);
+  const sourceUri = getTimelineWorkbenchSourceUri(data);
+  const sync = useTimelineWorkbenchSynchronizedMediaElement({
+    elementRef: videoRef,
+    item,
+    transport,
+    currentTimeMs,
+    durationMs,
+    sourceStartMs: getNumberField(data, "sourceStartMs"),
+    sourceEndMs: getNumberField(data, "sourceEndMs"),
+    muted: getBooleanField(data, "muted"),
+    volume: getNumberField(data, "volume"),
+  });
+
+  if (!sourceUri) {
+    return <TimelineWorkbenchSourceState item={item} label="No video source" zIndex={zIndex} />;
+  }
+
+  return (
+    <>
+      <video
+        ref={videoRef}
+        controls
+        data-slot="timeline-workbench-scene-video"
+        className="absolute inset-0 h-full w-full"
+        muted={getBooleanField(data, "muted")}
+        playsInline
+        poster={getStringField(data, "poster")}
+        preload="metadata"
+        src={sourceUri}
+        style={{ objectFit: getTimelineWorkbenchObjectFit(data), zIndex }}
+      />
+      {sync.blocked ? (
+        <div
+          className="absolute right-3 top-3 rounded bg-black/70 px-2 py-1 text-xs"
+          style={{ zIndex: zIndex + 1 }}
+        >
+          Media playback blocked
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function TimelineWorkbenchSceneAudio({
+  currentTimeMs,
+  durationMs,
+  item,
+  transport,
+}: {
+  currentTimeMs: number;
+  durationMs: number;
+  item: TimelineEditorItem<unknown>;
+  transport: TimelinePreviewTransportContext;
+}) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const data = getTimelineWorkbenchItemData(item);
+  const sourceUri = getTimelineWorkbenchSourceUri(data);
+  const sync = useTimelineWorkbenchSynchronizedMediaElement({
+    elementRef: audioRef,
+    item,
+    transport,
+    currentTimeMs,
+    durationMs,
+    sourceStartMs: getNumberField(data, "sourceStartMs"),
+    sourceEndMs: getNumberField(data, "sourceEndMs"),
+    muted: getBooleanField(data, "muted"),
+    volume: getNumberField(data, "volume"),
+  });
+
+  if (!sourceUri) {
+    return null;
+  }
+
+  return (
+    <>
+      <audio
+        ref={audioRef}
+        data-slot="timeline-workbench-scene-audio"
+        muted={getBooleanField(data, "muted")}
+        preload="metadata"
+        src={sourceUri}
+      />
+      {sync.blocked ? (
+        <div className="absolute right-3 top-3 z-50 rounded bg-black/70 px-2 py-1 text-xs">
+          Media playback blocked
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function TimelineWorkbenchSourceState({
+  item,
+  label,
+  zIndex,
+}: {
+  item: TimelineEditorItem<unknown>;
+  label: string;
+  zIndex: number;
+}) {
+  return (
+    <div className="absolute inset-0 grid place-items-center p-4" style={{ zIndex }}>
+      <div className="grid gap-1 text-center text-white">
+        <div className="text-sm font-medium">{item.label}</div>
+        <div className="text-xs text-white/60">{label}</div>
+      </div>
+    </div>
+  );
+}
+
+function TimelineWorkbenchFallbackItemCard<TItemData>({
+  item,
+  trackLabel,
+}: {
+  item: TimelineEditorItem<TItemData>;
+  trackLabel?: string;
+}) {
+  return (
+    <div
+      className="grid min-h-12 gap-1 rounded border border-white/10 bg-white/10 px-3 py-2 text-white shadow-sm"
+      style={{
+        borderLeftColor: item.color ?? "hsl(var(--primary))",
+        borderLeftWidth: 4,
+      }}
+    >
+      <div className="truncate text-sm font-medium">{item.label}</div>
+      <div className="truncate text-xs text-white/60">{trackLabel ?? item.kind ?? item.id}</div>
     </div>
   );
 }
@@ -323,4 +606,58 @@ function getTimelineWorkbenchPreviewExtension<
         return mediaType ? extension.mediaTypes?.includes(mediaType) : false;
       }),
   );
+}
+
+function isTimelineWorkbenchKnownSceneItem(item: TimelineEditorItem<unknown>) {
+  const mediaType = getTimelineMediaTypeForItem(item);
+
+  return (
+    mediaType === "audio" || mediaType === "video" || mediaType === "image" || mediaType === "text"
+  );
+}
+
+function isTimelineWorkbenchVisualSceneItem(item: TimelineEditorItem<unknown>) {
+  const mediaType = getTimelineMediaTypeForItem(item);
+
+  return mediaType === "video" || mediaType === "image" || mediaType === "text";
+}
+
+function getTimelineWorkbenchItemData(item: TimelineEditorItem<unknown>) {
+  return item.data && typeof item.data === "object"
+    ? (item.data as Record<string, unknown>)
+    : undefined;
+}
+
+function getTimelineWorkbenchSourceUri(data: Record<string, unknown> | undefined) {
+  const source = data?.["source"];
+
+  if (!source || typeof source !== "object" || !("uri" in source)) {
+    return undefined;
+  }
+
+  return typeof source.uri === "string" ? source.uri : undefined;
+}
+
+function getTimelineWorkbenchObjectFit(data: Record<string, unknown> | undefined) {
+  const fit = getStringField(data, "fit");
+
+  return fit === "cover" || fit === "fill" || fit === "none" ? fit : "contain";
+}
+
+function getStringField(data: Record<string, unknown> | undefined, key: string) {
+  const value = data?.[key];
+
+  return typeof value === "string" ? value : undefined;
+}
+
+function getNumberField(data: Record<string, unknown> | undefined, key: string) {
+  const value = data?.[key];
+
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function getBooleanField(data: Record<string, unknown> | undefined, key: string) {
+  const value = data?.[key];
+
+  return typeof value === "boolean" ? value : undefined;
 }

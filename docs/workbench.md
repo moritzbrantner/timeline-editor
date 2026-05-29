@@ -32,12 +32,21 @@ read-only overview with track rows, item bars, and the playhead. Hosts can
 control the mode with `previewMode` and observe changes with
 `onPreviewModeChange`.
 
-The preview play button is the synchronized workbench transport. Playback
+The compact transport strip is the synchronized workbench transport. Playback
 updates `document.currentTimeMs` through `onDocumentChange`, so the main timeline
 playhead advances too, and the timeline follows with keep-visible scrolling only
-when the playhead approaches or leaves the visible range. Native audio/video
+when the playhead approaches or leaves the visible range. Space toggles
+play/pause, K pauses, L shuttles forward through 1x/2x/4x, J shuttles backward
+through -1x/-2x/-4x, and Shift+L toggles loop playback. Loop uses the selected
+range when present and otherwise loops the whole document. Native audio/video
 controls rendered by extensions are still independent browser media controls;
-they do not drive the synchronized workbench transport.
+they do not drive the synchronized workbench transport. Reverse media playback
+uses timeline-driven seeking because native negative media playback is not
+portable.
+
+Hosts can control transport with `transportState`, initialize uncontrolled
+transport with `defaultTransportState`, and observe changes with
+`onTransportStateChange`.
 
 Empty states must expose document state, provide a concrete action, or be
 omitted. Avoid placeholder panels that only explain obvious UI behavior.

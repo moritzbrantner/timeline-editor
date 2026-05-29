@@ -1459,7 +1459,8 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     });
 
     expect(currentDocument.currentTimeMs).toBe(1_100);
-    expect(screen.getByRole("button", { name: "Play" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Play" })).toHaveProperty("disabled", false);
+    expect(screen.getByText("1x")).toBeTruthy();
   });
 
   test("preview playback current-time updates do not create undo history entries", () => {
@@ -1497,6 +1498,160 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
 
     expect(handleHistoryChange).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Undo" })).toHaveProperty("disabled", true);
+  });
+
+  test("renders uncontrolled and controlled transport state", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+      tracks,
+    };
+    const { container, rerender } = render(<TimelineWorkbench document={document} />);
+
+    expect(container.querySelector("[data-slot='timeline-workbench-transport']")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+    expect(screen.getByText("1x")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Loop playback" }).getAttribute("aria-pressed")).toBe(
+      "false",
+    );
+
+    rerender(
+      <TimelineWorkbench
+        document={document}
+        transportState={{ status: "playing", playbackRate: -2, loop: true }}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+    expect(screen.getByText("-2x")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Loop playback" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+  });
+
+  test("emits transport state change reasons from transport controls", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+      tracks,
+    };
+    const handleTransportStateChange = vi.fn();
+
+    render(
+      <TimelineWorkbench document={document} onTransportStateChange={handleTransportStateChange} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    expect(handleTransportStateChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: "playing", playbackRate: 1, loop: false }),
+      expect.objectContaining({ reason: "toggle-play", currentTimeMs: 1_000, durationMs: 8_000 }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Shuttle forward" }));
+    expect(handleTransportStateChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: "playing", playbackRate: 2 }),
+      expect.objectContaining({ reason: "shuttle-forward" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Shuttle backward" }));
+    expect(handleTransportStateChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: "playing", playbackRate: -1 }),
+      expect.objectContaining({ reason: "shuttle-backward" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Loop playback" }));
+    expect(handleTransportStateChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ loop: true }),
+      expect.objectContaining({ reason: "loop-toggle" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    expect(handleTransportStateChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: "paused" }),
+      expect.objectContaining({ reason: "toggle-play" }),
+    );
+  });
+
+  test("space and J/K/L hotkeys control transport playback", () => {
+    vi.useFakeTimers();
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+      tracks,
+    };
+    let currentDocument = document;
+
+    function StatefulWorkbench() {
+      const [stateDocument, setStateDocument] = useState(document);
+      currentDocument = stateDocument;
+
+      return <TimelineWorkbench document={stateDocument} onDocumentChange={setStateDocument} />;
+    }
+
+    const { container } = render(<StatefulWorkbench />);
+    const workbench = container.querySelector("[data-slot='timeline-workbench']")!;
+    const spaceEvent = new KeyboardEvent("keydown", {
+      key: " ",
+      bubbles: true,
+      cancelable: true,
+    });
+
+    act(() => {
+      fireEvent(workbench, spaceEvent);
+    });
+    expect(spaceEvent.defaultPrevented).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(160);
+    });
+    expect(currentDocument.currentTimeMs).toBeGreaterThan(1_000);
+
+    fireEvent.keyDown(workbench, { key: "l" });
+    expect(screen.getByText("2x")).toBeTruthy();
+    fireEvent.keyDown(workbench, { key: "l" });
+    expect(screen.getByText("4x")).toBeTruthy();
+    fireEvent.keyDown(workbench, { key: "j" });
+    expect(screen.getByText("-1x")).toBeTruthy();
+
+    const reversedFrom = currentDocument.currentTimeMs ?? 0;
+    act(() => {
+      vi.advanceTimersByTime(80);
+    });
+    expect(currentDocument.currentTimeMs).toBeLessThan(reversedFrom);
+
+    fireEvent.keyDown(workbench, { key: "k" });
+    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+  });
+
+  test("loop playback wraps within the selected range", () => {
+    vi.useFakeTimers();
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      currentTimeMs: 1_900,
+      tracks,
+    };
+    let currentDocument = document;
+
+    function StatefulWorkbench() {
+      const [stateDocument, setStateDocument] = useState(document);
+      currentDocument = stateDocument;
+
+      return (
+        <TimelineWorkbench
+          document={stateDocument}
+          defaultTransportState={{ status: "playing", loop: true }}
+          selection={{ itemIds: [], range: { startMs: 1_000, endMs: 2_000 } }}
+          onDocumentChange={setStateDocument}
+        />
+      );
+    }
+
+    render(<StatefulWorkbench />);
+    act(() => {
+      vi.advanceTimersByTime(240);
+    });
+
+    expect(currentDocument.currentTimeMs).toBeGreaterThanOrEqual(1_000);
+    expect(currentDocument.currentTimeMs).toBeLessThan(2_000);
   });
 
   test("read-only workbench disables preview playback", () => {

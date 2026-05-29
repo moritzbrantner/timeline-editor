@@ -69,6 +69,34 @@ export type TimelineWorkbenchImportState = {
 
 export type TimelineWorkbenchPreviewMode = "active-scene" | "selection-first" | "mini-timeline";
 
+export type TimelineWorkbenchTransportStatus = "paused" | "playing";
+
+export type TimelineWorkbenchPlaybackRate = -4 | -2 | -1 | 1 | 2 | 4;
+
+export type TimelineWorkbenchTransportState = {
+  status: TimelineWorkbenchTransportStatus;
+  playbackRate: TimelineWorkbenchPlaybackRate;
+  loop: boolean;
+};
+
+export type TimelineWorkbenchTransportChangeReason =
+  | "play"
+  | "pause"
+  | "toggle-play"
+  | "stop"
+  | "shuttle-forward"
+  | "shuttle-backward"
+  | "loop-toggle"
+  | "ended"
+  | "document-change"
+  | "read-only";
+
+export type TimelineWorkbenchTransportStateChangeContext = {
+  reason: TimelineWorkbenchTransportChangeReason;
+  currentTimeMs: number;
+  durationMs: number;
+};
+
 export type TimelineWorkbenchSelection<TData = Record<string, unknown>> = {
   item?: TimelineEditorItem<TData>;
   itemId?: string;
@@ -109,12 +137,21 @@ export type TimelineWorkbenchInspectorContext<TData = Record<string, unknown>> =
   removeSelectedTransformPoint: (offsetMs: number) => void;
 };
 
+export type TimelinePreviewTransportContext = TimelineWorkbenchTransportState & {
+  currentTimeMs: number;
+  durationMs: number;
+  isPlaying: boolean;
+  getItemLocalTimeMs: (item: TimelineEditorItem<unknown>) => number;
+  isItemActive: (item: TimelineEditorItem<unknown>) => boolean;
+};
+
 export type TimelinePreviewContext<TItemData = Record<string, unknown>> = {
   currentTimeMs: number;
   document: TimelineEditorDocument<Record<string, unknown>, TItemData>;
   durationMs: number;
   items: Array<TimelineEditorItem<TItemData>>;
   selectedItems: Array<TimelineEditorItem<TItemData>>;
+  transport: TimelinePreviewTransportContext;
 };
 
 export type TimelineInspectorSectionFactory<
@@ -251,6 +288,12 @@ export type TimelineWorkbenchProps<
   onHotkeysChange?: (hotkeys: Partial<TimelineEditorHotkeys>) => void;
   previewMode?: TimelineWorkbenchPreviewMode;
   onPreviewModeChange?: (mode: TimelineWorkbenchPreviewMode) => void;
+  transportState?: TimelineWorkbenchTransportState;
+  defaultTransportState?: Partial<TimelineWorkbenchTransportState>;
+  onTransportStateChange?: (
+    state: TimelineWorkbenchTransportState,
+    context: TimelineWorkbenchTransportStateChangeContext,
+  ) => void;
   extensions?: Array<TimelineEditorExtension<TItemData, TTrackData, TAssetData>>;
   inspectorSchema?: TimelineWorkbenchInspectorSchema<TItemData>;
   assets?: Array<TimelineWorkbenchAsset<TAssetData>>;

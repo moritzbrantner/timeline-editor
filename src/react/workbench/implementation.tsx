@@ -78,6 +78,7 @@ import {
 } from "./selection";
 import { TimelineWorkbenchToolbar, defaultTimelineWorkbenchHotkeys } from "./toolbar";
 import { TimelineWorkbenchPreview } from "./preview";
+import { TimelineWorkbenchTransport } from "./transport";
 import { getTimelineWorkbenchToolHotkey } from "./use-workbench-hotkeys";
 import {
   areTimelineWorkbenchSelectionsEqual,
@@ -96,8 +97,12 @@ import type {
   TimelineWorkbenchImportSource,
   TimelineWorkbenchImportState,
   TimelineWorkbenchInspectorContext,
+  TimelinePreviewTransportContext,
+  TimelineWorkbenchPlaybackRate,
   TimelineWorkbenchPreviewMode,
   TimelineWorkbenchProps,
+  TimelineWorkbenchTransportChangeReason,
+  TimelineWorkbenchTransportState,
   TimelineWorkbenchTimelineContextMenuContext,
 } from "./types";
 
@@ -117,7 +122,19 @@ export type {
   TimelineWorkbenchTimelineContextMenuContext,
   TimelineWorkbenchTimelineContextMenuFactory,
   TimelinePreviewContext,
+  TimelinePreviewTransportContext,
+  TimelineWorkbenchPlaybackRate,
+  TimelineWorkbenchTransportChangeReason,
+  TimelineWorkbenchTransportState,
+  TimelineWorkbenchTransportStateChangeContext,
+  TimelineWorkbenchTransportStatus,
 } from "./types";
+
+const defaultResolvedTransportState = {
+  status: "paused",
+  playbackRate: 1,
+  loop: false,
+} satisfies TimelineWorkbenchTransportState;
 
 export function TimelineWorkbench<
   TTrackData extends Record<string, unknown> = Record<string, unknown>,
@@ -146,6 +163,9 @@ export function TimelineWorkbench<
   onHotkeysChange,
   previewMode,
   onPreviewModeChange,
+  transportState,
+  defaultTransportState,
+  onTransportStateChange,
   onSnapChange,
   extensions = [],
   inspectorSchema,
@@ -197,7 +217,10 @@ export function TimelineWorkbench<
   const [internalPreviewMode, setInternalPreviewMode] =
     useState<TimelineWorkbenchPreviewMode>("active-scene");
   const [draggedAssetId, setDraggedAssetId] = useState<string | null>(null);
-  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const [internalTransportState, setInternalTransportState] =
+    useState<TimelineWorkbenchTransportState>(() =>
+      resolveTimelineWorkbenchTransportState(defaultTransportState),
+    );
   const previewAnimationFrameRef = useRef<number | null>(null);
   const previewLastFrameTimestampRef = useRef<number | null>(null);
   const [importedAssets, setImportedAssets] = useState<Array<TimelineWorkbenchAsset<TAssetData>>>(
@@ -216,6 +239,7 @@ export function TimelineWorkbench<
   const frameStepMs = frameDurationMs ?? resolvedSnapMs;
   const resolvedTool = tool ?? internalTool;
   const resolvedPreviewMode = previewMode ?? internalPreviewMode;
+  const resolvedTransportState = transportState ?? internalTransportState;
   const resolvedHotkeys = { ...defaultTimelineWorkbenchHotkeys, ...hotkeys, ...customHotkeys };
   const resolvedClipboard = clipboard ?? internalClipboard;
   const defaultSnapTargets: TimelineEditorSnapOptions["targets"] = [
@@ -292,12 +316,18 @@ export function TimelineWorkbench<
   const durationMsRef = useRef(durationMs);
   const onCurrentTimeChangeRef = useRef(onCurrentTimeChange);
   const commitDocumentRef = useRef(commitDocument);
+  const resolvedSelectionRef = useRef(resolvedSelection);
+  const transportStateRef = useRef(resolvedTransportState);
+  const onTransportStateChangeRef = useRef(onTransportStateChange);
 
   useEffect(() => {
     documentRef.current = document;
     durationMsRef.current = durationMs;
     onCurrentTimeChangeRef.current = onCurrentTimeChange;
     commitDocumentRef.current = commitDocument;
+    resolvedSelectionRef.current = resolvedSelection;
+    transportStateRef.current = resolvedTransportState;
+    onTransportStateChangeRef.current = onTransportStateChange;
   });
 
   const cancelPreviewAnimationFrame = useCallback(() => {
@@ -320,25 +350,116 @@ export function TimelineWorkbench<
     commitDocumentRef.current(nextDocument);
   }, []);
 
-  const pausePreviewPlayback = useCallback(() => {
-    setIsPreviewPlaying(false);
-    cancelPreviewAnimationFrame();
-  }, [cancelPreviewAnimationFrame]);
+  const commitTransportState = useCallback(
+    (
+      nextState: TimelineWorkbenchTransportState,
+      reason: TimelineWorkbenchTransportChangeReason,
+    ) => {
+      const resolvedNextState = resolveTimelineWorkbenchTransportState(nextState);
 
-  const playPreviewPlayback = useCallback(() => {
+      transportStateRef.current = resolvedNextState;
+      if (transportState === undefined) {
+        setInternalTransportState(resolvedNextState);
+      }
+
+      onTransportStateChangeRef.current?.(resolvedNextState, {
+        reason,
+        currentTimeMs: documentRef.current.currentTimeMs ?? 0,
+        durationMs: durationMsRef.current,
+      });
+    },
+    [transportState],
+  );
+
+  const pauseTransport = useCallback(
+    (reason: TimelineWorkbenchTransportChangeReason = "pause") => {
+      commitTransportState({ ...transportStateRef.current, status: "paused" }, reason);
+      cancelPreviewAnimationFrame();
+    },
+    [cancelPreviewAnimationFrame, commitTransportState],
+  );
+
+  const playTransport = useCallback(
+    (
+      rate: TimelineWorkbenchPlaybackRate = 1,
+      reason: TimelineWorkbenchTransportChangeReason = "play",
+    ) => {
+      if (readOnly || durationMsRef.current <= 0) {
+        return;
+      }
+
+      const duration = durationMsRef.current;
+      const currentTime = documentRef.current.currentTimeMs ?? 0;
+
+      if (rate > 0 && currentTime >= duration) {
+        commitPreviewCurrentTime(0);
+      } else if (rate < 0 && currentTime <= 0) {
+        commitPreviewCurrentTime(duration);
+      }
+
+      previewLastFrameTimestampRef.current = null;
+      commitTransportState(
+        {
+          ...transportStateRef.current,
+          status: "playing",
+          playbackRate: rate,
+        },
+        reason,
+      );
+    },
+    [commitPreviewCurrentTime, commitTransportState, readOnly],
+  );
+
+  const toggleTransport = useCallback(() => {
+    if (transportStateRef.current.status === "playing") {
+      pauseTransport("toggle-play");
+    } else {
+      playTransport(1, "toggle-play");
+    }
+  }, [pauseTransport, playTransport]);
+
+  const stopTransport = useCallback(() => {
+    commitTransportState(
+      { ...transportStateRef.current, status: "paused", playbackRate: 1 },
+      "stop",
+    );
+    cancelPreviewAnimationFrame();
+  }, [cancelPreviewAnimationFrame, commitTransportState]);
+
+  const shuttleForward = useCallback(() => {
+    const currentState = transportStateRef.current;
+    const nextRate: TimelineWorkbenchPlaybackRate =
+      currentState.status === "paused" || currentState.playbackRate < 0
+        ? 1
+        : currentState.playbackRate === 1
+          ? 2
+          : 4;
+
+    playTransport(nextRate, "shuttle-forward");
+  }, [playTransport]);
+
+  const shuttleBackward = useCallback(() => {
+    const currentState = transportStateRef.current;
+    const nextRate: TimelineWorkbenchPlaybackRate =
+      currentState.status === "paused" || currentState.playbackRate > 0
+        ? -1
+        : currentState.playbackRate === -1
+          ? -2
+          : -4;
+
+    playTransport(nextRate, "shuttle-backward");
+  }, [playTransport]);
+
+  const toggleLoop = useCallback(() => {
     if (readOnly || durationMsRef.current <= 0) {
       return;
     }
 
-    const currentTimeMs = documentRef.current.currentTimeMs ?? 0;
-
-    if (currentTimeMs >= durationMsRef.current) {
-      return;
-    }
-
-    previewLastFrameTimestampRef.current = null;
-    setIsPreviewPlaying(true);
-  }, [readOnly]);
+    commitTransportState(
+      { ...transportStateRef.current, loop: !transportStateRef.current.loop },
+      "loop-toggle",
+    );
+  }, [commitTransportState, readOnly]);
 
   const commitPreviewMode = (mode: TimelineWorkbenchPreviewMode) => {
     if (previewMode === undefined) {
@@ -349,8 +470,13 @@ export function TimelineWorkbench<
   };
 
   useEffect(() => {
-    if (!isPreviewPlaying) {
+    if (resolvedTransportState.status !== "playing") {
       cancelPreviewAnimationFrame();
+      return;
+    }
+
+    if (durationMs <= 0) {
+      pauseTransport("ended");
       return;
     }
 
@@ -359,12 +485,33 @@ export function TimelineWorkbench<
       previewLastFrameTimestampRef.current = timestamp;
 
       if (lastTimestamp !== null) {
-        const currentTime = documentRef.current.currentTimeMs ?? 0;
-        const nextTime = Math.min(durationMsRef.current, currentTime + timestamp - lastTimestamp);
-        commitPreviewCurrentTime(nextTime);
+        const duration = durationMsRef.current;
+        const state = transportStateRef.current;
 
-        if (nextTime >= durationMsRef.current) {
-          setIsPreviewPlaying(false);
+        if (duration <= 0) {
+          pauseTransport("ended");
+          return;
+        }
+
+        const currentTime = documentRef.current.currentTimeMs ?? 0;
+        const elapsedMs = timestamp - lastTimestamp;
+        const nextTime = currentTime + elapsedMs * state.playbackRate;
+        const loopRange = getTimelineWorkbenchTransportLoopRange(
+          state.loop,
+          resolvedSelectionRef.current.range,
+          duration,
+        );
+        const resolvedTime = resolveTimelineWorkbenchPlaybackTime(
+          nextTime,
+          duration,
+          state.playbackRate,
+          loopRange,
+        );
+
+        commitPreviewCurrentTime(resolvedTime.timeMs);
+
+        if (resolvedTime.ended) {
+          commitTransportState({ ...state, status: "paused" }, "ended");
           previewAnimationFrameRef.current = null;
           previewLastFrameTimestampRef.current = null;
           return;
@@ -377,13 +524,26 @@ export function TimelineWorkbench<
     previewAnimationFrameRef.current = requestAnimationFrame(tick);
 
     return cancelPreviewAnimationFrame;
-  }, [cancelPreviewAnimationFrame, commitPreviewCurrentTime, isPreviewPlaying]);
+  }, [
+    cancelPreviewAnimationFrame,
+    commitPreviewCurrentTime,
+    commitTransportState,
+    durationMs,
+    pauseTransport,
+    resolvedTransportState.status,
+  ]);
 
   useEffect(() => {
-    if (isPreviewPlaying && (readOnly || durationMs <= 0 || currentTimeMs >= durationMs)) {
-      pausePreviewPlayback();
+    if (resolvedTransportState.status === "playing" && readOnly) {
+      pauseTransport("read-only");
     }
-  }, [currentTimeMs, durationMs, isPreviewPlaying, pausePreviewPlayback, readOnly]);
+  }, [pauseTransport, readOnly, resolvedTransportState.status]);
+
+  useEffect(() => {
+    if (resolvedTransportState.status === "playing" && durationMs <= 0) {
+      pauseTransport("ended");
+    }
+  }, [durationMs, pauseTransport, resolvedTransportState.status]);
 
   const previousDocumentRef = useRef(document);
 
@@ -392,13 +552,13 @@ export function TimelineWorkbench<
     previousDocumentRef.current = document;
 
     if (
-      isPreviewPlaying &&
+      resolvedTransportState.status === "playing" &&
       previousDocument !== document &&
       !isTimelineWorkbenchCurrentTimeOnlyChange(previousDocument, document)
     ) {
-      pausePreviewPlayback();
+      pauseTransport("document-change");
     }
-  }, [document, isPreviewPlaying, pausePreviewPlayback]);
+  }, [document, pauseTransport, resolvedTransportState.status]);
 
   const commitClipboard = (nextClipboard: TimelineEditorClipboard<TItemData> | undefined) => {
     if (!clipboard) {
@@ -1192,6 +1352,10 @@ export function TimelineWorkbench<
       return;
     }
 
+    if (transportStateRef.current.status === "playing") {
+      pauseTransport("pause");
+    }
+
     const nextDocument = setTimelineEditorCurrentTime(
       document,
       currentTimeMs + direction * frameStepMs,
@@ -1328,6 +1492,52 @@ export function TimelineWorkbench<
     }
 
     if (readOnly && !(resolvedHotkeys.copy && matchesHotkey(event, resolvedHotkeys.copy))) {
+      return;
+    }
+
+    if (!readOnly && resolvedHotkeys.playPause && matchesHotkey(event, resolvedHotkeys.playPause)) {
+      event.preventDefault();
+      toggleTransport();
+      return;
+    }
+
+    if (
+      !readOnly &&
+      resolvedHotkeys.stopPlayback &&
+      matchesHotkey(event, resolvedHotkeys.stopPlayback)
+    ) {
+      event.preventDefault();
+      stopTransport();
+      return;
+    }
+
+    if (
+      !readOnly &&
+      resolvedHotkeys.shuttleForward &&
+      matchesHotkey(event, resolvedHotkeys.shuttleForward)
+    ) {
+      event.preventDefault();
+      shuttleForward();
+      return;
+    }
+
+    if (
+      !readOnly &&
+      resolvedHotkeys.shuttleBackward &&
+      matchesHotkey(event, resolvedHotkeys.shuttleBackward)
+    ) {
+      event.preventDefault();
+      shuttleBackward();
+      return;
+    }
+
+    if (
+      !readOnly &&
+      resolvedHotkeys.toggleLoop &&
+      matchesHotkey(event, resolvedHotkeys.toggleLoop)
+    ) {
+      event.preventDefault();
+      toggleLoop();
       return;
     }
 
@@ -1547,6 +1757,20 @@ export function TimelineWorkbench<
   };
   const shouldShowAssetsPanel =
     showAssetsPanel && (resolvedAssets.length > 0 || Boolean(onImportAssets));
+  const transportLoopRange = getTimelineWorkbenchTransportLoopRange(
+    resolvedTransportState.loop,
+    resolvedSelection.range,
+    durationMs,
+  );
+  const previewTransportContext = {
+    ...resolvedTransportState,
+    currentTimeMs,
+    durationMs,
+    isPlaying: resolvedTransportState.status === "playing",
+    getItemLocalTimeMs: (item: TimelineEditorItem<unknown>) => currentTimeMs - item.startMs,
+    isItemActive: (item: TimelineEditorItem<unknown>) =>
+      item.startMs <= currentTimeMs && getTimelineEditorItemEndMs(item) >= currentTimeMs,
+  } satisfies TimelinePreviewTransportContext;
   const toolbarContent = (
     <TimelineWorkbenchToolbar
       announcement={announcement}
@@ -1685,17 +1909,35 @@ export function TimelineWorkbench<
       document={document}
       durationMs={durationMs}
       extensions={extensions}
-      isPlaying={isPreviewPlaying}
       mode={resolvedPreviewMode}
       readOnly={readOnly}
       selectedItems={selectedItems}
+      transport={previewTransportContext}
       onModeChange={commitPreviewMode}
-      onPause={pausePreviewPlayback}
-      onPlay={playPreviewPlayback}
     />
   ) : null;
   const canvasPanel = (
-    <WorkbenchCanvas className="h-full min-h-0">
+    <WorkbenchCanvas
+      className="grid h-full min-h-0 p-0"
+      style={{ gridTemplateRows: "auto minmax(0, 1fr)" }}
+    >
+      <TimelineWorkbenchTransport
+        currentTimeMs={currentTimeMs}
+        durationMs={durationMs}
+        frameStepMs={frameStepMs}
+        loopRange={transportLoopRange}
+        readOnly={readOnly}
+        transportState={resolvedTransportState}
+        onJumpEnd={() => jumpCurrentTime(durationMs)}
+        onJumpStart={() => jumpCurrentTime(0)}
+        onNextFrame={() => stepCurrentTimeByFrame(1)}
+        onPreviousFrame={() => stepCurrentTimeByFrame(-1)}
+        onShuttleBackward={shuttleBackward}
+        onShuttleForward={shuttleForward}
+        onStop={stopTransport}
+        onToggleLoop={toggleLoop}
+        onTogglePlay={toggleTransport}
+      />
       <TimelineWorkbenchCanvas
         assets={resolvedAssets}
         draggedAssetId={draggedAssetId}
@@ -1721,7 +1963,7 @@ export function TimelineWorkbench<
         trackGroupMenuItems={trackGroupMenuItems}
         trackKinds={trackKinds}
         formatTrackKind={formatTimelineWorkbenchTrackKind}
-        followCurrentTime={isPreviewPlaying ? "keep-visible" : "off"}
+        followCurrentTime={resolvedTransportState.status === "playing" ? "keep-visible" : "off"}
         onAddTrack={addTrack}
         onCurrentTimeChange={onCurrentTimeChange}
         onDocumentChange={commitDocument}
@@ -1804,4 +2046,99 @@ export function TimelineWorkbench<
       </ResizablePanelGroup>
     </div>
   );
+}
+
+function resolveTimelineWorkbenchTransportState(
+  state: Partial<TimelineWorkbenchTransportState> | undefined,
+): TimelineWorkbenchTransportState {
+  return {
+    status: state?.status === "playing" ? "playing" : defaultResolvedTransportState.status,
+    playbackRate: isTimelineWorkbenchPlaybackRate(state?.playbackRate)
+      ? state.playbackRate
+      : defaultResolvedTransportState.playbackRate,
+    loop: state?.loop ?? defaultResolvedTransportState.loop,
+  };
+}
+
+function isTimelineWorkbenchPlaybackRate(
+  playbackRate: unknown,
+): playbackRate is TimelineWorkbenchPlaybackRate {
+  return (
+    playbackRate === -4 ||
+    playbackRate === -2 ||
+    playbackRate === -1 ||
+    playbackRate === 1 ||
+    playbackRate === 2 ||
+    playbackRate === 4
+  );
+}
+
+function getTimelineWorkbenchTransportLoopRange(
+  loop: boolean,
+  selectionRange: TimelineEditorSelection["range"],
+  durationMs: number,
+) {
+  if (!loop || durationMs <= 0) {
+    return undefined;
+  }
+
+  const selectedRange = normalizeTimelineWorkbenchRange(selectionRange);
+
+  if (selectedRange && selectedRange.endMs - selectedRange.startMs >= 1) {
+    const clampedRange = {
+      startMs: Math.max(0, Math.min(durationMs, selectedRange.startMs)),
+      endMs: Math.max(0, Math.min(durationMs, selectedRange.endMs)),
+    };
+
+    if (clampedRange.endMs - clampedRange.startMs >= 1) {
+      return clampedRange;
+    }
+  }
+
+  return { startMs: 0, endMs: durationMs };
+}
+
+function resolveTimelineWorkbenchPlaybackTime(
+  nextTimeMs: number,
+  durationMs: number,
+  playbackRate: TimelineWorkbenchPlaybackRate,
+  loopRange: TimelineEditorTimeRange | undefined,
+) {
+  if (durationMs <= 0) {
+    return { timeMs: 0, ended: true };
+  }
+
+  if (!loopRange) {
+    if (playbackRate >= 0 && nextTimeMs >= durationMs) {
+      return { timeMs: durationMs, ended: true };
+    }
+
+    if (playbackRate < 0 && nextTimeMs <= 0) {
+      return { timeMs: 0, ended: true };
+    }
+
+    return { timeMs: Math.max(0, Math.min(durationMs, nextTimeMs)), ended: false };
+  }
+
+  const startMs = Math.max(0, Math.min(durationMs, loopRange.startMs));
+  const endMs = Math.max(startMs, Math.min(durationMs, loopRange.endMs));
+  const spanMs = endMs - startMs;
+
+  if (spanMs < 1) {
+    return { timeMs: Math.max(0, Math.min(durationMs, nextTimeMs)), ended: false };
+  }
+
+  if (nextTimeMs > endMs) {
+    return { timeMs: startMs + positiveModulo(nextTimeMs - endMs, spanMs), ended: false };
+  }
+
+  if (nextTimeMs < startMs) {
+    return { timeMs: endMs - positiveModulo(startMs - nextTimeMs, spanMs), ended: false };
+  }
+
+  return { timeMs: nextTimeMs, ended: false };
+}
+
+function positiveModulo(value: number, divisor: number) {
+  return ((value % divisor) + divisor) % divisor;
 }
