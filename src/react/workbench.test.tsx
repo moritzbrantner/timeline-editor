@@ -1419,6 +1419,228 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     expect(preview.queryByText("Selected item")).toBeNull();
   });
 
+  test("renders active subtitle cues in the scene preview", () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineTextItemData> = {
+      durationMs: 6_000,
+      currentTimeMs: 1_500,
+      tracks: [
+        {
+          id: "subtitles",
+          label: "Subtitles",
+          acceptsItemKinds: ["subtitle"],
+          items: [
+            {
+              id: "subtitle",
+              trackId: "subtitles",
+              label: "Subtitle",
+              kind: "subtitle",
+              startMs: 1_000,
+              durationMs: 4_000,
+              data: {
+                mediaType: "text",
+                format: "srt",
+                cues: [
+                  { startMs: 0, endMs: 1_000, text: "First cue" },
+                  { startMs: 1_001, endMs: 3_000, text: "Second cue" },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const { container, rerender } = render(<TimelineWorkbench document={document} />);
+
+    expect(
+      container.querySelector("[data-slot='timeline-workbench-scene-subtitles']"),
+    ).toBeTruthy();
+    expect(screen.getByText("First cue")).toBeTruthy();
+
+    rerender(
+      <TimelineWorkbench
+        document={{
+          ...document,
+          currentTimeMs: 3_000,
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Second cue")).toBeTruthy();
+    expect(screen.queryByText("First cue")).toBeNull();
+  });
+
+  test("omits subtitle overlay during cue gaps", () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineTextItemData> = {
+      durationMs: 6_000,
+      currentTimeMs: 2_500,
+      tracks: [
+        {
+          id: "subtitles",
+          label: "Subtitles",
+          acceptsItemKinds: ["subtitle"],
+          items: [
+            {
+              id: "subtitle",
+              trackId: "subtitles",
+              label: "Subtitle",
+              kind: "subtitle",
+              startMs: 1_000,
+              durationMs: 4_000,
+              data: {
+                mediaType: "text",
+                cues: [
+                  { startMs: 0, endMs: 500, text: "Before gap" },
+                  { startMs: 2_500, endMs: 3_000, text: "After gap" },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const { container } = render(<TimelineWorkbench document={document} />);
+
+    expect(container.querySelector("[data-slot='timeline-workbench-scene-subtitles']")).toBeNull();
+    expect(screen.queryByText("Before gap")).toBeNull();
+    expect(screen.queryByText("After gap")).toBeNull();
+  });
+
+  test("renders multiple styled ASS subtitle cues in layer order", () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineTextItemData> = {
+      durationMs: 6_000,
+      currentTimeMs: 2_000,
+      tracks: [
+        {
+          id: "subtitles",
+          label: "Subtitles",
+          acceptsItemKinds: ["subtitle"],
+          items: [
+            {
+              id: "subtitle",
+              trackId: "subtitles",
+              label: "Subtitle",
+              kind: "subtitle",
+              startMs: 1_000,
+              durationMs: 4_000,
+              data: {
+                mediaType: "text",
+                format: "ass",
+                styles: [
+                  {
+                    name: "Top",
+                    color: "#00ff00",
+                    fontSize: 32,
+                    bold: true,
+                    alignment: "top-center",
+                    marginVertical: 20,
+                  },
+                ],
+                cues: [
+                  { startMs: 0, endMs: 2_000, text: "Lower", layer: 0 },
+                  {
+                    startMs: 0,
+                    endMs: 2_000,
+                    text: "Upper",
+                    layer: 1,
+                    styleName: "Top",
+                    color: "#ff0000",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const { container } = render(<TimelineWorkbench document={document} />);
+    const cues = container.querySelectorAll("[data-slot='timeline-workbench-scene-subtitle-cue']");
+
+    expect(cues).toHaveLength(2);
+    expect(cues[0]?.textContent).toBe("Lower");
+    expect(cues[1]?.textContent).toBe("Upper");
+    expect((cues[1] as HTMLElement).dataset["subtitleStyle"]).toBe("Top");
+    expect((cues[1] as HTMLElement).style.top).toBe("20px");
+
+    const styledCue = cues[1]?.firstElementChild as HTMLElement;
+    expect(styledCue.style.color).toBe("rgb(255, 0, 0)");
+    expect(styledCue.style.fontSize).toBe("32px");
+    expect(styledCue.style.fontWeight).toBe("700");
+  });
+
+  test("fetches and parses source-backed subtitles for scene preview", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      text: async () => "00:00:00,000 --> 00:00:02,000\nFetched subtitle",
+    } as Response);
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineTextItemData> = {
+      durationMs: 6_000,
+      currentTimeMs: 1_500,
+      tracks: [
+        {
+          id: "subtitles",
+          label: "Subtitles",
+          acceptsItemKinds: ["subtitle"],
+          items: [
+            {
+              id: "subtitle",
+              trackId: "subtitles",
+              label: "Subtitle",
+              kind: "subtitle",
+              startMs: 1_000,
+              durationMs: 4_000,
+              data: {
+                mediaType: "text",
+                source: {
+                  uri: "/captions.srt",
+                  label: "captions.srt",
+                  mimeType: "application/x-subrip",
+                },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    render(<TimelineWorkbench document={document} />);
+
+    expect(await screen.findByText("Fetched subtitle")).toBeTruthy();
+    expect(globalThis.fetch).toHaveBeenCalledWith("/captions.srt");
+  });
+
+  test("shows a compact state for failed standalone subtitle sources", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("missing"));
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineTextItemData> = {
+      durationMs: 6_000,
+      currentTimeMs: 1_500,
+      tracks: [
+        {
+          id: "subtitles",
+          label: "Subtitles",
+          acceptsItemKinds: ["subtitle"],
+          items: [
+            {
+              id: "subtitle",
+              trackId: "subtitles",
+              label: "Subtitle",
+              kind: "subtitle",
+              startMs: 1_000,
+              durationMs: 4_000,
+              data: {
+                mediaType: "text",
+                source: { uri: "/missing.ass", label: "missing.ass" },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    render(<TimelineWorkbench document={document} />);
+
+    expect(await screen.findByText("Subtitle source unavailable")).toBeTruthy();
+  });
+
   test("renders controlled preview mode and preserves selection-first behavior", () => {
     const document: TimelineEditorDocument = {
       durationMs: 8_000,

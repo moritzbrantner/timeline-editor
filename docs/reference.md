@@ -152,7 +152,8 @@ import { createTimelineVideoExtension } from "@moritzbrantner/timeline-editor/vi
 Built-in media foundations are available from media-specific subpaths:
 
 - `@moritzbrantner/timeline-editor/media-types` for media type normalization and media-specific validation helpers.
-- `@moritzbrantner/timeline-editor/text` for ASS-like timed text cues.
+- `@moritzbrantner/timeline-editor/text` for subtitle/caption cues, practical
+  ASS/SSA, SRT, and WebVTT parsing, and text `File` to asset conversion.
 - `@moritzbrantner/timeline-editor/audio` for source metadata, volume/mute state, waveform display, synchronized workbench audio preview, and audio `File` to asset conversion.
 - `@moritzbrantner/timeline-editor/video` for source metadata, poster, and thumbnail strips.
 - `@moritzbrantner/timeline-editor/image` for still image thumbnails and dimensions.
@@ -173,6 +174,12 @@ is timeline-driven rather than a native audio player, while video controls remai
 available for manual preview. Workbench transport playback synchronizes active
 media elements to the timeline playhead.
 
+Subtitle preview supports common ASS/SSA, SRT, and WebVTT timing and styling in
+the workbench scene preview. The ASS renderer is intentionally a practical
+subset: cue text, styles, alignment, margins, colors, simple override tags, and
+line breaks are supported, while karaoke, vector drawings, animated transforms,
+clips, and full libass fidelity are out of scope for the built-in preview.
+
 ```tsx
 import { TimelineWorkbench, type TimelineEditorDocument } from "@moritzbrantner/timeline-editor";
 import {
@@ -189,6 +196,7 @@ import {
 } from "@moritzbrantner/timeline-editor/image";
 import {
   createTimelineTextExtension,
+  createTimelineTextFileAsset,
   type TimelineTextItemData,
 } from "@moritzbrantner/timeline-editor/text";
 import {
@@ -320,6 +328,12 @@ const document: TimelineEditorDocument<Record<string, unknown>, MediaItemData> =
     createTimelineNumericDataExtension(),
   ]}
 />;
+
+const subtitleAsset = await createTimelineTextFileAsset(
+  new File(["00:00:00,000 --> 00:00:02,000\nHello timeline"], "captions.srt", {
+    type: "application/x-subrip",
+  }),
+);
 
 const mediaType = getTimelineMediaTypeForItem(document.tracks[0]!.items[0]!);
 const mediaIssues = validateTimelineEditorMediaTypes(document);

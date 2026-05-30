@@ -41,6 +41,7 @@ import {
 } from "@moritzbrantner/timeline-editor/image";
 import {
   createTimelineTextExtension,
+  createTimelineTextFileAsset,
   type TimelineTextItemData,
 } from "@moritzbrantner/timeline-editor/text";
 import {
@@ -137,5 +138,6 @@ export function exercisePackageSubpaths(document = initialDocument) {
     mediaType: getTimelineMediaTypeForKind("video"),
     schemaVersion: currentTimelineEditorSchemaVersion,
     snap: createTimelineEditorSnapOptions(100, { enabled: true }),
+    textFileAssetFactory: createTimelineTextFileAsset,
   };
 }

@@ -150,7 +150,19 @@ const expectedRuntimeExports = {
     "readTimelineEditorDocument",
     "serializeTimelineEditorDocument",
   ],
-  "text.js": ["createTimelineTextExtension", "getTimelineTextCueAt", "getTimelineTextDisplayText"],
+  "text.js": [
+    "createTimelineTextExtension",
+    "createTimelineTextFileAsset",
+    "detectTimelineTextFormat",
+    "getTimelineTextCueAt",
+    "getTimelineTextCuesAt",
+    "getTimelineTextDisplayText",
+    "getTimelineTextStyleForCue",
+    "parseTimelineAssText",
+    "parseTimelineSrtText",
+    "parseTimelineText",
+    "parseTimelineWebVttText",
+  ],
   "video.js": ["createTimelineVideoExtension"],
 };
 
