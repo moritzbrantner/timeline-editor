@@ -9,9 +9,10 @@ import type { TimelineEditorItem } from "../../types";
 import { formatTimelineEditorTimeMs } from "../../time";
 import { getTimelineEditorItemStyle } from "../timeline-rendering";
 import { TimelineEditorContextActionMenu } from "./context-menu-items";
-import type { TimelineEditorItemRenderContext } from "./types";
+import { useOptionalTimelineEditor } from "./provider";
+import type { TimelineEditorClipPublicProps, TimelineEditorItemRenderContext } from "./types";
 
-type TimelineEditorClipProps<TItemData> = {
+export type TimelineEditorClipProps<TItemData> = TimelineEditorClipPublicProps<TItemData> & {
   contextMenuItems: MenuActionItem[];
   durationMs: number;
   item: TimelineEditorItem<TItemData>;
@@ -26,18 +27,62 @@ type TimelineEditorClipProps<TItemData> = {
 };
 
 function TimelineEditorClipComponent<TItemData>({
-  contextMenuItems,
-  durationMs,
+  contextMenuItems: contextMenuItemsProp,
+  durationMs: durationMsProp,
   item,
-  locked,
-  readOnly,
-  selected,
-  timelineWidthPx,
-  renderItem,
+  locked: lockedProp,
+  readOnly: readOnlyProp,
+  selected: selectedProp,
+  timelineWidthPx: timelineWidthPxProp,
+  track,
+  renderItem: renderItemProp,
   onContextMenu,
   onMovePointerDown,
   onResizePointerDown,
-}: TimelineEditorClipProps<TItemData>) {
+}: TimelineEditorClipPublicProps<TItemData>) {
+  const editor = useOptionalTimelineEditor<Record<string, unknown>, TItemData>();
+  const selected = selectedProp ?? Boolean(editor?.selectedIds.has(item.id));
+  const readOnly = readOnlyProp ?? Boolean(editor?.readOnly);
+  const locked = lockedProp ?? Boolean(readOnly || item.locked || track?.locked);
+  const durationMs = durationMsProp ?? editor?.durationMs ?? item.startMs + item.durationMs;
+  const timelineWidthPx =
+    timelineWidthPxProp ?? editor?.timelineWidthPx ?? Math.max(640, item.durationMs);
+  const renderItem = renderItemProp ?? editor?.renderItem;
+  const contextMenuItems =
+    contextMenuItemsProp ??
+    (editor?.getItemContextMenuItems && track
+      ? editor.getItemContextMenuItems({
+          document: editor.document,
+          durationMs,
+          item,
+          readOnly: locked,
+          selected,
+          selectedItems: editor.selectedItems,
+          selection: editor.selection,
+          track,
+        })
+      : []);
+  const handleContextMenu =
+    onContextMenu ??
+    (() => {
+      if (editor && !editor.selectedIds.has(item.id)) {
+        editor.commitSelection({ itemIds: [item.id], anchorItemId: item.id });
+      }
+    });
+  const handleMovePointerDown =
+    onMovePointerDown ??
+    ((event) => {
+      if (editor && track) {
+        editor.beginClipMove(item, track, locked, event);
+      }
+    });
+  const handleResizePointerDown =
+    onResizePointerDown ??
+    ((edge, event) => {
+      if (editor) {
+        editor.beginClipResize(edge, item, locked, event);
+      }
+    });
   const clip = (
     <div
       data-slot="timeline-editor-clip"
@@ -58,15 +103,15 @@ function TimelineEditorClipComponent<TItemData>({
       }}
       onContextMenu={(event) => {
         event.stopPropagation();
-        onContextMenu();
+        handleContextMenu();
       }}
-      onPointerDown={onMovePointerDown}
+      onPointerDown={handleMovePointerDown}
     >
       <span
         aria-hidden="true"
         data-slot="timeline-editor-resize-start"
         className="absolute inset-y-1 left-0 w-2 cursor-ew-resize rounded-l-md bg-white/25"
-        onPointerDown={(event) => onResizePointerDown("start", event)}
+        onPointerDown={(event) => handleResizePointerDown("start", event)}
       />
       {renderItem ? (
         renderItem({ item, selected, readOnly })
@@ -77,7 +122,7 @@ function TimelineEditorClipComponent<TItemData>({
         aria-hidden="true"
         data-slot="timeline-editor-resize-end"
         className="absolute inset-y-1 right-0 w-2 cursor-ew-resize rounded-r-md bg-white/25"
-        onPointerDown={(event) => onResizePointerDown("end", event)}
+        onPointerDown={(event) => handleResizePointerDown("end", event)}
       />
     </div>
   );

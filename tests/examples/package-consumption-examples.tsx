@@ -1,12 +1,20 @@
 import { useState } from "react";
 
 import {
+  TimelineEditorContent,
+  TimelineEditorProvider,
+  TimelineEditorRoot,
+  TimelineEditorRuler,
+  TimelineEditorTracks,
   TimelineWorkbench,
   createTimelineEditorHistory,
+  type TimelineEditorClipPublicProps,
+  type TimelineEditorComponents,
   type TimelineEditorClipboard,
   type TimelineEditorDocument,
   type TimelineEditorHistory,
   type TimelineEditorSelection,
+  type TimelineEditorTrackHeaderProps,
   type TimelineEditorViewport,
 } from "@moritzbrantner/timeline-editor";
 import { applyTimelineEditorCommand } from "@moritzbrantner/timeline-editor/commands";
@@ -107,6 +115,44 @@ export function ControlledPackageConsumptionExample() {
       onClipboardChange={setClipboard}
       onHistoryChange={setHistory}
     />
+  );
+}
+
+export function ComposableTimelineEditorExample() {
+  const [document, setDocument] = useState(initialDocument);
+  const [selection, setSelection] = useState<TimelineEditorSelection>({ itemIds: [] });
+  const components: TimelineEditorComponents<Record<string, unknown>, MediaItemData> = {
+    TrackHeader(props: TimelineEditorTrackHeaderProps<Record<string, unknown>, MediaItemData>) {
+      return <div data-slot="timeline-editor-track-header">{props.entry.track.label}</div>;
+    },
+    Clip(props: TimelineEditorClipPublicProps<MediaItemData>) {
+      return (
+        <div
+          data-slot="timeline-editor-clip"
+          role="button"
+          tabIndex={0}
+          onPointerDown={props.onMovePointerDown}
+        >
+          {props.item.label}
+        </div>
+      );
+    },
+  };
+
+  return (
+    <TimelineEditorProvider
+      document={document}
+      selection={selection}
+      onDocumentChange={setDocument}
+      onSelectionChange={setSelection}
+    >
+      <TimelineEditorRoot>
+        <TimelineEditorContent>
+          <TimelineEditorRuler />
+          <TimelineEditorTracks components={components} />
+        </TimelineEditorContent>
+      </TimelineEditorRoot>
+    </TimelineEditorProvider>
   );
 }
 

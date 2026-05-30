@@ -424,6 +424,67 @@ export function Example() {
 Set `frameRate` to make pointer snapping, keyboard nudging, and timing inputs
 use frame-sized increments.
 
+## Composable Timeline Editor
+
+`TimelineEditor` is the default controlled editor. The lower-level pieces are
+public for hosts that need custom chrome or replacement track and clip
+rendering.
+
+```tsx
+import { useState } from "react";
+import {
+  TimelineEditorContent,
+  TimelineEditorProvider,
+  TimelineEditorRoot,
+  TimelineEditorRuler,
+  TimelineEditorTracks,
+  type TimelineEditorComponents,
+  type TimelineEditorDocument,
+  type TimelineEditorSelection,
+} from "@moritzbrantner/timeline-editor";
+
+export function ModularTimeline({ initialDocument }: { initialDocument: TimelineEditorDocument }) {
+  const [document, setDocument] = useState(initialDocument);
+  const [selection, setSelection] = useState<TimelineEditorSelection>({ itemIds: [] });
+  const components: TimelineEditorComponents = {
+    TrackHeader({ entry }) {
+      return <div data-slot="timeline-editor-track-header">{entry.track.label}</div>;
+    },
+    Clip({ item, onMovePointerDown }) {
+      return (
+        <div
+          data-slot="timeline-editor-clip"
+          role="button"
+          tabIndex={0}
+          onPointerDown={onMovePointerDown}
+        >
+          {item.label}
+        </div>
+      );
+    },
+  };
+
+  return (
+    <TimelineEditorProvider
+      document={document}
+      selection={selection}
+      onDocumentChange={setDocument}
+      onSelectionChange={setSelection}
+    >
+      <TimelineEditorRoot className="h-full">
+        <TimelineEditorContent>
+          <TimelineEditorRuler />
+          <TimelineEditorTracks components={components} />
+        </TimelineEditorContent>
+      </TimelineEditorRoot>
+    </TimelineEditorProvider>
+  );
+}
+```
+
+You can also render only `TimelineEditorTracks` or only `TimelineEditorRuler`
+inside the provider/root/content shell when a host owns the surrounding layout.
+
 ## Development Example
 
 Run the local Vite workbench to experiment with the package while developing:

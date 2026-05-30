@@ -108,6 +108,63 @@ export function Example() {
 }
 ```
 
+## Composable Timeline Editor
+
+`TimelineEditor` is the stable simple entry point. Use the composable parts when
+you need to replace the shell, ruler, tracks, rows, lanes, headers, or clips.
+
+```tsx
+import { useState } from "react";
+import {
+  TimelineEditorContent,
+  TimelineEditorProvider,
+  TimelineEditorRoot,
+  TimelineEditorRuler,
+  TimelineEditorTracks,
+  type TimelineEditorComponents,
+  type TimelineEditorDocument,
+  type TimelineEditorSelection,
+} from "@moritzbrantner/timeline-editor";
+
+export function ModularTimeline({ initialDocument }: { initialDocument: TimelineEditorDocument }) {
+  const [document, setDocument] = useState(initialDocument);
+  const [selection, setSelection] = useState<TimelineEditorSelection>({ itemIds: [] });
+  const components: TimelineEditorComponents = {
+    TrackHeader({ entry }) {
+      return <div data-slot="timeline-editor-track-header">{entry.track.label}</div>;
+    },
+    Clip({ item, onMovePointerDown }) {
+      return (
+        <div
+          data-slot="timeline-editor-clip"
+          role="button"
+          tabIndex={0}
+          onPointerDown={onMovePointerDown}
+        >
+          {item.label}
+        </div>
+      );
+    },
+  };
+
+  return (
+    <TimelineEditorProvider
+      document={document}
+      selection={selection}
+      onDocumentChange={setDocument}
+      onSelectionChange={setSelection}
+    >
+      <TimelineEditorRoot className="h-full">
+        <TimelineEditorContent>
+          <TimelineEditorRuler />
+          <TimelineEditorTracks components={components} />
+        </TimelineEditorContent>
+      </TimelineEditorRoot>
+    </TimelineEditorProvider>
+  );
+}
+```
+
 ## Controlled Workbench
 
 ```tsx

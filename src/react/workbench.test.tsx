@@ -9,6 +9,12 @@ import {
   parseTimelineEditorDocument,
   serializeTimelineEditorDocument,
   TimelineEditor,
+  TimelineEditorContent,
+  TimelineEditorProvider,
+  TimelineEditorRoot,
+  TimelineEditorRuler,
+  TimelineEditorTracks,
+  useTimelineEditor,
   type TimelineEditorDocument,
   type TimelineEditorExtension,
   type TimelineEditorTrack,
@@ -206,6 +212,115 @@ function installMockMediaElement() {
 }
 
 describe("@moritzbrantner/timeline-editor React workbench", () => {
+  test("renders the timeline editor from public composable components", () => {
+    const document: TimelineEditorDocument = {
+      tracks,
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+    };
+
+    render(
+      <TimelineEditorProvider document={document} selection={{ itemIds: [] }}>
+        <TimelineEditorRoot>
+          <TimelineEditorContent>
+            <TimelineEditorRuler />
+            <TimelineEditorTracks />
+          </TimelineEditorContent>
+        </TimelineEditorRoot>
+      </TimelineEditorProvider>,
+    );
+
+    expect(screen.getByText("Planning")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Brief" })).toBeTruthy();
+  });
+
+  test("renders timeline tracks and ruler independently inside the provider shell", () => {
+    const document: TimelineEditorDocument = {
+      tracks,
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+    };
+    const { rerender } = render(
+      <TimelineEditorProvider document={document} selection={{ itemIds: [] }}>
+        <TimelineEditorRoot>
+          <TimelineEditorContent>
+            <TimelineEditorTracks />
+          </TimelineEditorContent>
+        </TimelineEditorRoot>
+      </TimelineEditorProvider>,
+    );
+
+    expect(screen.getByText("Planning")).toBeTruthy();
+    expect(screen.queryByText("0:00.0")).toBeNull();
+
+    rerender(
+      <TimelineEditorProvider document={document} selection={{ itemIds: [] }}>
+        <TimelineEditorRoot>
+          <TimelineEditorContent>
+            <TimelineEditorRuler />
+          </TimelineEditorContent>
+        </TimelineEditorRoot>
+      </TimelineEditorProvider>,
+    );
+
+    expect(screen.queryByText("Planning")).toBeNull();
+    expect(screen.getByText("0:00.0")).toBeTruthy();
+  });
+
+  test("throws a clear error when the timeline editor hook is used outside the provider", () => {
+    function HookConsumer() {
+      useTimelineEditor();
+      return null;
+    }
+
+    expect(() => render(<HookConsumer />)).toThrow(
+      "useTimelineEditor must be used within a TimelineEditorProvider.",
+    );
+  });
+
+  test("supports replacing track headers and clips through public slots", () => {
+    const document: TimelineEditorDocument = {
+      tracks,
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+    };
+
+    render(
+      <TimelineEditorProvider document={document} selection={{ itemIds: ["brief"] }}>
+        <TimelineEditorRoot>
+          <TimelineEditorContent>
+            <TimelineEditorTracks
+              components={{
+                TrackHeader({ entry }) {
+                  return (
+                    <div data-slot="timeline-editor-track-header">
+                      Custom header: {entry.track.label}
+                    </div>
+                  );
+                },
+                Clip({ item, onMovePointerDown }) {
+                  return (
+                    <div
+                      data-slot="timeline-editor-clip"
+                      role="button"
+                      tabIndex={0}
+                      onPointerDown={onMovePointerDown}
+                    >
+                      Custom clip: {item.label}
+                    </div>
+                  );
+                },
+              }}
+            />
+          </TimelineEditorContent>
+        </TimelineEditorRoot>
+      </TimelineEditorProvider>,
+    );
+
+    expect(screen.getByText("Custom header: Planning")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Custom clip: Brief" })).toBeTruthy();
+  });
+
   test("commits drag edits once and undo returns to the pre-drag document", () => {
     const document: TimelineEditorDocument = {
       tracks,

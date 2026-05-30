@@ -1,75 +1,21 @@
 "use client";
 
-import type React from "react";
+import { cn } from "@moritzbrantner/ui";
 
-import { clampTimelineEditorTime } from "../../time";
-import type {
-  TimelineEditorDocument,
-  TimelineEditorMarker,
-  TimelineEditorSelection,
-} from "../../types";
-import {
-  getTimelineEditorTimeFromPointer,
-  getVisibleTimelineEditorTicks,
-} from "../timeline-rendering";
 import { TimelineEditorContextMenuTarget } from "./context-menu";
 import { timelineEditorRulerHeightPx, timelineEditorTrackHeaderWidthPx } from "./constants";
+import { TimelineEditorPlayhead, TimelineEditorSnapGuide } from "./overlays";
 import { isTimelineEditorPrimaryPointerButton } from "./pointer";
-import type {
-  TimelineEditorTimelineContextMenuContext,
-  TimelineEditorTimelineContextMenuItems,
-} from "./types";
-import type { TimelineEditorVisibleRange } from "./viewport";
+import { useTimelineEditor } from "./provider";
+import type { TimelineEditorRulerPublicProps } from "./types";
 import { isTimelineEditorTimeVisible } from "./viewport";
 
-type TimelineEditorRulerProps<TTrackData extends Record<string, unknown>, TItemData> = {
-  document: TimelineEditorDocument<TTrackData, TItemData>;
-  durationMs: number;
-  nudgeMs: number;
-  readOnly: boolean;
-  selection: TimelineEditorSelection;
-  getTimelineContextMenuContext?: (
-    event: React.MouseEvent<Element>,
-  ) => TimelineEditorTimelineContextMenuContext<TTrackData, TItemData>;
-  getTimelineContextMenuItems?: TimelineEditorTimelineContextMenuItems<TTrackData, TItemData>;
-  snapGuideMs: number | null;
-  ticks: ReturnType<typeof getVisibleTimelineEditorTicks>;
-  timelineWidthPx: number;
-  visibleRange: TimelineEditorVisibleRange;
-  onCurrentTimeChange?: (timeMs: number) => void;
-  onDocumentChange: (document: TimelineEditorDocument<TTrackData, TItemData>) => void;
-  onMarkerPointerDown?: (
-    marker: TimelineEditorMarker,
-    event: React.PointerEvent<HTMLDivElement>,
-  ) => void;
-  onRangePointerDown?: (event: React.PointerEvent<HTMLDivElement>) => void;
-  onScrubPointerDown?: (event: React.PointerEvent<HTMLDivElement>) => void;
-  setCurrentTime: (
-    document: TimelineEditorDocument<TTrackData, TItemData>,
-    timeMs: number,
-    options: { durationMs: number; snapMs: number },
-  ) => TimelineEditorDocument<TTrackData, TItemData>;
-};
-
-export function TimelineEditorRuler<TTrackData extends Record<string, unknown>, TItemData>({
-  document,
-  durationMs,
-  getTimelineContextMenuContext,
-  getTimelineContextMenuItems,
-  nudgeMs,
-  readOnly,
-  selection,
-  snapGuideMs,
-  ticks,
-  timelineWidthPx,
-  visibleRange,
-  onCurrentTimeChange,
-  onDocumentChange,
-  onMarkerPointerDown,
-  onRangePointerDown,
-  onScrubPointerDown,
-  setCurrentTime,
-}: TimelineEditorRulerProps<TTrackData, TItemData>) {
+export function TimelineEditorRuler({
+  className,
+  style,
+  ...props
+}: TimelineEditorRulerPublicProps = {}) {
+  const editor = useTimelineEditor();
   const rulerLane = (
     <div
       data-slot="timeline-editor-ruler-lane"
@@ -80,57 +26,51 @@ export function TimelineEditorRuler<TTrackData extends Record<string, unknown>, 
         }
 
         if (event.shiftKey) {
-          onRangePointerDown?.(event);
+          editor.beginRangeSelection(event);
           return;
         }
 
-        onScrubPointerDown?.(event);
-        const timeMs = getTimelineEditorTimeFromPointer(event, durationMs);
-        const nextDocument = setCurrentTime(document, timeMs, {
-          durationMs,
-          snapMs: nudgeMs,
-        });
-        onCurrentTimeChange?.(nextDocument.currentTimeMs ?? 0);
-        onDocumentChange(nextDocument);
+        editor.beginTimelineScrub(event);
+        editor.commitCurrentTimeAtClientX(event.clientX);
       }}
     >
-      {ticks.map((tick) => (
+      {editor.ticks.map((tick) => (
         <div
           key={tick.timeMs}
           className="absolute top-0 h-full border-l border-border"
-          style={{ left: `${(tick.timeMs / durationMs) * 100}%` }}
+          style={{ left: `${(tick.timeMs / editor.durationMs) * 100}%` }}
         >
           {tick.major ? (
             <span className="ml-1 text-[10px] text-muted-foreground">{tick.label}</span>
           ) : null}
         </div>
       ))}
-      {selection.range ? (
+      {editor.selection.range ? (
         <TimelineEditorRulerRangeOverlay
-          durationMs={durationMs}
-          range={selection.range}
-          timelineWidthPx={timelineWidthPx}
+          durationMs={editor.durationMs}
+          range={editor.selection.range}
+          timelineWidthPx={editor.timelineWidthPx}
         />
       ) : null}
-      {(document.markers ?? [])
-        .filter((marker) => isTimelineEditorTimeVisible(marker.timeMs, visibleRange))
+      {(editor.document.markers ?? [])
+        .filter((marker) => isTimelineEditorTimeVisible(marker.timeMs, editor.visibleRange))
         .map((marker) => (
           <div
             key={marker.id}
             data-slot="timeline-editor-marker"
             className="absolute top-0 h-full border-l-2"
             style={{
-              left: `${(marker.timeMs / durationMs) * 100}%`,
+              left: `${(marker.timeMs / editor.durationMs) * 100}%`,
               borderColor: marker.color ?? "var(--primary)",
             }}
             title={marker.label}
             onPointerDown={(event) => {
-              if (readOnly) {
+              if (editor.readOnly) {
                 return;
               }
 
               event.stopPropagation();
-              onMarkerPointerDown?.(marker, event);
+              editor.beginMarkerDrag(marker, event);
             }}
           />
         ))}
@@ -141,18 +81,20 @@ export function TimelineEditorRuler<TTrackData extends Record<string, unknown>, 
     <>
       <div
         data-slot="timeline-editor-ruler"
-        className="sticky top-0 z-50 grid border-b bg-card shadow-sm"
+        className={cn("sticky top-0 z-50 grid border-b bg-card shadow-sm", className)}
         style={{
-          gridTemplateColumns: `${timelineEditorTrackHeaderWidthPx}px ${timelineWidthPx}px`,
+          gridTemplateColumns: `${timelineEditorTrackHeaderWidthPx}px ${editor.timelineWidthPx}px`,
           height: timelineEditorRulerHeightPx,
+          ...style,
         }}
+        {...props}
       >
         <div className="border-r bg-card" />
-        {getTimelineContextMenuContext ? (
+        {editor.getTimelineContextMenuItems ? (
           <TimelineEditorContextMenuTarget
             contentProps={{ "data-slot": "timeline-editor-ruler-menu" }}
-            getContext={getTimelineContextMenuContext}
-            getItems={getTimelineContextMenuItems}
+            getContext={(event) => editor.getTimelineContextMenuContext("ruler", event)}
+            getItems={editor.getTimelineContextMenuItems}
           >
             {rulerLane}
           </TimelineEditorContextMenuTarget>
@@ -160,22 +102,8 @@ export function TimelineEditorRuler<TTrackData extends Record<string, unknown>, 
           rulerLane
         )}
       </div>
-      <div
-        data-slot="timeline-editor-playhead"
-        className="pointer-events-none absolute top-0 bottom-0 z-20 w-px bg-primary"
-        style={{
-          left: `${timelineEditorTrackHeaderWidthPx + (clampTimelineEditorTime(document.currentTimeMs ?? 0, 0, durationMs) / durationMs) * timelineWidthPx}px`,
-        }}
-      />
-      {snapGuideMs !== null ? (
-        <div
-          data-slot="timeline-editor-snap-guide"
-          className="pointer-events-none absolute top-0 bottom-0 z-10 w-px bg-ring"
-          style={{
-            left: `${timelineEditorTrackHeaderWidthPx + (snapGuideMs / durationMs) * timelineWidthPx}px`,
-          }}
-        />
-      ) : null}
+      <TimelineEditorPlayhead />
+      <TimelineEditorSnapGuide />
     </>
   );
 }
