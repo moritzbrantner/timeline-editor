@@ -151,7 +151,7 @@ function TimelineWorkbenchScenePreview<TTrackData extends Record<string, unknown
   selectedItems: Array<TimelineEditorItem<TItemData>>;
   transport: TimelinePreviewTransportContext;
 }) {
-  const audioPreloads = getTimelineWorkbenchSceneAudioPreloads(
+  const mediaPreloads = getTimelineWorkbenchSceneMediaPreloads(
     document as TimelineEditorDocument<Record<string, unknown>, unknown>,
     currentTimeMs,
     loopRange,
@@ -186,7 +186,7 @@ function TimelineWorkbenchScenePreview<TTrackData extends Record<string, unknown
   if (items.length === 0) {
     return (
       <>
-        <TimelineWorkbenchSceneAudioPreloads preloads={audioPreloads} />
+        <TimelineWorkbenchSceneMediaPreloads preloads={mediaPreloads} />
         <div className="grid h-full place-items-center p-4">
           <div className="grid gap-1 text-center text-white">
             <div className="text-sm font-medium">0 active items</div>
@@ -202,7 +202,7 @@ function TimelineWorkbenchScenePreview<TTrackData extends Record<string, unknown
   if (sceneItems.length === 0 && extensionPreview) {
     return (
       <>
-        <TimelineWorkbenchSceneAudioPreloads preloads={audioPreloads} />
+        <TimelineWorkbenchSceneMediaPreloads preloads={mediaPreloads} />
         {extensionPreview}
       </>
     );
@@ -210,7 +210,7 @@ function TimelineWorkbenchScenePreview<TTrackData extends Record<string, unknown
 
   return (
     <div data-slot="timeline-workbench-scene-preview" className="relative h-full w-full text-white">
-      <TimelineWorkbenchSceneAudioPreloads preloads={audioPreloads} />
+      <TimelineWorkbenchSceneMediaPreloads preloads={mediaPreloads} />
       {visualItems.map(({ item, track }, index) => (
         <TimelineWorkbenchSceneLayer
           key={item.id}
@@ -366,7 +366,7 @@ function TimelineWorkbenchSceneVideo({
         muted={getBooleanField(data, "muted")}
         playsInline
         poster={getStringField(data, "poster")}
-        preload="metadata"
+        preload="auto"
         src={sourceUri}
         style={{ objectFit: getTimelineWorkbenchObjectFit(data), zIndex }}
       />
@@ -431,37 +431,42 @@ function TimelineWorkbenchSceneAudio({
   );
 }
 
-type TimelineWorkbenchSceneAudioPreload = {
+type TimelineWorkbenchSceneMediaPreload = {
   key: string;
+  mediaType: "audio" | "video";
   item: TimelineEditorItem<unknown>;
+  muted?: boolean;
+  poster?: string;
   sourceEndMs?: number;
   sourceStartMs?: number;
   src: string;
   targetTimeMs: number;
 };
 
-const audioPreloadLookaheadMs = 1_000;
+const mediaPreloadLookaheadMs = 2_000;
+const mediaPreloadBeforeCursorMs = 250;
+const maxTimelineWorkbenchSceneMediaPreloads = 24;
 
-function TimelineWorkbenchSceneAudioPreloads({
+function TimelineWorkbenchSceneMediaPreloads({
   preloads,
 }: {
-  preloads: TimelineWorkbenchSceneAudioPreload[];
+  preloads: TimelineWorkbenchSceneMediaPreload[];
 }) {
   return (
     <>
       {preloads.map((preload) => (
-        <TimelineWorkbenchSceneAudioPreloadElement key={preload.key} preload={preload} />
+        <TimelineWorkbenchSceneMediaPreloadElement key={preload.key} preload={preload} />
       ))}
     </>
   );
 }
 
-function TimelineWorkbenchSceneAudioPreloadElement({
+function TimelineWorkbenchSceneMediaPreloadElement({
   preload,
 }: {
-  preload: TimelineWorkbenchSceneAudioPreload;
+  preload: TimelineWorkbenchSceneMediaPreload;
 }) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const mediaRef = useRef<HTMLMediaElement | null>(null);
   const targetLocalTimeSeconds =
     getTimelineWorkbenchPreloadLocalTimeMs(preload.item, preload.targetTimeMs, {
       sourceEndMs: preload.sourceEndMs,
@@ -469,7 +474,7 @@ function TimelineWorkbenchSceneAudioPreloadElement({
     }) / 1_000;
 
   useEffect(() => {
-    const element = audioRef.current;
+    const element = mediaRef.current;
 
     if (!element) {
       return;
@@ -502,24 +507,44 @@ function TimelineWorkbenchSceneAudioPreloadElement({
     };
   }, [targetLocalTimeSeconds]);
 
+  const sharedProps = {
+    "aria-hidden": "true",
+    "data-media-type": preload.mediaType,
+    "data-slot": "timeline-workbench-scene-media-preload",
+    muted: preload.muted ?? true,
+    preload: "auto",
+    src: preload.src,
+    style: {
+      height: 1,
+      left: 0,
+      opacity: 0,
+      pointerEvents: "none",
+      position: "absolute",
+      top: 0,
+      width: 1,
+    },
+    tabIndex: -1,
+  } as const;
+
+  if (preload.mediaType === "video") {
+    return (
+      <video
+        ref={(element) => {
+          mediaRef.current = element;
+        }}
+        {...sharedProps}
+        playsInline
+        poster={preload.poster}
+      />
+    );
+  }
+
   return (
     <audio
-      ref={audioRef}
-      aria-hidden="true"
-      data-slot="timeline-workbench-scene-audio-preload"
-      muted
-      preload="auto"
-      src={preload.src}
-      style={{
-        height: 1,
-        left: 0,
-        opacity: 0,
-        pointerEvents: "none",
-        position: "absolute",
-        top: 0,
-        width: 1,
+      ref={(element) => {
+        mediaRef.current = element;
       }}
-      tabIndex={-1}
+      {...sharedProps}
     />
   );
 }
@@ -723,33 +748,43 @@ function getTimelineWorkbenchPreviewExtension<
   );
 }
 
-function getTimelineWorkbenchSceneAudioPreloads(
+function getTimelineWorkbenchSceneMediaPreloads(
   document: TimelineEditorDocument<Record<string, unknown>, unknown>,
   currentTimeMs: number,
   loopRange: TimelineEditorTimeRange | undefined,
-): TimelineWorkbenchSceneAudioPreload[] {
+): TimelineWorkbenchSceneMediaPreload[] {
   const ranges = [
     {
       id: "cursor",
-      startMs: Math.max(0, currentTimeMs),
-      endMs: Math.max(0, currentTimeMs + audioPreloadLookaheadMs),
+      order: 0,
+      startMs: Math.max(0, currentTimeMs - mediaPreloadBeforeCursorMs),
+      endMs: Math.max(0, currentTimeMs + mediaPreloadLookaheadMs),
+      targetTimeMs: Math.max(0, currentTimeMs),
     },
   ];
 
   if (loopRange && loopRange.endMs > loopRange.startMs) {
     ranges.push({
       id: "loop",
+      order: 1,
       startMs: Math.max(0, loopRange.startMs),
-      endMs: Math.max(0, Math.min(loopRange.endMs, loopRange.startMs + audioPreloadLookaheadMs)),
+      endMs: Math.max(0, Math.min(loopRange.endMs, loopRange.startMs + mediaPreloadLookaheadMs)),
+      targetTimeMs: Math.max(0, loopRange.startMs),
     });
   }
 
   const seen = new Set<string>();
-  const preloads: TimelineWorkbenchSceneAudioPreload[] = [];
+  const preloads: Array<
+    TimelineWorkbenchSceneMediaPreload & { order: number; rangeOrder: number }
+  > = [];
+  let order = 0;
 
   for (const track of document.tracks) {
     for (const item of track.items) {
-      if (getTimelineMediaTypeForItem(item as TimelineEditorItem<unknown>) !== "audio") {
+      const mediaType = getTimelineMediaTypeForItem(item as TimelineEditorItem<unknown>);
+
+      if (mediaType !== "audio" && mediaType !== "video") {
+        order += 1;
         continue;
       }
 
@@ -757,6 +792,7 @@ function getTimelineWorkbenchSceneAudioPreloads(
       const src = getTimelineWorkbenchSourceUri(data);
 
       if (!src) {
+        order += 1;
         continue;
       }
 
@@ -777,16 +813,36 @@ function getTimelineWorkbenchSceneAudioPreloads(
         preloads.push({
           key,
           item: item as TimelineEditorItem<unknown>,
+          mediaType,
+          muted: true,
+          order,
+          poster: mediaType === "video" ? getStringField(data, "poster") : undefined,
+          rangeOrder: range.order,
           sourceEndMs: getNumberField(data, "sourceEndMs"),
           sourceStartMs: getNumberField(data, "sourceStartMs"),
           src,
-          targetTimeMs: Math.max(item.startMs, Math.min(itemEndMs, range.startMs)),
+          targetTimeMs: Math.max(item.startMs, Math.min(itemEndMs, range.targetTimeMs)),
         });
       }
+
+      order += 1;
     }
   }
 
-  return preloads.slice(0, 8);
+  return preloads
+    .sort((a, b) => {
+      if (a.rangeOrder !== b.rangeOrder) {
+        return a.rangeOrder - b.rangeOrder;
+      }
+
+      if (a.targetTimeMs !== b.targetTimeMs) {
+        return a.targetTimeMs - b.targetTimeMs;
+      }
+
+      return a.order - b.order;
+    })
+    .slice(0, maxTimelineWorkbenchSceneMediaPreloads)
+    .map(({ order: _order, rangeOrder: _rangeOrder, ...preload }) => preload);
 }
 
 function getTimelineWorkbenchPreloadLocalTimeMs(

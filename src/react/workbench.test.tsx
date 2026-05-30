@@ -2352,7 +2352,7 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
       />,
     );
     const preload = container.querySelector(
-      "[data-slot='timeline-workbench-scene-audio-preload']",
+      "[data-slot='timeline-workbench-scene-media-preload'][data-media-type='audio']",
     ) as HTMLAudioElement | null;
 
     expect(container.querySelector("[data-slot='timeline-workbench-scene-audio']")).toBeNull();
@@ -2365,6 +2365,219 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     expect(preload?.currentTime).toBe(0.25);
     expect(media.play).not.toHaveBeenCalled();
     media.restore();
+  });
+
+  test("preloads loop video at the loop start without taking over playback", () => {
+    const media = installMockMediaElement();
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineVideoItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 3_000,
+      tracks: [
+        {
+          id: "video",
+          label: "Video",
+          acceptsItemKinds: ["video"],
+          items: [
+            {
+              id: "clip",
+              trackId: "video",
+              label: "Clip",
+              kind: "video",
+              startMs: 1_000,
+              durationMs: 800,
+              data: {
+                mediaType: "video",
+                poster: "blob:poster",
+                sourceStartMs: 250,
+                source: { uri: "blob:clip" },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        selection={{ itemIds: [], range: { startMs: 1_000, endMs: 1_800 } }}
+        transportState={{ status: "paused", playbackRate: 1, loop: true }}
+        extensions={[createTimelineVideoExtension()]}
+      />,
+    );
+    const preload = container.querySelector(
+      "video[data-slot='timeline-workbench-scene-media-preload'][data-media-type='video']",
+    ) as HTMLVideoElement | null;
+
+    expect(container.querySelector("[data-slot='timeline-workbench-scene-video']")).toBeNull();
+    expect(preload).toBeTruthy();
+    expect(preload?.src).toContain("blob:clip");
+    expect(preload?.preload).toBe("auto");
+    expect(preload?.muted).toBe(true);
+    expect(preload?.poster).toContain("blob:poster");
+    act(() => {
+      preload?.dispatchEvent(new Event("loadedmetadata"));
+    });
+    expect(preload?.currentTime).toBe(0.25);
+    expect(media.play).not.toHaveBeenCalled();
+    media.restore();
+  });
+
+  test("preloads nearby cursor video before it becomes active", () => {
+    const media = installMockMediaElement();
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineVideoItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 900,
+      tracks: [
+        {
+          id: "video",
+          label: "Video",
+          acceptsItemKinds: ["video"],
+          items: [
+            {
+              id: "clip",
+              trackId: "video",
+              label: "Clip",
+              kind: "video",
+              startMs: 1_000,
+              durationMs: 1_000,
+              data: {
+                mediaType: "video",
+                sourceStartMs: 400,
+                source: { uri: "blob:clip" },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        transportState={{ status: "paused", playbackRate: 1, loop: false }}
+        extensions={[createTimelineVideoExtension()]}
+      />,
+    );
+    const preload = container.querySelector(
+      "video[data-slot='timeline-workbench-scene-media-preload'][data-media-type='video']",
+    ) as HTMLVideoElement | null;
+
+    expect(container.querySelector("[data-slot='timeline-workbench-scene-video']")).toBeNull();
+    expect(preload).toBeTruthy();
+    expect(preload?.src).toContain("blob:clip");
+    act(() => {
+      preload?.dispatchEvent(new Event("canplay"));
+    });
+    expect(preload?.currentTime).toBe(0.4);
+    expect(media.play).not.toHaveBeenCalled();
+    media.restore();
+  });
+
+  test("active scene video uses auto preload", () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineVideoItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 1_250,
+      tracks: [
+        {
+          id: "video",
+          label: "Video",
+          acceptsItemKinds: ["video"],
+          items: [
+            {
+              id: "clip",
+              trackId: "video",
+              label: "Clip",
+              kind: "video",
+              startMs: 1_000,
+              durationMs: 1_000,
+              data: {
+                mediaType: "video",
+                source: { uri: "blob:clip" },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        transportState={{ status: "paused", playbackRate: 1, loop: false }}
+        extensions={[createTimelineVideoExtension()]}
+      />,
+    );
+    const player = container.querySelector(
+      "[data-slot='timeline-workbench-scene-video']",
+    ) as HTMLVideoElement | null;
+
+    expect(player).toBeTruthy();
+    expect(player?.preload).toBe("auto");
+  });
+
+  test("preload collection includes audio and video without duplicates", () => {
+    const document: TimelineEditorDocument<
+      Record<string, unknown>,
+      TimelineAudioItemData | TimelineVideoItemData
+    > = {
+      durationMs: 5_000,
+      currentTimeMs: 900,
+      tracks: [
+        {
+          id: "media",
+          label: "Media",
+          acceptsItemKinds: ["audio", "video"],
+          items: [
+            {
+              id: "voice",
+              trackId: "media",
+              label: "Voiceover",
+              kind: "audio",
+              startMs: 1_000,
+              durationMs: 1_000,
+              data: {
+                mediaType: "audio",
+                source: { uri: "blob:voice" },
+              },
+            },
+            {
+              id: "clip",
+              trackId: "media",
+              label: "Clip",
+              kind: "video",
+              startMs: 1_200,
+              durationMs: 1_000,
+              data: {
+                mediaType: "video",
+                source: { uri: "blob:clip" },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        selection={{ itemIds: [], range: { startMs: 1_000, endMs: 2_200 } }}
+        transportState={{ status: "paused", playbackRate: 1, loop: true }}
+        extensions={
+          [createTimelineAudioExtension(), createTimelineVideoExtension()] as Array<
+            TimelineEditorExtension<TimelineAudioItemData | TimelineVideoItemData>
+          >
+        }
+      />,
+    );
+    const preloads = Array.from(
+      container.querySelectorAll("[data-slot='timeline-workbench-scene-media-preload']"),
+    ) as HTMLMediaElement[];
+
+    expect(preloads).toHaveLength(4);
+    expect(preloads.filter((preload) => preload.dataset["mediaType"] === "audio")).toHaveLength(2);
+    expect(preloads.filter((preload) => preload.dataset["mediaType"] === "video")).toHaveLength(2);
+    expect(new Set(preloads.map((preload) => preload.src)).size).toBe(2);
   });
 
   test("mixed common and custom preview items compose extension fallback with scene layers", () => {
