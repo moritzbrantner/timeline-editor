@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useMemo, useRef } from "react";
 
 import { ToggleGroup, ToggleGroupItem } from "@moritzbrantner/ui";
 
@@ -16,18 +16,32 @@ import { getTimelineMediaTypeForItem } from "../../media-types";
 import {
   getTimelineTextCuesAt,
   getTimelineTextStyleForCue,
-  parseTimelineText,
-  type TimelineTextAlignment,
-  type TimelineTextCue,
   type TimelineTextItemData,
-  type TimelineTextParseResult,
-  type TimelineTextStyle,
 } from "../../text";
 import type {
   TimelineEditorExtension,
   TimelinePreviewTransportContext,
   TimelineWorkbenchPreviewMode,
 } from "./types";
+import { getTimelineWorkbenchPreviewItems, TimelineWorkbenchMiniPreview } from "./preview-mini";
+import {
+  getTimelineWorkbenchSceneMediaPreloads,
+  TimelineWorkbenchSceneMediaPreloads,
+} from "./preview-media-preloads";
+import {
+  getTimelineWorkbenchSubtitleCueStyle,
+  getTimelineWorkbenchSubtitlePlacementStyle,
+  useTimelineWorkbenchParsedTextSource,
+} from "./preview-text";
+import {
+  getBooleanField,
+  getNumberField,
+  getStringField,
+  getTimelineWorkbenchItemData,
+  getTimelineWorkbenchObjectFit,
+  getTimelineWorkbenchSourceUri,
+  isTimelineWorkbenchKnownSceneItem,
+} from "./preview-utils";
 import { useTimelineWorkbenchSynchronizedMediaElement } from "./use-synchronized-media";
 
 type TimelineWorkbenchPreviewProps<
@@ -419,171 +433,6 @@ function TimelineWorkbenchSceneText({
   );
 }
 
-type TimelineWorkbenchParsedTextSourceState = {
-  status: "idle" | "loading" | "ready" | "failed";
-  result?: TimelineTextParseResult;
-};
-
-const maxTimelineWorkbenchTextSourceCacheEntries = 32;
-const timelineWorkbenchTextSourceCache = new Map<string, TimelineTextParseResult>();
-
-function useTimelineWorkbenchParsedTextSource(
-  sourceUri: string | undefined,
-  data: TimelineTextItemData | undefined,
-) {
-  const cacheKey = sourceUri
-    ? [sourceUri, data?.format ?? "", data?.source?.mimeType ?? ""].join("|")
-    : undefined;
-  const [state, setState] = useState<TimelineWorkbenchParsedTextSourceState>(() => {
-    const cached = cacheKey ? timelineWorkbenchTextSourceCache.get(cacheKey) : undefined;
-
-    return cached ? { status: "ready", result: cached } : { status: "idle" };
-  });
-
-  useEffect(() => {
-    if (!sourceUri || !cacheKey) {
-      setState({ status: "idle" });
-      return;
-    }
-
-    const cached = timelineWorkbenchTextSourceCache.get(cacheKey);
-
-    if (cached) {
-      setState({ status: "ready", result: cached });
-      return;
-    }
-
-    if (typeof fetch !== "function") {
-      setState({ status: "failed" });
-      return;
-    }
-
-    let cancelled = false;
-
-    setState({ status: "loading" });
-    void fetch(sourceUri)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`Subtitle source request failed with status ${response.status}.`);
-        }
-
-        return response.text();
-      })
-      .then((text) => {
-        const result = parseTimelineText(text, {
-          format: data?.format,
-          sourceLabel: data?.source?.label ?? sourceUri,
-          mimeType: data?.source?.mimeType,
-        });
-
-        if (cancelled) {
-          return;
-        }
-
-        timelineWorkbenchTextSourceCache.set(cacheKey, result);
-
-        while (timelineWorkbenchTextSourceCache.size > maxTimelineWorkbenchTextSourceCacheEntries) {
-          const oldestKey = timelineWorkbenchTextSourceCache.keys().next().value;
-
-          if (!oldestKey) {
-            break;
-          }
-
-          timelineWorkbenchTextSourceCache.delete(oldestKey);
-        }
-
-        setState({ status: "ready", result });
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setState({ status: "failed" });
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [cacheKey, data?.format, data?.source?.label, data?.source?.mimeType, sourceUri]);
-
-  return state;
-}
-
-function getTimelineWorkbenchSubtitlePlacementStyle(
-  cue: TimelineTextCue,
-  style: TimelineTextStyle | undefined,
-): CSSProperties {
-  const alignment = cue.alignment ?? style?.alignment ?? "bottom-center";
-  const [vertical, horizontal] = getTimelineWorkbenchTextAlignmentParts(alignment);
-  const marginLeft = cue.marginLeft ?? style?.marginLeft ?? 16;
-  const marginRight = cue.marginRight ?? style?.marginRight ?? 16;
-  const marginVertical = cue.marginVertical ?? style?.marginVertical ?? 16;
-
-  if (cue.positionX !== undefined || cue.positionY !== undefined) {
-    return {
-      left: `${cue.positionX ?? 50}%`,
-      maxWidth: "80%",
-      textAlign: getTimelineWorkbenchSubtitleTextAlign(horizontal),
-      top: `${cue.positionY ?? 90}%`,
-      transform: "translate(-50%, -50%)",
-    };
-  }
-
-  return {
-    bottom: vertical === "bottom" ? marginVertical : undefined,
-    justifyItems: getTimelineWorkbenchSubtitleJustifyItems(horizontal),
-    left: marginLeft,
-    right: marginRight,
-    textAlign: getTimelineWorkbenchSubtitleTextAlign(horizontal),
-    top: vertical === "middle" ? "50%" : vertical === "top" ? marginVertical : undefined,
-    transform: vertical === "middle" ? "translateY(-50%)" : undefined,
-  };
-}
-
-function getTimelineWorkbenchSubtitleCueStyle(
-  cue: TimelineTextCue,
-  style: TimelineTextStyle | undefined,
-): CSSProperties {
-  const shadowColor =
-    cue.shadowColor ?? style?.shadowColor ?? cue.outlineColor ?? style?.outlineColor;
-
-  return {
-    backgroundColor: cue.backgroundColor ?? style?.backgroundColor,
-    color: cue.color ?? style?.color,
-    fontFamily: cue.fontFamily ?? style?.fontFamily,
-    fontSize: cue.fontSize ?? style?.fontSize,
-    fontStyle: (cue.italic ?? style?.italic) ? "italic" : undefined,
-    fontWeight: (cue.bold ?? style?.bold) ? 700 : undefined,
-    textDecoration: (cue.underline ?? style?.underline) ? "underline" : undefined,
-    textShadow: shadowColor
-      ? `0 1px 2px ${shadowColor}, 1px 0 2px ${shadowColor}, -1px 0 2px ${shadowColor}`
-      : undefined,
-  };
-}
-
-function getTimelineWorkbenchTextAlignmentParts(alignment: TimelineTextAlignment) {
-  if (alignment.startsWith("top-")) {
-    return ["top", alignment.slice(4)] as const;
-  }
-
-  if (alignment.startsWith("middle-")) {
-    return ["middle", alignment.slice(7)] as const;
-  }
-
-  if (alignment.startsWith("bottom-")) {
-    return ["bottom", alignment.slice(7)] as const;
-  }
-
-  return ["bottom", alignment] as const;
-}
-
-function getTimelineWorkbenchSubtitleJustifyItems(horizontal: string) {
-  return horizontal === "left" ? "start" : horizontal === "right" ? "end" : "center";
-}
-
-function getTimelineWorkbenchSubtitleTextAlign(horizontal: string) {
-  return horizontal === "left" ? "left" : horizontal === "right" ? "right" : "center";
-}
-
 function TimelineWorkbenchSceneVideo({
   currentTimeMs,
   item,
@@ -688,124 +537,6 @@ function TimelineWorkbenchSceneAudio({
   );
 }
 
-type TimelineWorkbenchSceneMediaPreload = {
-  key: string;
-  mediaType: "audio" | "video";
-  item: TimelineEditorItem<unknown>;
-  muted?: boolean;
-  poster?: string;
-  sourceEndMs?: number;
-  sourceStartMs?: number;
-  src: string;
-  targetTimeMs: number;
-};
-
-const mediaPreloadLookaheadMs = 2_000;
-const mediaPreloadBeforeCursorMs = 250;
-const maxTimelineWorkbenchSceneMediaPreloads = 24;
-
-function TimelineWorkbenchSceneMediaPreloads({
-  preloads,
-}: {
-  preloads: TimelineWorkbenchSceneMediaPreload[];
-}) {
-  return (
-    <>
-      {preloads.map((preload) => (
-        <TimelineWorkbenchSceneMediaPreloadElement key={preload.key} preload={preload} />
-      ))}
-    </>
-  );
-}
-
-function TimelineWorkbenchSceneMediaPreloadElement({
-  preload,
-}: {
-  preload: TimelineWorkbenchSceneMediaPreload;
-}) {
-  const mediaRef = useRef<HTMLMediaElement | null>(null);
-  const targetLocalTimeSeconds =
-    getTimelineWorkbenchPreloadLocalTimeMs(preload.item, preload.targetTimeMs, {
-      sourceEndMs: preload.sourceEndMs,
-      sourceStartMs: preload.sourceStartMs ?? 0,
-    }) / 1_000;
-
-  useEffect(() => {
-    const element = mediaRef.current;
-
-    if (!element) {
-      return;
-    }
-
-    const seekToTarget = () => {
-      if (!Number.isFinite(targetLocalTimeSeconds)) {
-        return;
-      }
-
-      try {
-        if (Math.abs(element.currentTime - targetLocalTimeSeconds) > 0.05) {
-          element.currentTime = targetLocalTimeSeconds;
-        }
-      } catch {
-        // Some media sources cannot seek until enough metadata has loaded.
-      }
-    };
-
-    if (element.readyState >= 1) {
-      seekToTarget();
-    }
-
-    element.addEventListener("loadedmetadata", seekToTarget);
-    element.addEventListener("canplay", seekToTarget);
-
-    return () => {
-      element.removeEventListener("loadedmetadata", seekToTarget);
-      element.removeEventListener("canplay", seekToTarget);
-    };
-  }, [targetLocalTimeSeconds]);
-
-  const sharedProps = {
-    "aria-hidden": "true",
-    "data-media-type": preload.mediaType,
-    "data-slot": "timeline-workbench-scene-media-preload",
-    muted: preload.muted ?? true,
-    preload: "auto",
-    src: preload.src,
-    style: {
-      height: 1,
-      left: 0,
-      opacity: 0,
-      pointerEvents: "none",
-      position: "absolute",
-      top: 0,
-      width: 1,
-    },
-    tabIndex: -1,
-  } as const;
-
-  if (preload.mediaType === "video") {
-    return (
-      <video
-        ref={(element) => {
-          mediaRef.current = element;
-        }}
-        {...sharedProps}
-        playsInline
-        poster={preload.poster}
-      />
-    );
-  }
-
-  return (
-    <audio
-      ref={(element) => {
-        mediaRef.current = element;
-      }}
-      {...sharedProps}
-    />
-  );
-}
-
 function TimelineWorkbenchSourceState({
   item,
   label,
@@ -846,136 +577,6 @@ function TimelineWorkbenchFallbackItemCard<TItemData>({
   );
 }
 
-function TimelineWorkbenchMiniPreview<TTrackData extends Record<string, unknown>, TItemData>({
-  currentTimeMs,
-  document,
-  durationMs,
-}: {
-  currentTimeMs: number;
-  document: TimelineEditorDocument<TTrackData, TItemData>;
-  durationMs: number;
-}) {
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const safeDurationMs = Math.max(1, durationMs);
-  const timelineWidthPx = Math.max(480, (safeDurationMs / 1_000) * 64);
-  const playheadLeftPx = Math.min(
-    timelineWidthPx,
-    Math.max(0, (currentTimeMs / safeDurationMs) * timelineWidthPx),
-  );
-
-  useLayoutEffect(() => {
-    const scroller = scrollRef.current;
-
-    if (!scroller) {
-      return;
-    }
-
-    const marginPx = 48;
-    const safeLeft = scroller.scrollLeft + marginPx;
-    const safeRight = scroller.scrollLeft + scroller.clientWidth - marginPx;
-    let nextScrollLeft = scroller.scrollLeft;
-
-    if (playheadLeftPx < safeLeft) {
-      nextScrollLeft = playheadLeftPx - marginPx;
-    } else if (playheadLeftPx > safeRight) {
-      nextScrollLeft = playheadLeftPx - scroller.clientWidth + marginPx;
-    }
-
-    nextScrollLeft = Math.max(
-      0,
-      Math.min(nextScrollLeft, Math.max(0, scroller.scrollWidth - scroller.clientWidth)),
-    );
-
-    if (Math.abs(scroller.scrollLeft - nextScrollLeft) >= 1) {
-      scroller.scrollLeft = nextScrollLeft;
-    }
-  }, [playheadLeftPx]);
-
-  if (document.tracks.length === 0) {
-    return (
-      <div
-        data-slot="timeline-workbench-mini-preview"
-        className="grid h-full place-items-center p-4 text-center text-white"
-      >
-        <div className="text-sm font-medium">
-          0 tracks · {formatTimelineEditorTimeMs(currentTimeMs)} /{" "}
-          {formatTimelineEditorTimeMs(durationMs)}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      data-slot="timeline-workbench-mini-preview"
-      className="grid h-full min-h-0 text-white"
-      style={{ gridTemplateColumns: "96px minmax(0, 1fr)" }}
-    >
-      <div className="overflow-hidden border-r border-white/10 pt-4">
-        {document.tracks.map((track) => (
-          <div
-            key={track.id}
-            data-slot="timeline-workbench-mini-preview-label"
-            className="flex h-9 items-center truncate border-b border-white/10 px-3 text-xs text-white/70"
-            title={track.label}
-          >
-            {track.label}
-          </div>
-        ))}
-      </div>
-      <div ref={scrollRef} className="min-w-0 overflow-x-auto overflow-y-hidden pt-4">
-        <div className="relative" style={{ width: timelineWidthPx }}>
-          <div
-            data-slot="timeline-workbench-mini-preview-playhead"
-            className="absolute top-0 bottom-0 z-20 w-px bg-primary"
-            style={{ left: playheadLeftPx }}
-          />
-          {document.tracks.map((track) => (
-            <div
-              key={track.id}
-              data-slot="timeline-workbench-mini-preview-row"
-              className="relative h-9 border-b border-white/10"
-            >
-              {track.items.map((item) => (
-                <div
-                  key={item.id}
-                  data-slot="timeline-workbench-mini-preview-item"
-                  className="absolute top-2 h-4 rounded-sm border border-white/10"
-                  title={item.label}
-                  style={{
-                    left: `${Math.max(0, (item.startMs / safeDurationMs) * timelineWidthPx)}px`,
-                    width: `${Math.max(2, (item.durationMs / safeDurationMs) * timelineWidthPx)}px`,
-                    background: item.color ?? "hsl(var(--primary))",
-                  }}
-                />
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function getTimelineWorkbenchPreviewItems<TTrackData extends Record<string, unknown>, TItemData>(
-  mode: TimelineWorkbenchPreviewMode,
-  document: TimelineEditorDocument<TTrackData, TItemData>,
-  selectedItems: Array<TimelineEditorItem<TItemData>>,
-  activeItems: Array<{
-    item: TimelineEditorItem<TItemData>;
-    track: TimelineEditorTrack<TTrackData, TItemData>;
-  }>,
-) {
-  if (mode === "selection-first" && selectedItems.length > 0) {
-    return selectedItems.map((item) => ({
-      item,
-      track: document.tracks.find((track) => track.id === item.trackId),
-    }));
-  }
-
-  return activeItems;
-}
-
 function getTimelineWorkbenchPreviewExtension<
   TItemData,
   TTrackData extends Record<string, unknown>,
@@ -1003,162 +604,4 @@ function getTimelineWorkbenchPreviewExtension<
         return mediaType ? extension.mediaTypes?.includes(mediaType) : false;
       }),
   );
-}
-
-function getTimelineWorkbenchSceneMediaPreloads(
-  document: TimelineEditorDocument<Record<string, unknown>, unknown>,
-  currentTimeMs: number,
-  loopRange: TimelineEditorTimeRange | undefined,
-): TimelineWorkbenchSceneMediaPreload[] {
-  const ranges = [
-    {
-      id: "cursor",
-      order: 0,
-      startMs: Math.max(0, currentTimeMs - mediaPreloadBeforeCursorMs),
-      endMs: Math.max(0, currentTimeMs + mediaPreloadLookaheadMs),
-      targetTimeMs: Math.max(0, currentTimeMs),
-    },
-  ];
-
-  if (loopRange && loopRange.endMs > loopRange.startMs) {
-    ranges.push({
-      id: "loop",
-      order: 1,
-      startMs: Math.max(0, loopRange.startMs),
-      endMs: Math.max(0, Math.min(loopRange.endMs, loopRange.startMs + mediaPreloadLookaheadMs)),
-      targetTimeMs: Math.max(0, loopRange.startMs),
-    });
-  }
-
-  const seen = new Set<string>();
-  const preloads: Array<
-    TimelineWorkbenchSceneMediaPreload & { order: number; rangeOrder: number }
-  > = [];
-  let order = 0;
-
-  for (const track of document.tracks) {
-    for (const item of track.items) {
-      const mediaType = getTimelineMediaTypeForItem(item as TimelineEditorItem<unknown>);
-
-      if (mediaType !== "audio" && mediaType !== "video") {
-        order += 1;
-        continue;
-      }
-
-      const data = getTimelineWorkbenchItemData(item as TimelineEditorItem<unknown>);
-      const src = getTimelineWorkbenchSourceUri(data);
-
-      if (!src) {
-        order += 1;
-        continue;
-      }
-
-      const itemEndMs = getTimelineEditorItemEndMs(item);
-
-      for (const range of ranges) {
-        if (range.endMs < item.startMs || range.startMs > itemEndMs) {
-          continue;
-        }
-
-        const key = `${range.id}:${item.id}`;
-
-        if (seen.has(key)) {
-          continue;
-        }
-
-        seen.add(key);
-        preloads.push({
-          key,
-          item: item as TimelineEditorItem<unknown>,
-          mediaType,
-          muted: true,
-          order,
-          poster: mediaType === "video" ? getStringField(data, "poster") : undefined,
-          rangeOrder: range.order,
-          sourceEndMs: getNumberField(data, "sourceEndMs"),
-          sourceStartMs: getNumberField(data, "sourceStartMs"),
-          src,
-          targetTimeMs: Math.max(item.startMs, Math.min(itemEndMs, range.targetTimeMs)),
-        });
-      }
-
-      order += 1;
-    }
-  }
-
-  return preloads
-    .sort((a, b) => {
-      if (a.rangeOrder !== b.rangeOrder) {
-        return a.rangeOrder - b.rangeOrder;
-      }
-
-      if (a.targetTimeMs !== b.targetTimeMs) {
-        return a.targetTimeMs - b.targetTimeMs;
-      }
-
-      return a.order - b.order;
-    })
-    .slice(0, maxTimelineWorkbenchSceneMediaPreloads)
-    .map(({ order: _order, rangeOrder: _rangeOrder, ...preload }) => preload);
-}
-
-function getTimelineWorkbenchPreloadLocalTimeMs(
-  item: TimelineEditorItem<unknown>,
-  currentTimeMs: number,
-  options: { sourceStartMs: number; sourceEndMs?: number },
-) {
-  const unclampedLocalTimeMs = currentTimeMs - item.startMs + options.sourceStartMs;
-  const lowerBoundMs = Math.max(0, options.sourceStartMs);
-  const resolvedUpperBoundMs = options.sourceEndMs ?? lowerBoundMs + item.durationMs;
-  const upperBoundMs = Math.max(lowerBoundMs, resolvedUpperBoundMs);
-
-  return Math.max(lowerBoundMs, Math.min(upperBoundMs, unclampedLocalTimeMs));
-}
-
-function isTimelineWorkbenchKnownSceneItem(item: TimelineEditorItem<unknown>) {
-  const mediaType = getTimelineMediaTypeForItem(item);
-
-  return (
-    mediaType === "audio" || mediaType === "video" || mediaType === "image" || mediaType === "text"
-  );
-}
-
-function getTimelineWorkbenchItemData(item: TimelineEditorItem<unknown>) {
-  return item.data && typeof item.data === "object"
-    ? (item.data as Record<string, unknown>)
-    : undefined;
-}
-
-function getTimelineWorkbenchSourceUri(data: Record<string, unknown> | undefined) {
-  const source = data?.["source"];
-
-  if (!source || typeof source !== "object" || !("uri" in source)) {
-    return undefined;
-  }
-
-  return typeof source.uri === "string" ? source.uri : undefined;
-}
-
-function getTimelineWorkbenchObjectFit(data: Record<string, unknown> | undefined) {
-  const fit = getStringField(data, "fit");
-
-  return fit === "cover" || fit === "fill" || fit === "none" ? fit : "contain";
-}
-
-function getStringField(data: Record<string, unknown> | undefined, key: string) {
-  const value = data?.[key];
-
-  return typeof value === "string" ? value : undefined;
-}
-
-function getNumberField(data: Record<string, unknown> | undefined, key: string) {
-  const value = data?.[key];
-
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
-
-function getBooleanField(data: Record<string, unknown> | undefined, key: string) {
-  const value = data?.[key];
-
-  return typeof value === "boolean" ? value : undefined;
 }
