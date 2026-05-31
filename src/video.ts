@@ -5,6 +5,7 @@ import type {
   TimelineEditorExtension,
   TimelinePreviewTransportContext,
 } from "./react/workbench/types";
+import type { TimelineWorkbenchAsset } from "./react/workbench/types";
 import { useTimelineWorkbenchSynchronizedMediaElement } from "./react/workbench/use-synchronized-media";
 import type {
   TimelineMediaDisplayRange,
@@ -23,6 +24,35 @@ export type TimelineVideoItemData = TimelineMediaDisplayRange & {
   muted?: boolean;
   volume?: number;
   data?: Record<string, unknown>;
+};
+
+export type TimelineVideoFileAssetOptions = {
+  id?: string;
+  label?: string;
+  durationMs?: number;
+  width?: number;
+  height?: number;
+  poster?: string;
+  thumbnails?: string[];
+  thumbnailCount?: number;
+  thumbnailTimesMs?: number[];
+  color?: string;
+  fit?: TimelineMediaFit;
+  muted?: boolean;
+  volume?: number;
+  sourceId?: string;
+  metadata?: Record<string, unknown>;
+  createObjectUrl?: (file: File) => string;
+  generatePoster?: boolean;
+  posterTimeMs?: number;
+  thumbnailMimeType?: string;
+  thumbnailQuality?: number;
+};
+
+export type TimelineVideoFileAssetResult = {
+  asset: TimelineWorkbenchAsset<TimelineVideoItemData>;
+  objectUrl?: string;
+  revoke?: () => void;
 };
 
 export type {
@@ -56,6 +86,85 @@ export function createTimelineVideoExtension(): TimelineEditorExtension<Timeline
         items: context.items,
         transport: context.transport,
       }),
+  };
+}
+
+export async function createTimelineVideoFileAsset(
+  file: File,
+  options: TimelineVideoFileAssetOptions = {},
+): Promise<TimelineVideoFileAssetResult> {
+  const createObjectUrl =
+    options.createObjectUrl ??
+    (typeof URL !== "undefined" && typeof URL.createObjectURL === "function"
+      ? (source: File) => URL.createObjectURL(source)
+      : undefined);
+  const objectUrl = createObjectUrl?.(file);
+  const label = options.label ?? file.name;
+  const shouldProbeMetadata =
+    options.durationMs === undefined || options.width === undefined || options.height === undefined;
+  const shouldGeneratePoster = options.poster === undefined && options.generatePoster !== false;
+  const shouldGenerateThumbnails =
+    options.thumbnails === undefined &&
+    ((options.thumbnailCount ?? 0) > 0 || (options.thumbnailTimesMs?.length ?? 0) > 0);
+  const metadata: TimelineVideoMetadata =
+    objectUrl && (shouldProbeMetadata || shouldGeneratePoster || shouldGenerateThumbnails)
+      ? await loadTimelineVideoMetadata(objectUrl, {
+          generatePoster: shouldGeneratePoster,
+          generateThumbnails: shouldGenerateThumbnails,
+          posterTimeMs: options.posterTimeMs,
+          thumbnailCount: options.thumbnailCount,
+          thumbnailTimesMs: options.thumbnailTimesMs,
+          thumbnailMimeType: options.thumbnailMimeType,
+          thumbnailQuality: options.thumbnailQuality,
+        }).catch((): TimelineVideoMetadata => ({}))
+      : {};
+  const durationMs = options.durationMs ?? metadata.durationMs ?? 1_000;
+  const width = options.width ?? metadata.width;
+  const height = options.height ?? metadata.height;
+  const poster = options.poster ?? metadata.poster;
+  const thumbnails = options.thumbnails ?? metadata.thumbnails;
+  const source: TimelineMediaSourceRef = {
+    id: options.sourceId,
+    uri: objectUrl,
+    label,
+    mimeType: file.type || undefined,
+    metadata: {
+      fileName: file.name,
+      lastModified: file.lastModified,
+      size: file.size,
+      durationMs,
+      width,
+      height,
+      ...options.metadata,
+    },
+  };
+
+  return {
+    asset: {
+      id: options.id ?? createTimelineVideoFileAssetId(label),
+      label,
+      kind: "video",
+      mediaType: "video",
+      durationMs,
+      color: options.color,
+      description: file.type || "Video file",
+      data: {
+        mediaType: "video",
+        source,
+        width,
+        height,
+        poster,
+        thumbnails,
+        fit: options.fit,
+        muted: options.muted,
+        volume: options.volume,
+      },
+    },
+    objectUrl,
+    revoke:
+      objectUrl && typeof URL !== "undefined" && typeof URL.revokeObjectURL === "function"
+        ? () => URL.revokeObjectURL(objectUrl)
+        : undefined,
   };
 }
 
@@ -190,5 +299,252 @@ function createTimelineVideoStrip(data: TimelineVideoItemData | undefined) {
     "data-slot": "timeline-media-video-poster",
     className: "h-4 w-full rounded-sm object-cover",
     src: data.poster,
+  });
+}
+
+function createTimelineVideoFileAssetId(label: string) {
+  const slug = label
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-|-$/g, "");
+
+  return slug ? `video-${slug}` : "video-file";
+}
+
+type TimelineVideoMetadata = {
+  durationMs?: number;
+  width?: number;
+  height?: number;
+  poster?: string;
+  thumbnails?: string[];
+};
+
+type TimelineVideoMetadataOptions = {
+  generatePoster?: boolean;
+  generateThumbnails?: boolean;
+  posterTimeMs?: number;
+  thumbnailCount?: number;
+  thumbnailTimesMs?: number[];
+  thumbnailMimeType?: string;
+  thumbnailQuality?: number;
+};
+
+function loadTimelineVideoMetadata(
+  uri: string,
+  options: TimelineVideoMetadataOptions,
+): Promise<TimelineVideoMetadata> {
+  if (typeof document === "undefined") {
+    return Promise.resolve({});
+  }
+
+  return new Promise<TimelineVideoMetadata>((resolve) => {
+    const video = document.createElement("video");
+    let settled = false;
+    const timeout = globalThis.setTimeout(() => settle({}), 4_000);
+    const cleanup = () => {
+      globalThis.clearTimeout(timeout);
+      video.onloadedmetadata = null;
+      video.onerror = null;
+      video.removeAttribute("src");
+      try {
+        video.load();
+      } catch {
+        // Some test DOM implementations expose media elements without load support.
+      }
+    };
+    const settle = (metadata: TimelineVideoMetadata) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      cleanup();
+      resolve(metadata);
+    };
+
+    video.preload = options.generatePoster || options.generateThumbnails ? "auto" : "metadata";
+    video.muted = true;
+    video.playsInline = true;
+    video.onloadedmetadata = () => {
+      void (async () => {
+        const durationMs = Number.isFinite(video.duration)
+          ? Math.max(1, Math.round(video.duration * 1_000))
+          : undefined;
+        const width =
+          Number.isFinite(video.videoWidth) && video.videoWidth > 0
+            ? Math.round(video.videoWidth)
+            : undefined;
+        const height =
+          Number.isFinite(video.videoHeight) && video.videoHeight > 0
+            ? Math.round(video.videoHeight)
+            : undefined;
+        const metadata: TimelineVideoMetadata = { durationMs, width, height };
+
+        if (canCaptureTimelineVideoFrame(video)) {
+          if (options.generatePoster) {
+            metadata.poster = await captureTimelineVideoFrame(video, {
+              timeMs: options.posterTimeMs ?? 0,
+              mimeType: options.thumbnailMimeType,
+              quality: options.thumbnailQuality,
+            }).catch(() => undefined);
+          }
+
+          if (options.generateThumbnails) {
+            const thumbnailTimes = getTimelineVideoThumbnailTimesMs({
+              durationMs,
+              thumbnailCount: options.thumbnailCount,
+              thumbnailTimesMs: options.thumbnailTimesMs,
+            });
+            const thumbnails = await captureTimelineVideoFrames(video, thumbnailTimes, {
+              mimeType: options.thumbnailMimeType,
+              quality: options.thumbnailQuality,
+            });
+
+            if (thumbnails.length > 0) {
+              metadata.thumbnails = thumbnails;
+            }
+          }
+        }
+
+        settle(metadata);
+      })();
+    };
+    video.onerror = () => settle({});
+    video.src = uri;
+    try {
+      video.load();
+    } catch {
+      settle({});
+    }
+  });
+}
+
+function canCaptureTimelineVideoFrame(video: HTMLVideoElement) {
+  return (
+    typeof document !== "undefined" &&
+    Number.isFinite(video.videoWidth) &&
+    video.videoWidth > 0 &&
+    Number.isFinite(video.videoHeight) &&
+    video.videoHeight > 0
+  );
+}
+
+function captureTimelineVideoFrame(
+  video: HTMLVideoElement,
+  options: {
+    timeMs: number;
+    mimeType?: string;
+    quality?: number;
+  },
+) {
+  return new Promise<string | undefined>((resolve) => {
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+
+    if (!context || typeof canvas.toDataURL !== "function") {
+      resolve(undefined);
+      return;
+    }
+
+    const width = Math.max(1, Math.round(video.videoWidth));
+    const height = Math.max(1, Math.round(video.videoHeight));
+    canvas.width = width;
+    canvas.height = height;
+
+    seekTimelineVideo(video, options.timeMs)
+      .then(() => {
+        context.drawImage(video, 0, 0, width, height);
+        resolve(canvas.toDataURL(options.mimeType ?? "image/jpeg", options.quality ?? 0.82));
+      })
+      .catch(() => resolve(undefined));
+  });
+}
+
+function captureTimelineVideoFrames(
+  video: HTMLVideoElement,
+  timesMs: number[],
+  options: {
+    mimeType?: string;
+    quality?: number;
+  },
+) {
+  return timesMs.reduce<Promise<string[]>>(async (previousThumbnails, timeMs) => {
+    const thumbnails = await previousThumbnails;
+    const thumbnail = await captureTimelineVideoFrame(video, {
+      timeMs,
+      mimeType: options.mimeType,
+      quality: options.quality,
+    }).catch(() => undefined);
+
+    return thumbnail ? [...thumbnails, thumbnail] : thumbnails;
+  }, Promise.resolve([]));
+}
+
+function seekTimelineVideo(video: HTMLVideoElement, timeMs: number) {
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const durationMs = Number.isFinite(video.duration) ? video.duration * 1_000 : undefined;
+    const clampedTimeMs = Math.max(0, Math.min(timeMs, durationMs ?? timeMs));
+    const timeSeconds = clampedTimeMs / 1_000;
+    const timeout = globalThis.setTimeout(() => settle(), 2_000);
+    const cleanup = () => {
+      globalThis.clearTimeout(timeout);
+      video.removeEventListener("loadeddata", settle);
+      video.removeEventListener("seeked", settle);
+      video.removeEventListener("error", settle);
+    };
+    const settle = () => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      cleanup();
+      resolve();
+    };
+
+    if (Math.abs(video.currentTime - timeSeconds) < 0.01 && video.readyState >= 2) {
+      settle();
+      return;
+    }
+
+    video.addEventListener("loadeddata", settle, { once: true });
+    video.addEventListener("seeked", settle, { once: true });
+    video.addEventListener("error", settle, { once: true });
+    try {
+      video.currentTime = timeSeconds;
+    } catch {
+      settle();
+    }
+  });
+}
+
+function getTimelineVideoThumbnailTimesMs({
+  durationMs,
+  thumbnailCount,
+  thumbnailTimesMs,
+}: {
+  durationMs?: number;
+  thumbnailCount?: number;
+  thumbnailTimesMs?: number[];
+}) {
+  if (thumbnailTimesMs?.length) {
+    return thumbnailTimesMs.filter((timeMs) => Number.isFinite(timeMs) && timeMs >= 0);
+  }
+
+  const count = Math.max(0, Math.floor(thumbnailCount ?? 0));
+
+  if (count <= 0) {
+    return [];
+  }
+
+  if (!durationMs || durationMs <= 1) {
+    return Array.from({ length: count }, () => 0);
+  }
+
+  return Array.from({ length: count }, (_, index) => {
+    const ratio = (index + 0.5) / count;
+
+    return Math.max(0, Math.min(durationMs - 1, Math.round(durationMs * ratio)));
   });
 }

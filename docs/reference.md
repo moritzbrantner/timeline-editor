@@ -145,7 +145,10 @@ import {
   createTimelineAudioFileAsset,
 } from "@moritzbrantner/timeline-editor/audio";
 import { createTimelineTextExtension } from "@moritzbrantner/timeline-editor/text";
-import { createTimelineVideoExtension } from "@moritzbrantner/timeline-editor/video";
+import {
+  createTimelineVideoExtension,
+  createTimelineVideoFileAsset,
+} from "@moritzbrantner/timeline-editor/video";
 
 <TimelineWorkbench
   document={document}
@@ -163,7 +166,7 @@ Built-in media foundations are available from media-specific subpaths:
 - `@moritzbrantner/timeline-editor/text` for subtitle/caption cues, practical
   ASS/SSA, SRT, and WebVTT parsing, and text `File` to asset conversion.
 - `@moritzbrantner/timeline-editor/audio` for source metadata, volume/mute state, waveform display, synchronized workbench audio preview, and audio `File` to asset conversion.
-- `@moritzbrantner/timeline-editor/video` for source metadata, poster, and thumbnail strips.
+- `@moritzbrantner/timeline-editor/video` for source metadata, poster, thumbnail strips, and video `File` to asset conversion.
 - `@moritzbrantner/timeline-editor/image` for still image thumbnails and dimensions.
 - `@moritzbrantner/timeline-editor/data` for numeric data series and compact sparkline display.
 
@@ -174,10 +177,13 @@ synchronized hidden workbench preview playback for audio items with
 `data.source.uri`. Use
 `createTimelineAudioFileAsset(file)` inside a host `onImportAssets` callback to
 create audio assets from browser files; keep the returned cleanup callback so
-object URLs can be revoked when they are no longer used.
+object URLs can be revoked when they are no longer used. Use
+`createTimelineVideoFileAsset(file)` for matching video file imports with
+duration probing, dimensions, poster generation, optional thumbnails, MIME
+metadata, and object URL cleanup.
 
-Built-in media extensions do not decode media, generate waveforms or thumbnails,
-export renders, apply effects, or implement transitions. Workbench audio preview
+Built-in media extensions do not generate audio waveforms, export renders, apply
+effects, or implement transitions. Workbench audio preview
 is timeline-driven rather than a native audio player, while video controls remain
 available for manual preview. Workbench transport playback synchronizes active
 media elements to the timeline playhead.

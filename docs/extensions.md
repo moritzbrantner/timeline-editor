@@ -28,8 +28,10 @@ Browser file import is still owned by the host workbench integration. Use
 inside `onImportAssets` to create an audio asset from a `File`. The helper
 returns an object URL and optional cleanup callback, so hosts remain responsible
 for revoking object URLs when imported assets or related items are no longer
-needed.
+needed. Use `createTimelineVideoFileAsset(file)` from
+`@moritzbrantner/timeline-editor/video` for matching video imports with
+duration, dimensions, poster, optional thumbnails, and MIME/source metadata.
 
-These foundations do not decode media, generate waveforms or thumbnails, export
-renders, apply effects, or implement transitions. Audio preview uses browser
-media controls rather than a synchronized timeline transport.
+These foundations do not generate audio waveforms, export renders, apply
+effects, or implement transitions. Audio preview uses browser media controls
+rather than a synchronized timeline transport.

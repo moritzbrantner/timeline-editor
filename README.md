@@ -41,9 +41,11 @@ matching props.
 `createTimelineAudioExtension()` from `./audio` includes audio source metadata
 and waveform item rendering. Browser `File` and URL imports remain host-owned
 through `onImportAssets`; use `createTimelineAudioFileAsset(file)` to turn an
-audio file into an asset and keep ownership of the returned object URL cleanup
-callback. Set `allowUrlImport` with `onImportAssets` to expose URL import
-controls that emit `TimelineWorkbenchImportSource` entries with `type: "url"`.
+audio file into an asset and `createTimelineVideoFileAsset(file)` from `./video`
+to probe video duration, dimensions, poster, optional thumbnails, and source
+metadata. Keep ownership of the returned object URL cleanup callback. Set
+`allowUrlImport` with `onImportAssets` to expose URL import controls that emit
+`TimelineWorkbenchImportSource` entries with `type: "url"`.
 
 Track selection is represented with `selection.trackIds`. The default
 workbench inspector has document, track, range, marker, item, and multi-item

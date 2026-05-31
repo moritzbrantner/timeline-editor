@@ -180,7 +180,7 @@ const expectedRuntimeExports = {
     "parseTimelineText",
     "parseTimelineWebVttText",
   ],
-  "video.js": ["createTimelineVideoExtension"],
+  "video.js": ["createTimelineVideoExtension", "createTimelineVideoFileAsset"],
 };
 
 for (const entryFile of entryFiles) {
