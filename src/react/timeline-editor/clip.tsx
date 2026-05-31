@@ -94,11 +94,13 @@ function TimelineEditorClipComponent<TItemData>({
       aria-label={item.label}
       title={`${item.label} · ${formatTimelineEditorTimeMs(item.startMs)} · ${formatTimelineEditorTimeMs(item.durationMs)}`}
       className={cn(
-        "absolute top-2 bottom-2 flex min-w-8 cursor-grab items-center rounded-md border px-2 text-xs font-medium text-white shadow-sm outline-none data-[selected=true]:ring-2 data-[selected=true]:ring-ring",
+        "absolute flex min-w-8 cursor-grab items-center rounded-md border px-2 text-xs font-medium text-white shadow-sm outline-none data-[selected=true]:ring-2 data-[selected=true]:ring-ring",
         locked && "cursor-default",
       )}
       style={{
         ...getTimelineEditorItemStyle(item.startMs, item.durationMs, timelineWidthPx, durationMs),
+        top: 8,
+        bottom: 8,
         backgroundColor: item.color ?? "var(--primary)",
       }}
       onContextMenu={(event) => {

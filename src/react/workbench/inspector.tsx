@@ -1,13 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { Button, Input } from "@moritzbrantner/ui";
-import {
-  InspectorPanel,
-  type InspectorFieldDefinition,
-  type InspectorFieldValue,
-} from "@moritzbrantner/ui/labs";
 
 import {
   formatTimelineEditorTimeMs,
@@ -26,6 +21,27 @@ import type {
   TimelineWorkbenchInspectorSchema,
 } from "../workbench";
 import { TimelineWorkbenchMarkerInspector, TimelineWorkbenchMarkersPanel } from "./markers";
+
+type InspectorFieldValue = string | number | boolean | string[] | null | undefined;
+
+type InspectorFieldDefinition = {
+  id: string;
+  label: string;
+  type: "text" | "number" | "boolean" | "color";
+  min?: number;
+  max?: number;
+  step?: number;
+  readOnly?: boolean;
+  placeholder?: string;
+};
+
+type InspectorSection = {
+  id: string;
+  title: string;
+  fields: InspectorFieldDefinition[];
+};
+
+type InspectorValues = Record<string, InspectorFieldValue>;
 
 export function DefaultTimelineInspector<
   TData,
@@ -635,6 +651,119 @@ function TimelineWorkbenchTransformInspector<
       </div>
     </section>
   );
+}
+
+function InspectorPanel({
+  defaultValues,
+  description,
+  onApply,
+  readOnly,
+  sections,
+  title,
+}: {
+  defaultValues: InspectorValues;
+  description?: ReactNode;
+  onApply: (values: InspectorValues) => void;
+  readOnly?: boolean;
+  sections: InspectorSection[];
+  title: string;
+}) {
+  const defaultValuesKey = useMemo(() => JSON.stringify(defaultValues), [defaultValues]);
+  const [values, setValues] = useState(defaultValues);
+
+  useEffect(() => {
+    setValues(defaultValues);
+  }, [defaultValuesKey]);
+
+  const updateValue = (field: InspectorFieldDefinition, value: InspectorFieldValue) => {
+    setValues((current) => ({ ...current, [field.id]: value }));
+  };
+
+  return (
+    <section className="grid gap-3 rounded border border-border bg-background p-3 text-sm">
+      <div className="grid gap-1">
+        <h2 className="text-sm font-semibold">{title}</h2>
+        {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
+      </div>
+      <div className="grid gap-4">
+        {sections.map((section) => (
+          <fieldset key={section.id} className="grid gap-2">
+            <legend className="text-xs font-medium text-muted-foreground">{section.title}</legend>
+            {section.fields.map((field) => (
+              <InspectorField
+                key={field.id}
+                disabled={readOnly || field.readOnly}
+                field={field}
+                value={values[field.id]}
+                onChange={(value) => updateValue(field, value)}
+              />
+            ))}
+          </fieldset>
+        ))}
+      </div>
+      <div className="flex justify-end">
+        <Button type="button" size="sm" disabled={readOnly} onClick={() => onApply(values)}>
+          Apply
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function InspectorField({
+  disabled,
+  field,
+  onChange,
+  value,
+}: {
+  disabled?: boolean;
+  field: InspectorFieldDefinition;
+  onChange: (value: InspectorFieldValue) => void;
+  value: InspectorFieldValue;
+}) {
+  if (field.type === "boolean") {
+    return (
+      <label className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+        <span>{field.label}</span>
+        <input
+          aria-label={field.label}
+          type="checkbox"
+          checked={Boolean(value)}
+          disabled={disabled}
+          onChange={(event) => onChange(event.currentTarget.checked)}
+        />
+      </label>
+    );
+  }
+
+  return (
+    <label className="grid gap-1 text-xs text-muted-foreground">
+      <span>{field.label}</span>
+      <Input
+        aria-label={field.label}
+        type={field.type}
+        min={field.min}
+        max={field.max}
+        step={field.step}
+        value={toInspectorInputValue(value)}
+        placeholder={field.placeholder}
+        disabled={disabled}
+        onChange={(event) =>
+          onChange(
+            field.type === "number" ? event.currentTarget.valueAsNumber : event.currentTarget.value,
+          )
+        }
+      />
+    </label>
+  );
+}
+
+function toInspectorInputValue(value: InspectorFieldValue) {
+  if (typeof value === "string" || typeof value === "number") {
+    return value;
+  }
+
+  return "";
 }
 
 function clampTimelineWorkbenchTransformOffset(offsetMs: number, durationMs: number) {

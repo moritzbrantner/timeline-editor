@@ -238,9 +238,8 @@ test("adds moves and removes tracks inside a group from track menus", async ({ p
     .poll(async () => (await getHarnessState(page)).document.groups?.[0]?.trackIds)
     .toEqual(["planning"]);
 
-  await reviewTrack.click({
+  await page.getByRole("button", { exact: true, name: "Review" }).click({
     button: "right",
-    position: { x: 24, y: reviewTrackBox!.height / 2 },
   });
   await selectContextMenuItem(page, "Add Track To Group 1");
 
