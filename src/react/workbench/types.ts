@@ -97,21 +97,27 @@ export type TimelineWorkbenchTransportStateChangeContext = {
   durationMs: number;
 };
 
-export type TimelineWorkbenchSelection<TData = Record<string, unknown>> = {
+export type TimelineWorkbenchSelection<
+  TData = Record<string, unknown>,
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+> = {
   item?: TimelineEditorItem<TData>;
   itemId?: string;
   itemIds: string[];
-  track?: TimelineEditorTrack<Record<string, unknown>, TData>;
+  track?: TimelineEditorTrack<TTrackData, TData>;
 };
 
-export type TimelineWorkbenchInspectorContext<TData = Record<string, unknown>> = {
-  document: TimelineEditorDocument<Record<string, unknown>, TData>;
+export type TimelineWorkbenchInspectorContext<
+  TData = Record<string, unknown>,
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+> = {
+  document: TimelineEditorDocument<TTrackData, TData>;
   durationMs: number;
   readOnly: boolean;
   selection: TimelineEditorSelection;
   selectedItem?: TimelineEditorItem<TData>;
   selectedItems: Array<TimelineEditorItem<TData>>;
-  selectedTrack?: TimelineEditorTrack<Record<string, unknown>, TData>;
+  selectedTrack?: TimelineEditorTrack<TTrackData, TData>;
   setCurrentTime: (timeMs?: number) => void;
   addMarker: (timeMs?: number) => void;
   updateMarker: (markerId: string, patch: Partial<TimelineEditorMarker>) => void;
@@ -126,6 +132,11 @@ export type TimelineWorkbenchInspectorContext<TData = Record<string, unknown>> =
       | Partial<TimelineEditorItem<TData>>
       | ((item: TimelineEditorItem<TData>) => Partial<TimelineEditorItem<TData>>),
   ) => void;
+  updateSelectedTrack: (
+    patch: Partial<Omit<TimelineEditorTrack<TTrackData, TData>, "id" | "items">>,
+  ) => void;
+  removeSelectedTrack: () => void;
+  selectSelectedTrackItems: () => void;
   upsertSelectedTransformPoint: (
     point: TimelineEditorTransformPoint<TimelineEditorTransformValues>,
   ) => void;
@@ -158,7 +169,7 @@ export type TimelineInspectorSectionFactory<
   TItemData = Record<string, unknown>,
   TTrackData extends Record<string, unknown> = Record<string, unknown>,
 > = (
-  context: TimelineWorkbenchInspectorContext<TItemData> & {
+  context: TimelineWorkbenchInspectorContext<TItemData, TTrackData> & {
     selectedTrack?: TimelineEditorTrack<TTrackData, TItemData>;
   },
 ) => ReactNode;
@@ -314,16 +325,20 @@ export type TimelineWorkbenchProps<
   onDocumentChange?: (document: TimelineEditorDocument<TTrackData, TItemData>) => void;
   onCurrentTimeChange?: (timeMs: number) => void;
   onSelectionChange?: (selection: TimelineEditorSelection) => void;
-  onSelectedItemChange?: (selection: TimelineWorkbenchSelection<TItemData>) => void;
+  onSelectedItemChange?: (selection: TimelineWorkbenchSelection<TItemData, TTrackData>) => void;
   onViewportChange?: (viewport: TimelineEditorViewport) => void;
   onAssetInsert?: (
     asset: TimelineWorkbenchAsset<TAssetData>,
     placement: { trackId: string; timeMs: number },
   ) => void;
   renderAsset?: (asset: TimelineWorkbenchAsset<TAssetData>) => ReactNode;
-  renderInspector?: (context: TimelineWorkbenchInspectorContext<TItemData>) => ReactNode;
+  renderInspector?: (
+    context: TimelineWorkbenchInspectorContext<TItemData, TTrackData>,
+  ) => ReactNode;
   renderTimelineItem?: (context: TimelineEditorItemRenderContext<TItemData>) => ReactNode;
-  renderToolbarActions?: (context: TimelineWorkbenchInspectorContext<TItemData>) => ReactNode;
+  renderToolbarActions?: (
+    context: TimelineWorkbenchInspectorContext<TItemData, TTrackData>,
+  ) => ReactNode;
   getItemContextMenuItems?: (
     context: TimelineWorkbenchItemContextMenuContext<TTrackData, TItemData>,
   ) => MenuActionItem[];

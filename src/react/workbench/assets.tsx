@@ -106,6 +106,7 @@ type TimelineWorkbenchAssetsPanelProps<TAssetData> = {
   selectedTrack?: TimelineEditorTrack<Record<string, unknown>, unknown>;
   readOnly: boolean;
   acceptedImportTypes?: string[];
+  allowUrlImport?: boolean;
   importState?: TimelineWorkbenchImportState;
   renderAsset?: (asset: TimelineWorkbenchAsset<TAssetData>) => ReactNode;
   onMinimize?: () => void;
@@ -123,6 +124,7 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
   selectedTrack,
   readOnly,
   acceptedImportTypes,
+  allowUrlImport = false,
   importState = { status: "idle" },
   renderAsset,
   onMinimize,
@@ -136,6 +138,8 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
   const [kindFilter, setKindFilter] = useState("");
   const [mediaTypeFilter, setMediaTypeFilter] = useState("");
   const [compatibleOnly, setCompatibleOnly] = useState(false);
+  const [urlImportValue, setUrlImportValue] = useState("");
+  const [urlImportError, setUrlImportError] = useState("");
   const panelContentRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const suppressAssetActivationUntilRef = useRef(0);
@@ -193,6 +197,39 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
         },
       })),
     );
+  };
+  const handleUrlImport = async () => {
+    const trimmedValue = urlImportValue.trim();
+
+    if (!trimmedValue || !onImportAssets) {
+      return;
+    }
+
+    let url: URL;
+
+    try {
+      url = new URL(trimmedValue);
+    } catch {
+      setUrlImportError("Enter a valid URL.");
+      return;
+    }
+
+    const pathLabel = decodeURIComponent(url.pathname).split("/").slice().reverse().find(Boolean);
+    const label = pathLabel || url.hostname || url.href;
+
+    setUrlImportError("");
+    await onImportAssets([
+      {
+        type: "url",
+        url: url.href,
+        label,
+        metadata: {
+          hostname: url.hostname,
+          protocol: url.protocol,
+        },
+      },
+    ]);
+    setUrlImportValue("");
   };
   useEffect(() => {
     const ownerDocument = panelContentRef.current?.ownerDocument ?? document;
@@ -265,6 +302,42 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
                 </span>
               ) : null}
             </div>
+            {allowUrlImport && !readOnly ? (
+              <form
+                className="grid gap-1"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void handleUrlImport();
+                }}
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <Input
+                    data-slot="timeline-workbench-url-import"
+                    aria-label="Import asset URL"
+                    placeholder="https://example.com/media.mp4"
+                    value={urlImportValue}
+                    disabled={importState.status === "importing"}
+                    onChange={(event) => {
+                      setUrlImportValue(event.currentTarget.value);
+                      if (urlImportError) {
+                        setUrlImportError("");
+                      }
+                    }}
+                  />
+                  <Button
+                    type="submit"
+                    size="sm"
+                    variant="outline"
+                    disabled={!urlImportValue.trim() || importState.status === "importing"}
+                  >
+                    Import URL
+                  </Button>
+                </div>
+                {urlImportError ? (
+                  <div className="text-xs text-destructive">{urlImportError}</div>
+                ) : null}
+              </form>
+            ) : null}
             {importState.status === "failed" ? (
               <div className="flex items-center justify-between gap-2 rounded border border-destructive/40 bg-background px-2 py-1 text-xs text-destructive">
                 <span className="min-w-0 truncate">{importState.error ?? "Import failed."}</span>

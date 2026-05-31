@@ -9,13 +9,17 @@ import {
 } from "../../core";
 import type { TimelineWorkbenchInspectorContext } from "./types";
 
-type TimelineWorkbenchMarkersPanelProps<TData> = {
-  context: TimelineWorkbenchInspectorContext<TData>;
+type TimelineWorkbenchMarkersPanelProps<
+  TData,
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+> = {
+  context: TimelineWorkbenchInspectorContext<TData, TTrackData>;
 };
 
-export function TimelineWorkbenchMarkersPanel<TData>({
-  context,
-}: TimelineWorkbenchMarkersPanelProps<TData>) {
+export function TimelineWorkbenchMarkersPanel<
+  TData,
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+>({ context }: TimelineWorkbenchMarkersPanelProps<TData, TTrackData>) {
   const markers = [...(context.document.markers ?? [])].sort((left, right) =>
     left.timeMs === right.timeMs ? left.id.localeCompare(right.id) : left.timeMs - right.timeMs,
   );
@@ -106,17 +110,19 @@ export function TimelineWorkbenchMarkersPanel<TData>({
   );
 }
 
-type TimelineWorkbenchMarkerInspectorProps<TData> = {
-  context: TimelineWorkbenchInspectorContext<TData>;
+type TimelineWorkbenchMarkerInspectorProps<
+  TData,
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+> = {
+  context: TimelineWorkbenchInspectorContext<TData, TTrackData>;
   marker: TimelineEditorMarker;
   timingStepMs?: number;
 };
 
-export function TimelineWorkbenchMarkerInspector<TData>({
-  context,
-  marker,
-  timingStepMs,
-}: TimelineWorkbenchMarkerInspectorProps<TData>) {
+export function TimelineWorkbenchMarkerInspector<
+  TData,
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+>({ context, marker, timingStepMs }: TimelineWorkbenchMarkerInspectorProps<TData, TTrackData>) {
   const updateMarkerTime = (value: string) => {
     const timeMs = Number(value);
 

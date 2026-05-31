@@ -73,8 +73,17 @@ test("shows compact preview state when no item is active", async ({ page }) => {
   await page.goto("/?fixture=no-active");
 
   const preview = page.locator("[data-slot='timeline-workbench-preview']");
-  await expect(preview.getByText("0 active items")).toBeVisible();
+  await expect(preview.getByText("No active scene items")).toBeVisible();
   await expect(preview.getByText("0:07.5 / 0:08.0")).toBeVisible();
+  await expect(preview.getByText("2 tracks · 1 item")).toBeVisible();
+});
+
+test("preview empty state shows previous scene item context", async ({ page }) => {
+  await page.goto("/?fixture=transport-media&initialTimeMs=7800");
+
+  const preview = page.locator("[data-slot='timeline-workbench-preview']");
+  await expect(preview.getByText("No active scene items")).toBeVisible();
+  await expect(preview.getByText("Previous Demo Video ended at 0:07.5")).toBeVisible();
 });
 
 test("plays synchronized preview transport and follows the timeline playhead", async ({ page }) => {
@@ -147,6 +156,18 @@ test("shows contextual toolbar actions for item selection", async ({ page }) => 
   await expect(page.getByRole("button", { name: "Copy" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Split" })).toBeVisible();
   await expect(page.getByRole("button", { exact: true, name: "Delete" })).toBeVisible();
+});
+
+test("selects a track and shows track inspector state", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Planning" }).first().click();
+
+  const inspector = page.locator("[data-slot='timeline-workbench-inspector']");
+  await expect(inspector.getByText("Track fields")).toBeVisible();
+  await expect(inspector.getByText("task, review, audio")).toBeVisible();
+  await expect(inspector.getByRole("button", { name: "Select Items" })).toBeVisible();
+  await expect(inspector.getByRole("button", { name: "Lock Track" })).toBeVisible();
 });
 
 test("aligns timeline zero after track headers", async ({ page }) => {
@@ -234,11 +255,17 @@ test("keeps timeline ruler visible while scrolling tracks", async ({ page }) => 
 
 test("keeps workbench panels usable on a small viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 720 });
-  await page.goto("/");
+  await page.goto("/?importAssets=true&allowUrlImport=true");
+
+  await page.getByRole("button", { name: "Planning" }).first().click();
 
   await expect(getTimelineEditor(page)).toBeVisible();
   await expect(page.locator("[data-slot='timeline-workbench-toolbar']")).toBeVisible();
   await expect(page.locator("[data-slot='timeline-workbench-inspector']")).toBeVisible();
+  await expect(page.getByLabel("Import asset URL")).toBeVisible();
+  await expect(
+    page.locator("[data-slot='timeline-workbench-inspector']").getByText("Track fields"),
+  ).toBeVisible();
 
   const editorBox = await getTimelineEditor(page).boundingBox();
   expect(editorBox).not.toBeNull();

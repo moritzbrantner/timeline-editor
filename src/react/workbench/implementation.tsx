@@ -73,6 +73,7 @@ import {
 import { DefaultTimelineInspector } from "./inspector";
 import {
   createTimelineWorkbenchItemLookup,
+  createTimelineWorkbenchTrackLookup,
   getTimelineWorkbenchSelectedItems,
   getTimelineWorkbenchSelectionPayload,
 } from "./selection";
@@ -171,6 +172,7 @@ export function TimelineWorkbench<
   assets = [],
   onImportAssets,
   acceptedImportTypes,
+  allowUrlImport,
   showAssetsPanel = true,
   showPreviewPanel = true,
   showInspectorPanel = true,
@@ -257,12 +259,16 @@ export function TimelineWorkbench<
     anchorItemId: selectedItemId ?? undefined,
   };
   const itemLookup = useMemo(() => createTimelineWorkbenchItemLookup(document), [document]);
+  const trackLookup = useMemo(() => createTimelineWorkbenchTrackLookup(document), [document]);
   const selectedItems = getTimelineWorkbenchSelectedItems(resolvedSelection, itemLookup);
   const selected = resolvedSelection.itemIds[0]
     ? itemLookup.get(resolvedSelection.itemIds[0])
     : undefined;
   const selectedItem = selected?.item;
-  const selectedTrack = selected?.track;
+  const selectedTrack =
+    (resolvedSelection.trackIds?.[0]
+      ? trackLookup.get(resolvedSelection.trackIds[0])
+      : undefined) ?? selected?.track;
   const hasItemGroup = (itemIds: string[]) =>
     itemIds.some((itemId) => Boolean(itemLookup.get(itemId)?.item.itemGroupId));
   const hasSelectedItemGroup = hasItemGroup(resolvedSelection.itemIds);
@@ -284,7 +290,9 @@ export function TimelineWorkbench<
 
   const commitSelection = (nextSelection: TimelineEditorSelection) => {
     onSelectionChange?.(nextSelection);
-    onSelectedItemChange?.(getTimelineWorkbenchSelectionPayload(nextSelection, itemLookup));
+    onSelectedItemChange?.(
+      getTimelineWorkbenchSelectionPayload(nextSelection, itemLookup, trackLookup),
+    );
   };
 
   const commitDocument = (nextDocument: TimelineEditorDocument<TTrackData, TItemData>) => {
@@ -703,6 +711,24 @@ export function TimelineWorkbench<
     commitDocument(normalizeTimelineEditorDocument({ ...document, tracks }, { durationMs }));
   };
 
+  const updateSelectedTrack = (
+    patch: Partial<Omit<TimelineEditorTrack<TTrackData, TItemData>, "id" | "items">>,
+  ) => {
+    if (readOnly || !selectedTrack) {
+      return;
+    }
+
+    runCommand({ type: "update-track", trackId: selectedTrack.id, patch });
+  };
+
+  const selectSelectedTrackItems = () => {
+    if (!selectedTrack) {
+      return;
+    }
+
+    runTransientCommand({ type: "select-track-items", trackId: selectedTrack.id });
+  };
+
   const deleteItems = (itemIds = resolvedSelection.itemIds) => {
     if (readOnly || itemIds.length === 0) {
       return;
@@ -932,6 +958,8 @@ export function TimelineWorkbench<
     runCommand({ type: "remove-track", trackId: resolvedTrackId });
   };
 
+  const removeSelectedTrack = () => removeTimeline(selectedTrack?.id);
+
   const groupItems = (itemIds = resolvedSelection.itemIds) => {
     if (readOnly || itemIds.length < 2) {
       return;
@@ -1057,13 +1085,13 @@ export function TimelineWorkbench<
   };
 
   const inspectorContext = {
-    document: document as TimelineEditorDocument<Record<string, unknown>, TItemData>,
+    document: document as TimelineEditorDocument<TTrackData, TItemData>,
     durationMs,
     readOnly,
     selection: resolvedSelection,
     selectedItem,
     selectedItems,
-    selectedTrack: selectedTrack as TimelineEditorTrack<Record<string, unknown>, TItemData>,
+    selectedTrack: selectedTrack as TimelineEditorTrack<TTrackData, TItemData> | undefined,
     setCurrentTime: (timeMs = currentTimeMs) => jumpCurrentTime(timeMs),
     addMarker,
     updateMarker,
@@ -1074,11 +1102,14 @@ export function TimelineWorkbench<
     closeGap,
     updateSelectedItem,
     updateSelectedItems,
+    updateSelectedTrack,
+    removeSelectedTrack,
+    selectSelectedTrackItems,
     upsertSelectedTransformPoint,
     updateSelectedTransformPoint,
     moveSelectedTransformPoint,
     removeSelectedTransformPoint,
-  } satisfies TimelineWorkbenchInspectorContext<TItemData>;
+  } satisfies TimelineWorkbenchInspectorContext<TItemData, TTrackData>;
 
   const extensionInspectorSections = extensions.flatMap(
     (extension) =>
@@ -1890,6 +1921,7 @@ export function TimelineWorkbench<
       selectedTrack={selectedTrack as TimelineEditorTrack<Record<string, unknown>, unknown>}
       readOnly={readOnly}
       acceptedImportTypes={acceptedImportTypes}
+      allowUrlImport={allowUrlImport}
       importState={importState}
       renderAsset={renderAsset}
       onImportAssets={onImportAssets ? importAssets : undefined}

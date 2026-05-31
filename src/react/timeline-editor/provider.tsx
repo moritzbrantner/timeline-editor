@@ -843,7 +843,14 @@ export function TimelineEditorProvider<
     const handleNativeMouseDown = (event: MouseEvent) => {
       const trackId = getTimelineEditorNativeEventTrackId(event);
 
-      if (event.defaultPrevented || event.button !== 0 || !trackId) {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        !trackId ||
+        (event.target instanceof Element &&
+          (event.target.closest("[data-slot='timeline-editor-clip']") ||
+            event.target.closest("[data-slot='timeline-editor-track-header']")))
+      ) {
         return;
       }
 

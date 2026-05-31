@@ -13,6 +13,18 @@ export function TimelineEditorTrackHeader<
 >({ contextMenu = true, entry }: TimelineEditorTrackHeaderProps<TTrackData, TItemData>) {
   const editor = useTimelineEditor<TTrackData, TItemData>();
   const locked = Boolean(editor.readOnly || entry.locked);
+  const selected = Boolean(
+    editor.selection.itemIds.length === 0 && editor.selection.trackIds?.includes(entry.track.id),
+  );
+  const selectTrack = () => {
+    editor.commitSelection({
+      itemIds: [],
+      anchorItemId: undefined,
+      trackIds: [entry.track.id],
+      markerIds: undefined,
+      range: undefined,
+    });
+  };
   const trackContextMenuItems =
     contextMenu && editor.getTrackContextMenuItems
       ? editor.getTrackContextMenuItems({
@@ -28,7 +40,32 @@ export function TimelineEditorTrackHeader<
   const trackHeader = (
     <div
       data-slot="timeline-editor-track-header"
-      className="flex items-center border-r bg-muted/20 px-3 text-sm font-medium"
+      data-selected={selected ? "true" : undefined}
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+      className="flex items-center border-r bg-muted/20 px-3 text-sm font-medium data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground"
+      onPointerDown={(event) => {
+        if (event.button !== 0) {
+          return;
+        }
+
+        event.stopPropagation();
+        selectTrack();
+      }}
+      onClick={(event) => {
+        if (event.button === 0) {
+          selectTrack();
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") {
+          return;
+        }
+
+        event.preventDefault();
+        selectTrack();
+      }}
     >
       {editor.renderTrackHeader ? (
         editor.renderTrackHeader({

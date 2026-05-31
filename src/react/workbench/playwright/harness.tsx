@@ -32,6 +32,7 @@ type HarnessState = {
     size?: number;
     type: string;
     mimeType?: string;
+    url?: string;
   }>;
   range?: TimelineEditorSelection["range"];
   selectedItemId: string | null;
@@ -310,6 +311,7 @@ function App() {
   const largeFixture = fixture === "large";
   const timelineMenuFixture = searchParams.get("timelineMenu") === "true";
   const importAssetsFixture = searchParams.get("importAssets") === "true";
+  const allowUrlImport = searchParams.get("allowUrlImport") === "true";
   const assetActionsFixture = searchParams.get("assetActions") === "true";
   const emptyAssetsFixture = searchParams.get("assets") === "none";
   const transformInspectorFixture = searchParams.get("transformInspector") === "true";
@@ -459,6 +461,7 @@ function App() {
       fileName: source.file?.name,
       size: source.file?.size,
       mimeType: source.file?.type,
+      url: source.url,
     }));
     imports.current = [...imports.current, ...nextImports];
 
@@ -472,7 +475,7 @@ function App() {
 
     return Promise.all(
       sources.map(async (source) => {
-        const label = source.label ?? source.file?.name ?? "Imported asset";
+        const label = source.label ?? source.file?.name ?? source.url ?? "Imported asset";
 
         if (source.file?.type.startsWith("audio/")) {
           return createTimelineAudioFileAsset(source.file, {
@@ -495,6 +498,7 @@ function App() {
             description: "Imported file",
             data: {
               fileName: source.file?.name,
+              source: source.url ? { uri: source.url } : undefined,
               imported: true,
               mediaType: "video",
             },
@@ -548,6 +552,7 @@ function App() {
       showPreviewPanel={searchParams.get("showPreviewPanel") !== "false"}
       showInspectorPanel={searchParams.get("showInspectorPanel") !== "false"}
       onImportAssets={importAssetsFixture ? handleImportAssets : undefined}
+      allowUrlImport={allowUrlImport}
       onDocumentChange={handleDocumentChange}
       onCurrentTimeChange={handleCurrentTimeChange}
       onSelectionChange={handleSelectionChange}

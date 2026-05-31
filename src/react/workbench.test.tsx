@@ -17,6 +17,7 @@ import {
   useTimelineEditor,
   type TimelineEditorDocument,
   type TimelineEditorExtension,
+  type TimelineEditorSelection,
   type TimelineEditorTrack,
 } from "@moritzbrantner/timeline-editor";
 import {
@@ -809,6 +810,88 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     }
   });
 
+  test("renders URL import controls only when host URL import is enabled", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks,
+    };
+    const handleImportAssets = vi.fn(async () => []);
+    const { rerender } = render(
+      <TimelineWorkbench
+        document={document}
+        assets={[]}
+        onImportAssets={handleImportAssets}
+        allowUrlImport
+      />,
+    );
+
+    expect(screen.getByLabelText("Import asset URL")).toBeTruthy();
+
+    rerender(
+      <TimelineWorkbench document={document} assets={[]} onImportAssets={handleImportAssets} />,
+    );
+    expect(screen.queryByLabelText("Import asset URL")).toBeNull();
+
+    rerender(
+      <TimelineWorkbench
+        document={document}
+        assets={[]}
+        onImportAssets={handleImportAssets}
+        allowUrlImport
+        readOnly
+      />,
+    );
+    expect(screen.queryByLabelText("Import asset URL")).toBeNull();
+  });
+
+  test("imports URL assets through the host callback", async () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks,
+    };
+    const handleImportAssets = vi.fn(async () => [
+      {
+        asset: {
+          id: "imported-clip-mp4",
+          label: "clip.mp4",
+          kind: "task",
+          durationMs: 1_000,
+        },
+      },
+    ]);
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        assets={[]}
+        onImportAssets={handleImportAssets}
+        allowUrlImport
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Import asset URL"), { target: { value: "not-url" } });
+    fireEvent.click(screen.getByRole("button", { name: "Import URL" }));
+
+    expect(handleImportAssets).not.toHaveBeenCalled();
+    expect(screen.getByText("Enter a valid URL.")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Import asset URL"), {
+      target: { value: "https://example.com/media/clip.mp4" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Import URL" }));
+
+    await waitFor(() => expect(handleImportAssets).toHaveBeenCalledTimes(1));
+    expect(handleImportAssets).toHaveBeenCalledWith([
+      expect.objectContaining({
+        type: "url",
+        url: "https://example.com/media/clip.mp4",
+        label: "clip.mp4",
+        metadata: expect.objectContaining({ hostname: "example.com", protocol: "https:" }),
+      }),
+    ]);
+    expect(screen.getByRole("button", { name: /clip\.mp4/ })).toBeTruthy();
+  });
+
   test("adds typed tracks from the workbench add track menu", () => {
     const document: TimelineEditorDocument = {
       durationMs: 8_000,
@@ -841,6 +924,93 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
         ],
       }),
     );
+  });
+
+  test("selects track headers and reports track-only selection payloads", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks,
+    };
+    const handleSelectionChange = vi.fn();
+    const handleSelectedItemChange = vi.fn();
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        selection={{ itemIds: [] }}
+        onSelectionChange={handleSelectionChange}
+        onSelectedItemChange={handleSelectedItemChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Planning" }));
+
+    expect(handleSelectionChange).toHaveBeenCalledWith({
+      itemIds: [],
+      anchorItemId: undefined,
+      markerIds: undefined,
+      range: undefined,
+      trackIds: ["planning"],
+    });
+    expect(handleSelectedItemChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        item: undefined,
+        itemId: undefined,
+        itemIds: [],
+        track: expect.objectContaining({ id: "planning" }),
+      }),
+    );
+  });
+
+  test("edits and removes selected tracks from the default inspector", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks,
+    };
+    let currentDocument = document;
+
+    function StatefulWorkbench() {
+      const [stateDocument, setStateDocument] = useState(document);
+      const [selection, setSelection] = useState<TimelineEditorSelection>({ itemIds: [] });
+      currentDocument = stateDocument;
+
+      return (
+        <TimelineWorkbench
+          document={stateDocument}
+          selection={selection}
+          onSelectionChange={setSelection}
+          onDocumentChange={(nextDocument) => {
+            currentDocument = nextDocument;
+            setStateDocument(nextDocument);
+          }}
+        />
+      );
+    }
+
+    render(<StatefulWorkbench />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Planning" }));
+    expect(screen.getByText("Track fields")).toBeTruthy();
+    expect(screen.getByText("task, review")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Label"), { target: { value: "Scenes" } });
+    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "task" } });
+    fireEvent.change(screen.getByLabelText("Height"), { target: { value: "64" } });
+    fireEvent.click(screen.getByLabelText("Locked"));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+    expect(currentDocument.tracks[0]).toEqual(
+      expect.objectContaining({
+        id: "planning",
+        label: "Scenes",
+        kind: "task",
+        height: 64,
+        locked: true,
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete Track" }));
+    expect(currentDocument.tracks.some((track) => track.id === "planning")).toBe(false);
   });
 
   test("edits shared multi-selection inspector fields in one document commit", () => {

@@ -317,6 +317,38 @@ test("imports a file asset through host callback", async ({ page }) => {
     );
 });
 
+test("imports a URL asset through host callback", async ({ page }) => {
+  await page.goto("/?importAssets=true&allowUrlImport=true");
+
+  await page.getByLabel("Import asset URL").fill("https://example.test/media/url-scene.mp4");
+  await page.getByRole("button", { name: "Import URL" }).click();
+
+  await expect
+    .poll(async () => (await getHarnessState(page)).imports)
+    .toEqual([
+      expect.objectContaining({
+        label: "url-scene.mp4",
+        type: "url",
+        url: "https://example.test/media/url-scene.mp4",
+      }),
+    ]);
+  await expect(page.getByRole("button", { name: /url-scene\.mp4/ })).toBeVisible();
+
+  await clickAsset(page, /url-scene\.mp4/, { expectedItemDelta: 1 });
+
+  await expect(getClip(page, "url-scene.mp4")).toBeVisible();
+  await expect
+    .poll(async () => (await getItems(page)).find((item) => item.label === "url-scene.mp4"))
+    .toEqual(
+      expect.objectContaining({
+        durationMs: 750,
+        label: "url-scene.mp4",
+        startMs: 1_000,
+        trackId: "planning",
+      }),
+    );
+});
+
 test("imports an audio file asset and previews it", async ({ page }) => {
   await page.goto("/?importAssets=true");
   const audioPath = path.resolve(process.cwd(), "examples/Me at the zoo [jNQXAC9IVRw].mp3");
@@ -403,10 +435,11 @@ test("hides import controls without importer", async ({ page }) => {
 });
 
 test("disables import in read-only mode", async ({ page }) => {
-  await page.goto("/?importAssets=true&readOnly=true");
+  await page.goto("/?importAssets=true&allowUrlImport=true&readOnly=true");
 
   await expect(page.getByRole("button", { name: "Import files" })).toBeDisabled();
   await expect(page.locator("[data-slot='timeline-workbench-file-import']")).toBeDisabled();
+  await expect(page.getByLabel("Import asset URL")).toBeHidden();
 });
 
 test("asset action click does not activate row behind it", async ({ page }) => {

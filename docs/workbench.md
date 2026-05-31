@@ -16,10 +16,21 @@ provided, in which case the host owns insertion.
 
 File import is also host-owned. `TimelineWorkbench` exposes selected `File`
 objects through `onImportAssets`, but it does not import browser files by itself.
-For audio imports, `createTimelineAudioFileAsset(file)` from
+URL import uses the same callback: pass `allowUrlImport` with `onImportAssets`
+to expose compact URL controls that emit `TimelineWorkbenchImportSource`
+entries with `type: "url"` and a normalized `url`. For audio imports,
+`createTimelineAudioFileAsset(file)` from
 `@moritzbrantner/timeline-editor/audio` creates an `audio` asset with source
 metadata and a playable object URL. Keep the returned cleanup callback and
 revoke it when the imported source is no longer used.
+
+Track selection is represented with `selection.trackIds`. Selecting a default
+track header clears item, marker, and range selection, reports the selected
+track through `onSelectedItemChange`, and shows the default track inspector.
+The default inspector covers document, track, range, marker, item, and
+multi-item states, and track state exposes label, kind, accepted item kinds,
+height, lock state, item count, group membership, item selection, lock/unlock,
+and deletion actions.
 
 When `createTimelineAudioExtension()` is included in `extensions`, audio items
 with `data.source.uri` synchronize through hidden preview media while the

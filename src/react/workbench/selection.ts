@@ -5,8 +5,8 @@ import type {
   TimelineEditorTrack,
 } from "../../core";
 
-export type TimelineTrackForSelection<TItemData> =
-  | TimelineEditorTrack<Record<string, unknown>, TItemData>
+export type TimelineTrackForSelection<TTrackData, TItemData> =
+  | TimelineEditorTrack<TTrackData, TItemData>
   | undefined;
 
 export function createTimelineWorkbenchItemLookup<TTrackData, TItemData>(
@@ -29,6 +29,12 @@ export function createTimelineWorkbenchItemLookup<TTrackData, TItemData>(
   return lookup;
 }
 
+export function createTimelineWorkbenchTrackLookup<TTrackData, TItemData>(
+  document: TimelineEditorDocument<TTrackData, TItemData>,
+) {
+  return new Map(document.tracks.map((track) => [track.id, track]));
+}
+
 export function getTimelineWorkbenchSelectedItems<TTrackData, TItemData>(
   selection: TimelineEditorSelection,
   itemLookup: ReturnType<typeof createTimelineWorkbenchItemLookup<TTrackData, TItemData>>,
@@ -41,13 +47,17 @@ export function getTimelineWorkbenchSelectedItems<TTrackData, TItemData>(
 export function getTimelineWorkbenchSelectionPayload<TTrackData, TItemData>(
   selection: TimelineEditorSelection,
   itemLookup: ReturnType<typeof createTimelineWorkbenchItemLookup<TTrackData, TItemData>>,
+  trackLookup: ReturnType<typeof createTimelineWorkbenchTrackLookup<TTrackData, TItemData>>,
 ) {
   const nextSelected = selection.itemIds[0] ? itemLookup.get(selection.itemIds[0]) : undefined;
+  const selectedTrack = selection.trackIds?.[0]
+    ? trackLookup.get(selection.trackIds[0])
+    : nextSelected?.track;
 
   return {
     item: nextSelected?.item,
     itemId: selection.itemIds[0],
     itemIds: selection.itemIds,
-    track: nextSelected?.track as TimelineTrackForSelection<TItemData>,
+    track: selectedTrack as TimelineTrackForSelection<TTrackData, TItemData>,
   };
 }

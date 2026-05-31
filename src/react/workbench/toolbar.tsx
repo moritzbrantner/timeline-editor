@@ -42,7 +42,7 @@ import {
 } from "../timeline-editor";
 import type { TimelineWorkbenchInspectorContext } from "./types";
 
-type TimelineWorkbenchToolbarProps<TTrackData, TItemData> = {
+type TimelineWorkbenchToolbarProps<TTrackData extends Record<string, unknown>, TItemData> = {
   clipboard?: TimelineEditorClipboard<TItemData>;
   currentTimeMs: number;
   document: TimelineEditorDocument<TTrackData, TItemData>;
@@ -50,7 +50,7 @@ type TimelineWorkbenchToolbarProps<TTrackData, TItemData> = {
   frameStepMs: number;
   hasSelectedItemGroup: boolean;
   history: TimelineEditorHistory<TTrackData, TItemData>;
-  inspectorContext: TimelineWorkbenchInspectorContext<TItemData>;
+  inspectorContext: TimelineWorkbenchInspectorContext<TItemData, TTrackData>;
   overlaps: TimelineEditorOverlap[];
   pixelsPerSecond: number;
   readOnly: boolean;
@@ -60,7 +60,9 @@ type TimelineWorkbenchToolbarProps<TTrackData, TItemData> = {
   resolvedTool: TimelineEditorTool;
   resolvedViewport: TimelineEditorViewport;
   announcement?: string;
-  renderToolbarActions?: (context: TimelineWorkbenchInspectorContext<TItemData>) => ReactNode;
+  renderToolbarActions?: (
+    context: TimelineWorkbenchInspectorContext<TItemData, TTrackData>,
+  ) => ReactNode;
   onAddMarker: () => void;
   onCopy: () => void;
   onCut: () => void;
@@ -85,7 +87,7 @@ type TimelineWorkbenchToolbarProps<TTrackData, TItemData> = {
 
 export { defaultTimelineWorkbenchHotkeys } from "./hotkeys";
 
-export function TimelineWorkbenchToolbar<TTrackData, TItemData>({
+export function TimelineWorkbenchToolbar<TTrackData extends Record<string, unknown>, TItemData>({
   clipboard,
   currentTimeMs,
   document,

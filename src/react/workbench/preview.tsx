@@ -207,15 +207,18 @@ function TimelineWorkbenchScenePreview<TTrackData extends Record<string, unknown
         })
       : null;
   if (items.length === 0) {
+    const emptyState = getTimelineWorkbenchPreviewEmptyState(document, currentTimeMs);
+
     return (
       <>
         <TimelineWorkbenchSceneMediaPreloads preloads={mediaPreloads} />
         <div className="grid h-full place-items-center p-4">
           <div className="grid gap-1 text-center text-white">
-            <div className="text-sm font-medium">0 active items</div>
+            <div className="text-sm font-medium">No active scene items</div>
             <div className="text-xs text-white/60">
               {formatTimelineEditorTimeMs(currentTimeMs)} / {formatTimelineEditorTimeMs(durationMs)}
             </div>
+            <div className="text-xs text-white/70">{emptyState}</div>
           </div>
         </div>
       </>
@@ -575,6 +578,42 @@ function TimelineWorkbenchFallbackItemCard<TItemData>({
       <div className="truncate text-xs text-white/60">{trackLabel ?? item.kind ?? item.id}</div>
     </div>
   );
+}
+
+function getTimelineWorkbenchPreviewEmptyState<TTrackData, TItemData>(
+  document: TimelineEditorDocument<TTrackData, TItemData>,
+  currentTimeMs: number,
+) {
+  const sceneEntries = document.tracks.flatMap((track) =>
+    track.items
+      .filter((item) => isTimelineWorkbenchKnownSceneItem(item))
+      .map((item) => ({ item, track })),
+  );
+  const futureEntry = sceneEntries
+    .filter(({ item }) => item.startMs > currentTimeMs)
+    .sort((left, right) => left.item.startMs - right.item.startMs)[0];
+  const previousEntry = sceneEntries
+    .filter(({ item }) => getTimelineEditorItemEndMs(item) < currentTimeMs)
+    .sort(
+      (left, right) =>
+        getTimelineEditorItemEndMs(right.item) - getTimelineEditorItemEndMs(left.item),
+    )[0];
+
+  if (futureEntry) {
+    return `Next ${futureEntry.item.label} at ${formatTimelineEditorTimeMs(futureEntry.item.startMs)}`;
+  }
+
+  if (previousEntry) {
+    return `Previous ${previousEntry.item.label} ended at ${formatTimelineEditorTimeMs(
+      getTimelineEditorItemEndMs(previousEntry.item),
+    )}`;
+  }
+
+  const itemCount = document.tracks.reduce((count, track) => count + track.items.length, 0);
+
+  return `${document.tracks.length} ${document.tracks.length === 1 ? "track" : "tracks"} · ${itemCount} ${
+    itemCount === 1 ? "item" : "items"
+  }`;
 }
 
 function getTimelineWorkbenchPreviewExtension<

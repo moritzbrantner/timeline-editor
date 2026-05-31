@@ -16,6 +16,7 @@ import {
   snapTimelineEditorTime,
   timelineEditorTransformEasings,
   type TimelineEditorItem,
+  type TimelineEditorTrack,
   type TimelineEditorTransformPoint,
   type TimelineEditorTransformValues,
   validateTimelineEditorDocument,
@@ -26,13 +27,16 @@ import type {
 } from "../workbench";
 import { TimelineWorkbenchMarkerInspector, TimelineWorkbenchMarkersPanel } from "./markers";
 
-export function DefaultTimelineInspector<TData>({
+export function DefaultTimelineInspector<
+  TData,
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+>({
   context,
   extensionSections = [],
   inspectorSchema,
   timingStepMs,
 }: {
-  context: TimelineWorkbenchInspectorContext<TData>;
+  context: TimelineWorkbenchInspectorContext<TData, TTrackData>;
   extensionSections?: ReactNode[];
   inspectorSchema?: TimelineWorkbenchInspectorSchema<TData>;
   timingStepMs?: number;
@@ -230,6 +234,16 @@ export function DefaultTimelineInspector<TData>({
     );
   }
 
+  if (!item && context.selectedTrack && context.selection.trackIds?.length === 1) {
+    return (
+      <TimelineWorkbenchTrackInspector
+        context={context}
+        extensionSections={extensionSections}
+        track={context.selectedTrack}
+      />
+    );
+  }
+
   if (!item) {
     const issues = validateTimelineEditorDocument(context.document as never);
 
@@ -326,13 +340,125 @@ export function DefaultTimelineInspector<TData>({
   );
 }
 
-function TimelineWorkbenchTransformInspector<TData>({
+function TimelineWorkbenchTrackInspector<
+  TData,
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+>({
+  context,
+  extensionSections,
+  track,
+}: {
+  context: TimelineWorkbenchInspectorContext<TData, TTrackData>;
+  extensionSections: ReactNode[];
+  track: TimelineEditorTrack<TTrackData, TData>;
+}) {
+  const group = context.document.groups?.find((candidate) => candidate.trackIds.includes(track.id));
+  const trackStartMs = track.items.length
+    ? Math.min(...track.items.map((item) => item.startMs))
+    : undefined;
+  const trackEndMs = track.items.length
+    ? Math.max(...track.items.map((item) => getTimelineEditorItemEndMs(item)))
+    : undefined;
+  const acceptedKinds =
+    track.acceptsItemKinds && track.acceptsItemKinds.length > 0
+      ? track.acceptsItemKinds.join(", ")
+      : "Any";
+  const occupiedSpan =
+    trackStartMs !== undefined && trackEndMs !== undefined
+      ? formatTimelineEditorTimeMs(trackEndMs - trackStartMs)
+      : "0:00.0";
+
+  return (
+    <div className="grid gap-3">
+      <TimelineWorkbenchInfoPanel
+        title="Track"
+        summary={track.label}
+        rows={[
+          ["Kind", track.kind ?? "untyped"],
+          ["Accepted", acceptedKinds],
+          ["Items", track.items.length],
+          ["Occupied span", occupiedSpan],
+          ["Locked", track.locked ? "Yes" : "No"],
+          ["Group", group?.label ?? "None"],
+        ]}
+      />
+      <InspectorPanel
+        title="Track fields"
+        description={group?.label}
+        readOnly={context.readOnly}
+        defaultValues={{
+          label: track.label,
+          kind: track.kind ?? "",
+          height: track.height ?? "",
+          locked: track.locked ?? false,
+        }}
+        sections={[
+          {
+            id: "track",
+            title: "Track",
+            fields: [
+              { id: "label", label: "Label", type: "text" },
+              { id: "kind", label: "Kind", type: "text" },
+              { id: "height", label: "Height", type: "number", min: 1, step: 1 },
+              { id: "locked", label: "Locked", type: "boolean" },
+            ],
+          },
+        ]}
+        onApply={(values) => {
+          const nextHeight = Number(values.height);
+
+          context.updateSelectedTrack({
+            label: String(values.label ?? track.label),
+            kind: String(values.kind ?? "") || undefined,
+            height: Number.isFinite(nextHeight) && nextHeight > 0 ? nextHeight : undefined,
+            locked: Boolean(values.locked),
+          });
+        }}
+      />
+      <div className="flex flex-wrap items-center gap-2 px-3">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={track.items.length === 0}
+          onClick={() => context.selectSelectedTrackItems()}
+        >
+          Select Items
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={context.readOnly}
+          onClick={() => context.updateSelectedTrack({ locked: !track.locked })}
+        >
+          {track.locked ? "Unlock Track" : "Lock Track"}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="destructive"
+          disabled={context.readOnly}
+          onClick={() => context.removeSelectedTrack()}
+        >
+          Delete Track
+        </Button>
+      </div>
+      {extensionSections}
+    </div>
+  );
+}
+
+function TimelineWorkbenchTransformInspector<
+  TData,
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+>({
   context,
   item,
   timingStepMs,
   transformFields,
 }: {
-  context: TimelineWorkbenchInspectorContext<TData>;
+  context: TimelineWorkbenchInspectorContext<TData, TTrackData>;
   item: TimelineEditorItem<TData>;
   timingStepMs?: number;
   transformFields: NonNullable<TimelineWorkbenchInspectorSchema<TData>["transformFields"]>;

@@ -71,7 +71,15 @@ snap-aware asset insertion.
 The toolbar includes a Hotkeys menu for rebinding workbench shortcuts at runtime.
 Use `onHotkeysChange` when the host app should persist the user overrides.
 Pass `inspectorSchema.transformFields` to enable default keyframe editing for
-numeric item transform values.
+numeric item transform values. The default inspector also exposes concrete
+document, track, range, marker, item, and multi-item states. Track-only
+selection is represented by `selection.trackIds`, and `onSelectedItemChange`
+receives the selected track even when no item is selected.
+
+File and URL import are host-owned. `onImportAssets` receives browser `File`
+sources for file import and URL sources when `allowUrlImport` is enabled. URL
+sources use `type: "url"` and include a normalized absolute `url`; the host
+returns imported `TimelineWorkbenchAsset` records just like file imports.
 
 The workbench preview defaults to `previewMode="active-scene"`. The other public
 modes are `selection-first` and `mini-timeline`; use `onPreviewModeChange` to
@@ -362,6 +370,8 @@ size problem.
   `renderItem` to `TimelineEditor`.
 - Custom asset insertion: pass `assets`, `onAssetInsert`, and optional
   `renderAsset`.
+- Host-owned imports: pass `onImportAssets`; add `allowUrlImport` when URL
+  import controls should be visible.
 - Serialization and migration: save `serializeTimelineEditorDocument(document)`;
   load with `migrateTimelineEditorDocument(stored).document`.
 - Hotkey persistence: pass `hotkeys` and persist changes from
