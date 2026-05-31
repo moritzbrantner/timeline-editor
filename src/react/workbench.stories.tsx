@@ -23,8 +23,8 @@ const editingDocument: TimelineEditorDocument = {
   currentTimeMs: 2_000,
   markers: [
     { id: "intro", timeMs: 2_000, label: "Intro", color: "#2563eb" },
-    { id: "review", timeMs: 8_000, label: "Review", color: "#16a34a" },
-    { id: "ship", timeMs: 15_000, label: "Ship", color: "#f59e0b" },
+    { id: "review", timeMs: 8_000, label: "Review", color: "#15803d" },
+    { id: "ship", timeMs: 15_000, label: "Ship", color: "#92400e" },
   ],
   tracks: [
     {
@@ -48,7 +48,7 @@ const editingDocument: TimelineEditorDocument = {
           kind: "video",
           startMs: 5_000,
           durationMs: 5_500,
-          color: "#0891b2",
+          color: "#0e7490",
         },
       ],
     },
@@ -64,7 +64,7 @@ const editingDocument: TimelineEditorDocument = {
           kind: "audio",
           startMs: 800,
           durationMs: 9_000,
-          color: "#16a34a",
+          color: "#15803d",
           data: {
             mediaType: "audio",
             source: { label: "Me at the zoo", uri: zooAudioUrl, mimeType: "audio/mpeg" },
@@ -78,7 +78,7 @@ const editingDocument: TimelineEditorDocument = {
           kind: "audio",
           startMs: 0,
           durationMs: 16_000,
-          color: "#65a30d",
+          color: "#3f6212",
         },
       ],
     },
@@ -94,7 +94,7 @@ const editingDocument: TimelineEditorDocument = {
           kind: "overlay",
           startMs: 2_300,
           durationMs: 2_200,
-          color: "#7c3aed",
+          color: "#6d28d9",
         },
         {
           id: "review-note",
@@ -103,7 +103,7 @@ const editingDocument: TimelineEditorDocument = {
           kind: "note",
           startMs: 8_000,
           durationMs: 2_000,
-          color: "#f59e0b",
+          color: "#92400e",
         },
       ],
     },
@@ -135,7 +135,7 @@ const overlapDocument: TimelineEditorDocument = {
           kind: "task",
           startMs: 3_500,
           durationMs: 1_500,
-          color: "#16a34a",
+          color: "#15803d",
         },
       ],
     },
@@ -187,7 +187,7 @@ const assets = [
     label: "Caption",
     kind: "overlay",
     durationMs: 1_800,
-    color: "#7c3aed",
+    color: "#6d28d9",
     description: "Timed text",
   },
   {
@@ -196,7 +196,7 @@ const assets = [
     kind: "audio",
     mediaType: "audio",
     durationMs: 1_200,
-    color: "#16a34a",
+    color: "#15803d",
     description: "Audio cue",
     data: {
       mediaType: "audio",
@@ -213,7 +213,7 @@ const assets = [
     label: "Annotation",
     kind: "note",
     durationMs: 2_400,
-    color: "#f59e0b",
+    color: "#92400e",
     description: "Review marker",
   },
 ] satisfies TimelineWorkbenchAsset[];
@@ -258,7 +258,7 @@ function TimelineWorkbenchStory({
         if (source.file?.type.startsWith("audio/")) {
           const result = await createTimelineAudioFileAsset(source.file, {
             durationMs: 1_000,
-            color: "#16a34a",
+            color: "#15803d",
           });
 
           if (result.revoke) {
@@ -275,7 +275,7 @@ function TimelineWorkbenchStory({
             kind: "video",
             mediaType: "video",
             durationMs: 1_000,
-            color: "#f59e0b",
+            color: "#92400e",
             description: "Imported file",
           } satisfies TimelineWorkbenchAsset,
         };

@@ -209,6 +209,7 @@ test("controls track groups from group row", async ({ page }) => {
   await expect(getClip(page, "Brief")).toBeVisible();
 
   await groupRow.getByRole("button", { name: "Lock" }).click();
+  await expect(groupRow.getByRole("button", { name: "Unlock" })).toBeVisible();
   await drag(getClip(page, "Brief"), 80);
   await expectItem(page, "brief", { startMs: 1_000 });
 });

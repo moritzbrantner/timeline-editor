@@ -281,12 +281,14 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
           <div className="grid gap-2">
             <Input
               value={query}
+              aria-label="Search assets"
               placeholder="Search assets"
               onChange={(event) => setQuery(event.currentTarget.value)}
             />
             <div className="grid grid-cols-2 gap-2">
               <select
                 data-slot="timeline-workbench-asset-kind-filter"
+                aria-label="Filter assets by kind"
                 className="h-8 rounded border bg-background px-2 text-xs"
                 value={kindFilter}
                 onChange={(event) => setKindFilter(event.currentTarget.value)}
@@ -300,6 +302,7 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
               </select>
               <select
                 data-slot="timeline-workbench-asset-media-filter"
+                aria-label="Filter assets by media type"
                 className="h-8 rounded border bg-background px-2 text-xs"
                 value={mediaTypeFilter}
                 onChange={(event) => setMediaTypeFilter(event.currentTarget.value)}

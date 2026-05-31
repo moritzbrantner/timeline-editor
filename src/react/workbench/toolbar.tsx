@@ -318,7 +318,10 @@ export function TimelineWorkbenchToolbar<TTrackData, TItemData>({
         {document.itemGroups?.length ? (
           <Badge variant="outline">{document.itemGroups.length} item groups</Badge>
         ) : null}
-        <Badge variant={overlaps.length > 0 ? "destructive" : "secondary"}>
+        <Badge
+          variant={overlaps.length > 0 ? "outline" : "secondary"}
+          className={cn(overlaps.length > 0 && "border-destructive/60 text-destructive")}
+        >
           {overlaps.length} overlaps
         </Badge>
         {announcement ? (

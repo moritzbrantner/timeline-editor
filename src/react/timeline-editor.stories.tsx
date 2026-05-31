@@ -13,7 +13,7 @@ const baseDocument: TimelineEditorDocument = {
   currentTimeMs: 1_500,
   markers: [
     { id: "intro", label: "Intro", timeMs: 1_000, color: "#2563eb" },
-    { id: "review", label: "Review", timeMs: 6_000, color: "#16a34a" },
+    { id: "review", label: "Review", timeMs: 6_000, color: "#15803d" },
   ],
   tracks: [
     {
@@ -37,7 +37,7 @@ const baseDocument: TimelineEditorDocument = {
           kind: "video",
           startMs: 4_000,
           durationMs: 4_200,
-          color: "#0891b2",
+          color: "#0e7490",
         },
       ],
     },
@@ -53,7 +53,7 @@ const baseDocument: TimelineEditorDocument = {
           kind: "audio",
           startMs: 600,
           durationMs: 6_800,
-          color: "#16a34a",
+          color: "#15803d",
         },
       ],
     },
@@ -69,7 +69,7 @@ const baseDocument: TimelineEditorDocument = {
           kind: "overlay",
           startMs: 2_000,
           durationMs: 1_800,
-          color: "#7c3aed",
+          color: "#6d28d9",
         },
       ],
     },
@@ -88,7 +88,7 @@ const denseDocument: TimelineEditorDocument = {
       label: `Item ${trackIndex + 1}-${itemIndex + 1}`,
       startMs: itemIndex * 4_000,
       durationMs: 1_200,
-      color: itemIndex % 2 === 0 ? "#2563eb" : "#16a34a",
+      color: itemIndex % 2 === 0 ? "#2563eb" : "#15803d",
     })),
   })),
 };

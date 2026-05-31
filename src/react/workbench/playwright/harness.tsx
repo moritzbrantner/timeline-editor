@@ -104,7 +104,7 @@ const createOverlapPreventDocument = (): TimelineEditorDocument => ({
           kind: "task",
           startMs: 3_500,
           durationMs: 1_500,
-          color: "#16a34a",
+          color: "#15803d",
         },
       ],
     },
@@ -147,7 +147,7 @@ const createPreviewModesDocument = (): TimelineEditorDocument => ({
           kind: "task",
           startMs: 5_000,
           durationMs: 1_000,
-          color: "#16a34a",
+          color: "#15803d",
         },
       ],
     },
@@ -186,7 +186,7 @@ const createLargeDocument = (): TimelineEditorDocument => ({
       label: `Item ${trackIndex + 1}-${itemIndex + 1}`,
       startMs: itemIndex * 5_000,
       durationMs: 1_000,
-      color: itemIndex % 2 === 0 ? "#2563eb" : "#16a34a",
+      color: itemIndex % 2 === 0 ? "#2563eb" : "#15803d",
     })),
   })),
 });
@@ -224,7 +224,7 @@ const createTransportMediaDocument = (): TimelineEditorDocument => ({
           kind: "text",
           startMs: 0,
           durationMs: 4_000,
-          color: "#16a34a",
+          color: "#15803d",
           data: { mediaType: "text", text: "Transport caption" },
         },
       ],
@@ -241,7 +241,7 @@ const createTransportMediaDocument = (): TimelineEditorDocument => ({
           kind: "video",
           startMs: 500,
           durationMs: 7_000,
-          color: "#f59e0b",
+          color: "#92400e",
           data: {
             mediaType: "video",
             source: { uri: "https://example.test/demo.mp4", label: "demo.mp4" },
@@ -290,7 +290,7 @@ const timelineAssets = [
     label: "Prototype",
     kind: "review",
     durationMs: 1_000,
-    color: "#16a34a",
+    color: "#15803d",
     description: "Review pass",
   },
   {
@@ -477,7 +477,7 @@ function App() {
         if (source.file?.type.startsWith("audio/")) {
           return createTimelineAudioFileAsset(source.file, {
             durationMs: 750,
-            color: "#16a34a",
+            color: "#15803d",
           });
         }
 
@@ -491,7 +491,7 @@ function App() {
             kind: "task",
             mediaType: "video",
             durationMs: 750,
-            color: "#f59e0b",
+            color: "#92400e",
             description: "Imported file",
             data: {
               fileName: source.file?.name,

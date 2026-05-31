@@ -77,9 +77,11 @@
     "@moritzbrantner/ui": "^0.8.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.11.3",
     "@changesets/changelog-github": "^0.6.0",
     "@changesets/cli": "^2.29.7",
     "@playwright/test": "^1.60.0",
+    "@storybook/addon-a11y": "10.4.1",
     "@storybook/addon-docs": "^10.4.1",
     "@storybook/addon-vitest": "^10.4.1",
     "@storybook/builder-vite": "^10.4.1",
@@ -99,6 +101,7 @@
     "storybook": "^10.4.1",
     "tsup": "^8.5.0",
     "typescript": "6.0.2",
+    "unlighthouse": "0.17.9",
     "vite": "^8.0.14",
     "vitest": "^4.1.7"
   },
@@ -118,12 +121,16 @@
     "check-types": "tsc --noEmit",
     "check-examples": "tsc --ignoreConfig --noEmit --jsx react-jsx --module ESNext --moduleResolution Bundler --target ES2022 --strict --skipLibCheck tests/examples/*.tsx",
     "storybook": "storybook dev -p 6006 --host 127.0.0.1",
-    "test": "vitest run --config vitest.config.ts",
+    "test": "vitest run --config vitest.workspace.ts",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:integration": "vitest run --config vitest.storybook.config.ts",
     "test:package": "bun run build && node ./tests/package/smoke.mjs",
+    "test:a11y": "playwright test src/react/workbench/workbench-a11y.playwright.spec.ts",
+    "test:lighthouse": "node ./tests/performance/run-unlighthouse.mjs",
     "test:playwright": "playwright test",
     "test:regression": "playwright test src/react/workbench/workbench-basic-regressions.playwright.spec.ts",
     "test:storybook": "vitest run --config vitest.storybook.config.ts",
-    "verify": "bun run format:check && bun run lint && bun run check-types && bun run test && bun run test:storybook && bun run build-storybook && bun run build && bun run check-examples && bun run test:package",
-    "verify:quick": "bun run check-types && bun run test && bun run test:regression"
+    "verify": "bun run format:check && bun run lint && bun run check-types && bun run test && bun run test:playwright && bun run test:lighthouse && bun run build-storybook && bun run build && bun run check-examples && bun run test:package",
+    "verify:quick": "bun run check-types && bun run test:unit && bun run test:regression"
   }
 }

@@ -53,7 +53,7 @@ export function TimelineEditorTrackLane<
         editor.visibleRange,
         editor.selectedIds,
       ).map((item) => (
-        <Clip key={item.id} item={item} track={entry.track as never} />
+        <Clip key={item.id} item={item} locked={entry.locked} track={entry.track as never} />
       ))}
     </div>
   );
