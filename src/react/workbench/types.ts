@@ -20,7 +20,7 @@ import type {
   TimelineEditorTransformValues,
   TimelineEditorViewport,
 } from "../../core";
-import type { TimelineMediaType } from "../../media-types";
+import type { TimelineMediaSourceCleanup, TimelineMediaType } from "../../media-types";
 import type {
   TimelineEditorHotkeys,
   TimelineEditorItemRenderContext,
@@ -56,6 +56,8 @@ export type TimelineWorkbenchImportSource<
 
 export type TimelineWorkbenchImportResult<TAssetData = Record<string, unknown>> = {
   asset: TimelineWorkbenchAsset<TAssetData>;
+  cleanup?: TimelineMediaSourceCleanup;
+  revoke?: TimelineMediaSourceCleanup;
   warnings?: string[];
   errors?: string[];
   metadata?: Record<string, unknown>;

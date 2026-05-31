@@ -26,9 +26,11 @@ source metadata and a compact `No audio source` state.
 Browser file import is still owned by the host workbench integration. Use
 `createTimelineAudioFileAsset(file)` from `@moritzbrantner/timeline-editor/audio`
 inside `onImportAssets` to create an audio asset from a `File`. The helper
-returns an object URL and optional cleanup callback, so hosts remain responsible
-for revoking object URLs when imported assets or related items are no longer
-needed. Use `createTimelineVideoFileAsset(file)` from
+returns an object URL and optional cleanup callback. `TimelineWorkbench` stores
+that cleanup when it is returned from `onImportAssets` and revokes
+workbench-owned imports on unmount; hosts that keep sources elsewhere can use
+`createTimelineMediaSourceRegistry()` from `@moritzbrantner/timeline-editor/media-types`.
+Use `createTimelineVideoFileAsset(file)` from
 `@moritzbrantner/timeline-editor/video` for matching video imports with
 duration, dimensions, poster, optional thumbnails, and MIME/source metadata.
 

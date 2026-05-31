@@ -25,8 +25,10 @@ metadata and a playable object URL. For video imports,
 `createTimelineVideoFileAsset(file)` from
 `@moritzbrantner/timeline-editor/video` creates a `video` asset with duration,
 dimensions, poster, optional thumbnails, MIME/source metadata, and a playable
-object URL. Keep the returned cleanup callback and revoke it when the imported
-source is no longer used.
+object URL. Return the helper result from `onImportAssets` and the workbench
+will run its cleanup when those imported sources are no longer mounted. Use
+`createTimelineMediaSourceRegistry()` when the host owns source lifetimes
+outside the workbench import result.
 
 Track selection is represented with `selection.trackIds`. Selecting a default
 track header clears item, marker, and range selection, reports the selected

@@ -31,6 +31,145 @@ export type TimelineMediaSourceRef = {
   metadata?: Record<string, unknown>;
 };
 
+export type TimelineMediaSourceCleanup = () => void;
+
+export type TimelineMediaSourceLifecycle = {
+  source: TimelineMediaSourceRef;
+  objectUrl?: string;
+  cleanup?: TimelineMediaSourceCleanup;
+  revoke?: TimelineMediaSourceCleanup;
+};
+
+export type TimelineMediaObjectUrlLifecycle = Omit<TimelineMediaSourceLifecycle, "source">;
+
+export type TimelineMediaObjectUrlOptions = {
+  createObjectUrl?: (file: File) => string;
+  revokeObjectUrl?: (objectUrl: string) => void;
+};
+
+export type TimelineMediaFileSourceOptions = TimelineMediaObjectUrlOptions & {
+  id?: string;
+  label?: string;
+  mimeType?: string;
+  metadata?: Record<string, unknown>;
+  registry?: TimelineMediaSourceRegistry;
+};
+
+export type TimelineMediaSourceRegistry = {
+  createFileSource: (
+    file: File,
+    options?: Omit<TimelineMediaFileSourceOptions, "registry">,
+  ) => TimelineMediaSourceLifecycle;
+  dispose: () => void;
+  register: (
+    source: TimelineMediaSourceRef,
+    lifecycle?: TimelineMediaObjectUrlLifecycle,
+  ) => TimelineMediaSourceLifecycle;
+  release: (source: TimelineMediaSourceRef | string | undefined) => void;
+};
+
+export function createTimelineMediaSourceRegistry(): TimelineMediaSourceRegistry {
+  const entries = new Map<string, TimelineMediaSourceLifecycle>();
+  const registry: TimelineMediaSourceRegistry = {
+    createFileSource(file, options = {}) {
+      return createTimelineMediaFileSource(file, { ...options, registry });
+    },
+    dispose() {
+      for (const entry of entries.values()) {
+        entry.cleanup?.();
+      }
+
+      entries.clear();
+    },
+    register(source, lifecycle = {}) {
+      const key = getTimelineMediaSourceKey(source);
+      const cleanup = createTimelineMediaSourceCleanup(lifecycle.cleanup ?? lifecycle.revoke);
+      const entry: TimelineMediaSourceLifecycle = {
+        source,
+        objectUrl: lifecycle.objectUrl,
+        cleanup,
+        revoke: cleanup,
+      };
+
+      if (!key) {
+        return entry;
+      }
+
+      entries.get(key)?.cleanup?.();
+      entries.set(key, entry);
+
+      const release = createTimelineMediaSourceCleanup(() => {
+        if (entries.get(key) !== entry) {
+          return;
+        }
+
+        entries.delete(key);
+        cleanup?.();
+      });
+
+      return { ...entry, cleanup: release, revoke: release };
+    },
+    release(source) {
+      const key = typeof source === "string" ? source : getTimelineMediaSourceKey(source);
+
+      if (!key) {
+        return;
+      }
+
+      const entry = entries.get(key);
+
+      if (!entry) {
+        return;
+      }
+
+      entries.delete(key);
+      entry.cleanup?.();
+    },
+  };
+
+  return registry;
+}
+
+export function createTimelineMediaFileSource(
+  file: File,
+  options: TimelineMediaFileSourceOptions = {},
+): TimelineMediaSourceLifecycle {
+  const label = options.label ?? file.name;
+  const lifecycle = createTimelineMediaObjectUrl(file, options);
+  const source: TimelineMediaSourceRef = {
+    id: options.id,
+    uri: lifecycle.objectUrl,
+    label,
+    mimeType: options.mimeType ?? (file.type || undefined),
+    metadata: {
+      fileName: file.name,
+      lastModified: file.lastModified,
+      size: file.size,
+      ...options.metadata,
+    },
+  };
+
+  return options.registry ? options.registry.register(source, lifecycle) : { source, ...lifecycle };
+}
+
+export function createTimelineMediaObjectUrl(
+  file: File,
+  options: TimelineMediaObjectUrlOptions = {},
+): TimelineMediaObjectUrlLifecycle {
+  const createObjectUrl = options.createObjectUrl ?? getDefaultTimelineMediaObjectUrlFactory();
+  const objectUrl = createObjectUrl?.(file);
+  const revokeObjectUrl = options.revokeObjectUrl ?? getDefaultTimelineMediaObjectUrlRevoker();
+  const cleanup = createTimelineMediaSourceCleanup(
+    objectUrl && revokeObjectUrl ? () => revokeObjectUrl(objectUrl) : undefined,
+  );
+
+  return { objectUrl, cleanup, revoke: cleanup };
+}
+
+export function getTimelineMediaSourceKey(source: TimelineMediaSourceRef | undefined) {
+  return source?.id ?? source?.uri;
+}
+
 export type TimelineMediaDisplayRange = {
   sourceStartMs?: number;
   sourceEndMs?: number;
@@ -144,4 +283,35 @@ function getTimelineMediaTypeField(data: unknown) {
   return data && typeof data === "object" && "mediaType" in data
     ? (data as { mediaType?: unknown }).mediaType
     : undefined;
+}
+
+function getDefaultTimelineMediaObjectUrlFactory() {
+  return typeof URL !== "undefined" && typeof URL.createObjectURL === "function"
+    ? (source: File) => URL.createObjectURL(source)
+    : undefined;
+}
+
+function getDefaultTimelineMediaObjectUrlRevoker() {
+  return typeof URL !== "undefined" && typeof URL.revokeObjectURL === "function"
+    ? (objectUrl: string) => URL.revokeObjectURL(objectUrl)
+    : undefined;
+}
+
+function createTimelineMediaSourceCleanup(
+  cleanup: TimelineMediaSourceCleanup | undefined,
+): TimelineMediaSourceCleanup | undefined {
+  if (!cleanup) {
+    return undefined;
+  }
+
+  let released = false;
+
+  return () => {
+    if (released) {
+      return;
+    }
+
+    released = true;
+    cleanup();
+  };
 }

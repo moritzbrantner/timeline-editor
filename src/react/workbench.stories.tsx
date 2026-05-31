@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect } from "storybook/test";
 
@@ -240,32 +240,16 @@ function TimelineWorkbenchStory({
   const [document, setDocument] = useState(initialDocument);
   const [selection, setSelection] = useState<TimelineEditorSelection>({ itemIds: [] });
   const [importedAssets, setImportedAssets] = useState<TimelineWorkbenchAsset[]>([]);
-  const importCleanupRef = useRef<Array<() => void>>([]);
   const resolvedAssets = initialAssets.concat(importedAssets);
-
-  useEffect(
-    () => () => {
-      for (const revoke of importCleanupRef.current) {
-        revoke();
-      }
-    },
-    [],
-  );
 
   const handleImportAssets = async (sources: TimelineWorkbenchImportSource[]) => {
     const results = await Promise.all(
       sources.map(async (source) => {
         if (source.file?.type.startsWith("audio/")) {
-          const result = await createTimelineAudioFileAsset(source.file, {
+          return createTimelineAudioFileAsset(source.file, {
             durationMs: 1_000,
             color: "#15803d",
           });
-
-          if (result.revoke) {
-            importCleanupRef.current.push(result.revoke);
-          }
-
-          return result;
         }
 
         return {

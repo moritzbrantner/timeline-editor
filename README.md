@@ -33,7 +33,8 @@ The public package surface is the root export plus these subpaths: `./core`,
 `./text`, `./audio`, `./video`, `./image`, and `./data`.
 
 Core document utilities, commands, history helpers, validation, serialization,
-and media data helpers are pure functions. `TimelineEditor` and
+and serializable media data helpers are pure functions. Browser media source
+lifecycle helpers expose explicit cleanup callbacks. `TimelineEditor` and
 `TimelineWorkbench` are controlled React components: hosts own document,
 selection, viewport, clipboard, hotkey, and history state when they pass the
 matching props.
@@ -43,8 +44,11 @@ and waveform item rendering. Browser `File` and URL imports remain host-owned
 through `onImportAssets`; use `createTimelineAudioFileAsset(file)` to turn an
 audio file into an asset and `createTimelineVideoFileAsset(file)` from `./video`
 to probe video duration, dimensions, poster, optional thumbnails, and source
-metadata. Keep ownership of the returned object URL cleanup callback. Set
-`allowUrlImport` with `onImportAssets` to expose URL import controls that emit
+metadata. The returned cleanup callback is also accepted by
+`TimelineWorkbenchImportResult`, so workbench-owned imports are revoked on
+unmount. Use `createTimelineMediaSourceRegistry()` from `./media-types` when a
+host owns sources outside the workbench import flow. Set `allowUrlImport` with
+`onImportAssets` to expose URL import controls that emit
 `TimelineWorkbenchImportSource` entries with `type: "url"`.
 
 Track selection is represented with `selection.trackIds`. The default

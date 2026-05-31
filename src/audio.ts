@@ -7,7 +7,13 @@ import type {
 } from "./react/workbench/types";
 import type { TimelineWorkbenchAsset } from "./react/workbench/types";
 import { useTimelineWorkbenchSynchronizedMediaElement } from "./react/workbench/use-synchronized-media";
-import type { TimelineMediaDisplayRange, TimelineMediaSourceRef } from "./media-types";
+import {
+  createTimelineMediaObjectUrl,
+  type TimelineMediaDisplayRange,
+  type TimelineMediaSourceCleanup,
+  type TimelineMediaSourceRef,
+  type TimelineMediaSourceRegistry,
+} from "./media-types";
 
 export type TimelineAudioItemData = TimelineMediaDisplayRange & {
   mediaType: "audio";
@@ -41,11 +47,13 @@ export type TimelineAudioFileAssetOptions = {
   sourceId?: string;
   metadata?: Record<string, unknown>;
   createObjectUrl?: (file: File) => string;
+  sourceRegistry?: TimelineMediaSourceRegistry;
 };
 
 export type TimelineAudioFileAssetResult = {
   asset: TimelineWorkbenchAsset<TimelineAudioItemData>;
   objectUrl?: string;
+  cleanup?: TimelineMediaSourceCleanup;
   revoke?: () => void;
 };
 
@@ -97,12 +105,10 @@ export async function createTimelineAudioFileAsset(
   file: File,
   options: TimelineAudioFileAssetOptions = {},
 ): Promise<TimelineAudioFileAssetResult> {
-  const createObjectUrl =
-    options.createObjectUrl ??
-    (typeof URL !== "undefined" && typeof URL.createObjectURL === "function"
-      ? (source: File) => URL.createObjectURL(source)
-      : undefined);
-  const objectUrl = createObjectUrl?.(file);
+  const sourceLifecycle = createTimelineMediaObjectUrl(file, {
+    createObjectUrl: options.createObjectUrl,
+  });
+  const objectUrl = sourceLifecycle.objectUrl;
   const label = options.label ?? file.name;
   const durationMs =
     options.durationMs ??
@@ -120,6 +126,10 @@ export async function createTimelineAudioFileAsset(
       ...options.metadata,
     },
   };
+  const registeredSource = options.sourceRegistry
+    ? options.sourceRegistry.register(source, sourceLifecycle)
+    : undefined;
+  const cleanup = registeredSource?.cleanup ?? sourceLifecycle.cleanup;
 
   return {
     asset: {
@@ -138,10 +148,8 @@ export async function createTimelineAudioFileAsset(
       },
     },
     objectUrl,
-    revoke:
-      objectUrl && typeof URL !== "undefined" && typeof URL.revokeObjectURL === "function"
-        ? () => URL.revokeObjectURL(objectUrl)
-        : undefined,
+    cleanup,
+    revoke: cleanup,
   };
 }
 

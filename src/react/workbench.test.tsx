@@ -892,6 +892,46 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     expect(screen.getByRole("button", { name: /clip\.mp4/ })).toBeTruthy();
   });
 
+  test("cleans up imported asset sources when the workbench unmounts", async () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks,
+    };
+    const cleanup = vi.fn();
+    const handleImportAssets = vi.fn(async () => [
+      {
+        asset: {
+          id: "imported-clip-mp4",
+          label: "clip.mp4",
+          kind: "task",
+          durationMs: 1_000,
+        },
+        cleanup,
+      },
+    ]);
+    const { unmount } = render(
+      <TimelineWorkbench
+        document={document}
+        assets={[]}
+        onImportAssets={handleImportAssets}
+        allowUrlImport
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Import asset URL"), {
+      target: { value: "https://example.com/media/clip.mp4" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Import URL" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /clip\.mp4/ })).toBeTruthy());
+
+    expect(cleanup).not.toHaveBeenCalled();
+
+    unmount();
+
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
   test("adds typed tracks from the workbench add track menu", () => {
     const document: TimelineEditorDocument = {
       durationMs: 8_000,

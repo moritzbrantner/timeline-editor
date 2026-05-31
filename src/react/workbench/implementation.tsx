@@ -230,6 +230,7 @@ export function TimelineWorkbench<
   const [importState, setImportState] = useState<TimelineWorkbenchImportState>({
     status: "idle",
   });
+  const importedAssetCleanupsRef = useRef<Array<() => void>>([]);
   const [announcement, setAnnouncement] = useState("");
   const resolvedAssets = useMemo(() => assets.concat(importedAssets), [assets, importedAssets]);
   const resolvedViewport = viewport ?? internalViewport;
@@ -562,6 +563,18 @@ export function TimelineWorkbench<
       pauseTransport("ended");
     }
   }, [durationMs, pauseTransport, resolvedTransportState.status]);
+
+  useEffect(
+    () => () => {
+      const cleanups = importedAssetCleanupsRef.current;
+      importedAssetCleanupsRef.current = [];
+
+      for (const cleanup of cleanups) {
+        cleanup();
+      }
+    },
+    [],
+  );
 
   const previousDocumentRef = useRef(document);
 
@@ -1038,8 +1051,12 @@ export function TimelineWorkbench<
     try {
       const results = await onImportAssets(sources);
       const resultAssets = results.map((result) => result.asset);
+      const resultCleanups = results
+        .map((result) => result.cleanup ?? result.revoke)
+        .filter((cleanup): cleanup is () => void => Boolean(cleanup));
 
       if (resultAssets.length > 0) {
+        importedAssetCleanupsRef.current.push(...resultCleanups);
         setImportedAssets((currentAssets) =>
           currentAssets.concat(
             uniquifyTimelineWorkbenchImportedAssets(assets.concat(currentAssets), resultAssets),

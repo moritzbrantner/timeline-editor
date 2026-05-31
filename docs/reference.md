@@ -176,11 +176,12 @@ Built-in media foundations are available from media-specific subpaths:
 synchronized hidden workbench preview playback for audio items with
 `data.source.uri`. Use
 `createTimelineAudioFileAsset(file)` inside a host `onImportAssets` callback to
-create audio assets from browser files; keep the returned cleanup callback so
-object URLs can be revoked when they are no longer used. Use
+create audio assets from browser files; returning the helper result lets
+`TimelineWorkbench` revoke workbench-owned object URLs on unmount. Use
 `createTimelineVideoFileAsset(file)` for matching video file imports with
 duration probing, dimensions, poster generation, optional thumbnails, MIME
-metadata, and object URL cleanup.
+metadata, and object URL cleanup. Use `createTimelineMediaSourceRegistry()`
+for host-owned source lifetimes outside the workbench import flow.
 
 Built-in media extensions do not generate audio waveforms, export renders, apply
 effects, or implement transitions. Workbench audio preview

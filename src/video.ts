@@ -10,8 +10,11 @@ import { useTimelineWorkbenchSynchronizedMediaElement } from "./react/workbench/
 import type {
   TimelineMediaDisplayRange,
   TimelineMediaFit,
+  TimelineMediaSourceCleanup,
   TimelineMediaSourceRef,
+  TimelineMediaSourceRegistry,
 } from "./media-types";
+import { createTimelineMediaObjectUrl } from "./media-types";
 
 export type TimelineVideoItemData = TimelineMediaDisplayRange & {
   mediaType: "video";
@@ -43,6 +46,7 @@ export type TimelineVideoFileAssetOptions = {
   sourceId?: string;
   metadata?: Record<string, unknown>;
   createObjectUrl?: (file: File) => string;
+  sourceRegistry?: TimelineMediaSourceRegistry;
   generatePoster?: boolean;
   posterTimeMs?: number;
   thumbnailMimeType?: string;
@@ -52,6 +56,7 @@ export type TimelineVideoFileAssetOptions = {
 export type TimelineVideoFileAssetResult = {
   asset: TimelineWorkbenchAsset<TimelineVideoItemData>;
   objectUrl?: string;
+  cleanup?: TimelineMediaSourceCleanup;
   revoke?: () => void;
 };
 
@@ -93,12 +98,10 @@ export async function createTimelineVideoFileAsset(
   file: File,
   options: TimelineVideoFileAssetOptions = {},
 ): Promise<TimelineVideoFileAssetResult> {
-  const createObjectUrl =
-    options.createObjectUrl ??
-    (typeof URL !== "undefined" && typeof URL.createObjectURL === "function"
-      ? (source: File) => URL.createObjectURL(source)
-      : undefined);
-  const objectUrl = createObjectUrl?.(file);
+  const sourceLifecycle = createTimelineMediaObjectUrl(file, {
+    createObjectUrl: options.createObjectUrl,
+  });
+  const objectUrl = sourceLifecycle.objectUrl;
   const label = options.label ?? file.name;
   const shouldProbeMetadata =
     options.durationMs === undefined || options.width === undefined || options.height === undefined;
@@ -138,6 +141,10 @@ export async function createTimelineVideoFileAsset(
       ...options.metadata,
     },
   };
+  const registeredSource = options.sourceRegistry
+    ? options.sourceRegistry.register(source, sourceLifecycle)
+    : undefined;
+  const cleanup = registeredSource?.cleanup ?? sourceLifecycle.cleanup;
 
   return {
     asset: {
@@ -161,10 +168,8 @@ export async function createTimelineVideoFileAsset(
       },
     },
     objectUrl,
-    revoke:
-      objectUrl && typeof URL !== "undefined" && typeof URL.revokeObjectURL === "function"
-        ? () => URL.revokeObjectURL(objectUrl)
-        : undefined,
+    cleanup,
+    revoke: cleanup,
   };
 }
 
