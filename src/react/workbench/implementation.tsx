@@ -55,6 +55,7 @@ import type {
   TimelineEditorItemRenderContext,
   TimelineEditorTimelineContextMenuContext,
   TimelineEditorTrackContextMenuContext,
+  TimelineEditorTrackGroupContextMenuContext,
 } from "../timeline-editor/types";
 import type { TimelineWorkbenchHotkeyId } from "./hotkeys";
 import {
@@ -1331,6 +1332,45 @@ export function TimelineWorkbench<
     ];
   };
 
+  const getTrackGroupActionItems = (
+    group: TimelineEditorTrackGroup,
+    options: { includeGroupLabel: boolean },
+  ): MenuActionItem[] => {
+    const suffix = options.includeGroupLabel ? ` ${group.label}` : " Group";
+
+    return [
+      {
+        id: `rename-track-group-${group.id}`,
+        label: `Rename${suffix}`,
+        disabled: readOnly,
+        onSelect: () => renameTrackGroup(group.id),
+      },
+      {
+        id: `toggle-track-group-${group.id}`,
+        label: group.collapsed ? `Expand${suffix}` : `Collapse${suffix}`,
+        disabled: readOnly,
+        onSelect: () => updateTrackGroup(group.id, { collapsed: !group.collapsed }),
+      },
+      {
+        id: `lock-track-group-${group.id}`,
+        label: group.locked ? `Unlock${suffix}` : `Lock${suffix}`,
+        disabled: readOnly,
+        onSelect: () => updateTrackGroup(group.id, { locked: !group.locked }),
+      },
+      {
+        id: `dissolve-track-group-${group.id}`,
+        label: `Dissolve${suffix}`,
+        destructive: true,
+        disabled: readOnly,
+        onSelect: () => removeTrackGroup(group.id),
+      },
+    ];
+  };
+
+  const getWorkbenchTrackGroupContextMenuItems = (
+    context: TimelineEditorTrackGroupContextMenuContext<TTrackData, TItemData>,
+  ): MenuActionItem[] => getTrackGroupActionItems(context.group, { includeGroupLabel: false });
+
   const trackGroupMenuItems: MenuActionItem[] = [
     {
       id: "create-group-all-tracks",
@@ -1341,33 +1381,9 @@ export function TimelineWorkbench<
     ...(document.groups?.length
       ? [{ id: "track-groups-separator", type: "separator" as const }]
       : []),
-    ...(document.groups ?? []).flatMap((group): MenuActionItem[] => [
-      {
-        id: `rename-track-group-${group.id}`,
-        label: `Rename ${group.label}`,
-        disabled: readOnly,
-        onSelect: () => renameTrackGroup(group.id),
-      },
-      {
-        id: `toggle-track-group-${group.id}`,
-        label: group.collapsed ? `Expand ${group.label}` : `Collapse ${group.label}`,
-        disabled: readOnly,
-        onSelect: () => updateTrackGroup(group.id, { collapsed: !group.collapsed }),
-      },
-      {
-        id: `lock-track-group-${group.id}`,
-        label: group.locked ? `Unlock ${group.label}` : `Lock ${group.label}`,
-        disabled: readOnly,
-        onSelect: () => updateTrackGroup(group.id, { locked: !group.locked }),
-      },
-      {
-        id: `remove-track-group-${group.id}`,
-        label: `Remove ${group.label}`,
-        destructive: true,
-        disabled: readOnly,
-        onSelect: () => removeTrackGroup(group.id),
-      },
-    ]),
+    ...(document.groups ?? []).flatMap((group): MenuActionItem[] =>
+      getTrackGroupActionItems(group, { includeGroupLabel: true }),
+    ),
   ];
 
   const commitViewport = (nextViewport: TimelineEditorViewport) => {
@@ -1805,7 +1821,7 @@ export function TimelineWorkbench<
             removeTrackGroup(context.group.id);
           }}
         >
-          Remove
+          Dissolve
         </Button>
       </div>
     </div>
@@ -2008,6 +2024,7 @@ export function TimelineWorkbench<
         getTimelineContextMenuItems={
           hasTimelineContextMenuItems ? getWorkbenchTimelineContextMenuItems : undefined
         }
+        getTrackGroupContextMenuItems={getWorkbenchTrackGroupContextMenuItems}
         getTrackContextMenuItems={getWorkbenchTrackContextMenuItems}
         readOnly={readOnly}
         tool={resolvedTool}

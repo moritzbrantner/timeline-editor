@@ -23,6 +23,7 @@ import {
   type TimelineEditorItemRenderContext,
   type TimelineEditorTimelineContextMenuItems,
   type TimelineEditorTrackContextMenuItems,
+  type TimelineEditorTrackGroupContextMenuItems,
   type TimelineEditorTrackGroupRenderContext,
   type TimelineEditorVirtualizationOptions,
 } from "../timeline-editor";
@@ -63,6 +64,7 @@ type TimelineWorkbenchCanvasProps<
   renderTrackGroupHeader?: (context: TimelineEditorTrackGroupRenderContext) => React.ReactNode;
   getItemContextMenuItems: TimelineEditorItemContextMenuItems<TTrackData, TItemData>;
   getTimelineContextMenuItems?: TimelineEditorTimelineContextMenuItems<TTrackData, TItemData>;
+  getTrackGroupContextMenuItems: TimelineEditorTrackGroupContextMenuItems<TTrackData, TItemData>;
   getTrackContextMenuItems: TimelineEditorTrackContextMenuItems<TTrackData, TItemData>;
   trackGroupMenuItems: MenuActionItem[];
   trackKinds: TimelineEditorItemKind[];
@@ -102,6 +104,7 @@ export function TimelineWorkbenchCanvas<
   renderTrackGroupHeader,
   getItemContextMenuItems,
   getTimelineContextMenuItems,
+  getTrackGroupContextMenuItems,
   getTrackContextMenuItems,
   trackGroupMenuItems,
   trackKinds,
@@ -262,6 +265,7 @@ export function TimelineWorkbenchCanvas<
           renderTrackGroupHeader={renderTrackGroupHeader}
           getItemContextMenuItems={getItemContextMenuItems}
           getTimelineContextMenuItems={getTimelineContextMenuItems}
+          getTrackGroupContextMenuItems={getTrackGroupContextMenuItems}
           getTrackContextMenuItems={getTrackContextMenuItems}
           onDragEnter={updateAssetDropFeedback}
           onDragLeave={(event) => {

@@ -1,9 +1,14 @@
 "use client";
 
+import { TimelineEditorContextActionMenu } from "./context-menu-items";
 import { getRenderedTimelineEditorTrackRows, getTimelineEditorTrackRows } from "./layout";
 import { useTimelineEditor } from "./provider";
 import { TimelineEditorTrackRow } from "./track-row";
-import type { TimelineEditorTrackGroupRowProps, TimelineEditorTracksProps } from "./types";
+import type {
+  TimelineEditorTrackGroupContextMenuContext,
+  TimelineEditorTrackGroupRowProps,
+  TimelineEditorTracksProps,
+} from "./types";
 
 export function TimelineEditorTracks<
   TTrackData extends Record<string, unknown> = Record<string, unknown>,
@@ -56,8 +61,20 @@ export function TimelineEditorTracks<
 
 export function TimelineEditorTrackGroupRow({ group, style }: TimelineEditorTrackGroupRowProps) {
   const editor = useTimelineEditor();
+  const locked = Boolean(group.locked);
+  const trackGroupContextMenuItems = editor.getTrackGroupContextMenuItems
+    ? editor.getTrackGroupContextMenuItems({
+        document: editor.document,
+        durationMs: editor.durationMs,
+        group,
+        locked,
+        readOnly: editor.readOnly,
+        selection: editor.selection,
+        selectedItems: editor.selectedItems,
+      } satisfies TimelineEditorTrackGroupContextMenuContext)
+    : [];
 
-  return (
+  const trackGroupRow = (
     <div
       style={style}
       data-slot="timeline-editor-track-group"
@@ -68,9 +85,22 @@ export function TimelineEditorTrackGroupRow({ group, style }: TimelineEditorTrac
         ? editor.renderTrackGroupHeader({
             group,
             collapsed: Boolean(group.collapsed),
-            locked: Boolean(group.locked),
+            locked,
           })
         : group.label}
     </div>
+  );
+
+  if (trackGroupContextMenuItems.length === 0) {
+    return trackGroupRow;
+  }
+
+  return (
+    <TimelineEditorContextActionMenu
+      items={trackGroupContextMenuItems}
+      contentProps={{ "data-slot": "timeline-editor-track-group-menu" }}
+    >
+      {trackGroupRow}
+    </TimelineEditorContextActionMenu>
   );
 }

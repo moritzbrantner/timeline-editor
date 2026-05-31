@@ -44,6 +44,8 @@ export type {
   TimelineEditorTrackContextMenuItems,
   TimelineEditorTrackEntry,
   TimelineEditorTrackGridProps,
+  TimelineEditorTrackGroupContextMenuContext,
+  TimelineEditorTrackGroupContextMenuItems,
   TimelineEditorTrackGroupRenderContext,
   TimelineEditorTrackGroupRowProps,
   TimelineEditorTrackHeaderProps,

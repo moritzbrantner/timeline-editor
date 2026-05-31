@@ -1215,7 +1215,7 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
 
     rerender(renderWorkbench());
     fireEvent.keyDown(screen.getByRole("button", { name: "Track Groups" }), { key: "ArrowDown" });
-    fireEvent.click(screen.getByRole("menuitem", { name: "Remove Group 1" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Dissolve Group 1" }));
     expect(document.groups ?? []).toEqual([]);
     expect(document.tracks.map((track) => track.id)).toEqual(["planning", "review"]);
   });

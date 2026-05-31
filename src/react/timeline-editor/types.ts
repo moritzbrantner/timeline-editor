@@ -88,6 +88,19 @@ export type TimelineEditorTrackContextMenuContext<
   track: TimelineEditorTrack<TTrackData, TItemData>;
 };
 
+export type TimelineEditorTrackGroupContextMenuContext<
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+> = {
+  document: TimelineEditorDocument<TTrackData, TItemData>;
+  durationMs: number;
+  group: TimelineEditorTrackGroup;
+  locked: boolean;
+  readOnly: boolean;
+  selection: TimelineEditorSelection;
+  selectedItems: Array<TimelineEditorItem<TItemData>>;
+};
+
 export type TimelineEditorTimelineContextMenuSource = "ruler" | "track-lane";
 
 export type TimelineEditorTimelineContextMenuContext<
@@ -132,6 +145,13 @@ export type TimelineEditorTrackContextMenuItems<
   TItemData = Record<string, unknown>,
 > = (context: TimelineEditorTrackContextMenuContext<TTrackData, TItemData>) => MenuActionItem[];
 
+export type TimelineEditorTrackGroupContextMenuItems<
+  TTrackData extends Record<string, unknown> = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+> = (
+  context: TimelineEditorTrackGroupContextMenuContext<TTrackData, TItemData>,
+) => MenuActionItem[];
+
 export type TimelineEditorTimelineContextMenuItems<
   TTrackData extends Record<string, unknown> = Record<string, unknown>,
   TItemData = Record<string, unknown>,
@@ -168,6 +188,7 @@ export type TimelineEditorProps<
   renderTrackHeader?: (context: TimelineEditorTrackRenderContext<TTrackData>) => ReactNode;
   renderTrackGroupHeader?: (context: TimelineEditorTrackGroupRenderContext) => ReactNode;
   getItemContextMenuItems?: TimelineEditorItemContextMenuItems<TTrackData, TItemData>;
+  getTrackGroupContextMenuItems?: TimelineEditorTrackGroupContextMenuItems<TTrackData, TItemData>;
   getTrackContextMenuItems?: TimelineEditorTrackContextMenuItems<TTrackData, TItemData>;
   getTimelineContextMenuItems?: TimelineEditorTimelineContextMenuItems<TTrackData, TItemData>;
 };
@@ -182,6 +203,7 @@ export type TimelineEditorProviderProps<
   | "followCurrentTime"
   | "frameRate"
   | "getItemContextMenuItems"
+  | "getTrackGroupContextMenuItems"
   | "getTimelineContextMenuItems"
   | "getTrackContextMenuItems"
   | "hotkeys"
@@ -363,6 +385,7 @@ export type TimelineEditorContextValue<
   renderTrackHeader?: (context: TimelineEditorTrackRenderContext<TTrackData>) => ReactNode;
   renderTrackGroupHeader?: (context: TimelineEditorTrackGroupRenderContext) => ReactNode;
   getItemContextMenuItems?: TimelineEditorItemContextMenuItems<TTrackData, TItemData>;
+  getTrackGroupContextMenuItems?: TimelineEditorTrackGroupContextMenuItems<TTrackData, TItemData>;
   getTrackContextMenuItems?: TimelineEditorTrackContextMenuItems<TTrackData, TItemData>;
   getTimelineContextMenuItems?: TimelineEditorTimelineContextMenuItems<TTrackData, TItemData>;
   getTimelineContextMenuContext: (

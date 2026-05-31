@@ -131,6 +131,7 @@ export function TimelineEditorProvider<
   renderTrackHeader,
   renderTrackGroupHeader,
   getItemContextMenuItems,
+  getTrackGroupContextMenuItems,
   getTrackContextMenuItems,
   getTimelineContextMenuItems,
 }: TimelineEditorProviderProps<TTrackData, TItemData>) {
@@ -1054,6 +1055,7 @@ export function TimelineEditorProvider<
         getItemContextMenuItems,
         getTimelineContextMenuContext,
         getTimelineContextMenuItems,
+        getTrackGroupContextMenuItems,
         getTrackContextMenuItems,
         handleKeyDown,
         handleMouseDownCapture,
@@ -1106,6 +1108,7 @@ export function TimelineEditorProvider<
       frameDurationMs,
       getItemContextMenuItems,
       getTimelineContextMenuItems,
+      getTrackGroupContextMenuItems,
       getTrackContextMenuItems,
       handleKeyDown,
       measuredViewport,

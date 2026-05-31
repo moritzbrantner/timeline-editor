@@ -212,6 +212,13 @@ test("controls track groups from group row", async ({ page }) => {
   await expect(groupRow.getByRole("button", { name: "Unlock" })).toBeVisible();
   await drag(getClip(page, "Brief"), 80);
   await expectItem(page, "brief", { startMs: 1_000 });
+
+  await groupRow.click({ button: "right", position: { x: 24, y: 18 } });
+  await selectContextMenuItem(page, "Dissolve Group");
+  await expect.poll(async () => (await getHarnessState(page)).document.groups ?? []).toEqual([]);
+  await expect
+    .poll(async () => (await getHarnessState(page)).document.tracks.map((track) => track.id))
+    .toEqual(["planning", "review"]);
 });
 
 test("adds moves and removes tracks inside a group from track menus", async ({ page }) => {

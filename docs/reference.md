@@ -730,8 +730,8 @@ handling a built-in family such as all text-like items.
 
 Track groups organize related tracks without changing the underlying track
 shape. Groups can be collapsed, locked, renamed, removed, and edited from the
-workbench track-group row and track context menus. Removing a group preserves
-the tracks and items it referenced.
+workbench track-group row, track-group right-click menu, and track context
+menus. Dissolving a group preserves the tracks and items it referenced.
 
 ```tsx
 import {
