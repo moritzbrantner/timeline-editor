@@ -154,6 +154,47 @@ test("preview modes expose scene, selected item, and mini timeline views", async
   ).toBeVisible();
 });
 
+test("scene preview loads real media fixture files", async ({ page }) => {
+  await page.goto("/?fixture=transport-media&initialTimeMs=1500");
+
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(() => {
+          const video = document.querySelector<HTMLVideoElement>(
+            "[data-slot='timeline-workbench-scene-video']",
+          );
+          const audio = document.querySelector<HTMLAudioElement>(
+            "[data-slot='timeline-workbench-scene-audio']",
+          );
+
+          return {
+            audioDurationLoaded: Boolean(audio && Number.isFinite(audio.duration)),
+            audioReady: (audio?.readyState ?? 0) >= HTMLMediaElement.HAVE_METADATA,
+            audioSrc: audio?.currentSrc ?? "",
+            videoDurationLoaded: Boolean(video && Number.isFinite(video.duration)),
+            videoHeight: video?.videoHeight ?? 0,
+            videoReady: (video?.readyState ?? 0) >= HTMLMediaElement.HAVE_METADATA,
+            videoSrc: video?.currentSrc ?? "",
+            videoWidth: video?.videoWidth ?? 0,
+          };
+        }),
+      { timeout: 10_000 },
+    )
+    .toEqual(
+      expect.objectContaining({
+        audioDurationLoaded: true,
+        audioReady: true,
+        audioSrc: expect.stringContaining("Me%20at%20the%20zoo%20%5BjNQXAC9IVRw%5D.mp3"),
+        videoDurationLoaded: true,
+        videoHeight: 360,
+        videoReady: true,
+        videoSrc: expect.stringContaining("timeline-preview-fixture.webm"),
+        videoWidth: 640,
+      }),
+    );
+});
+
 test("mocked media synchronizes to workbench transport without owning native controls", async ({
   page,
 }) => {

@@ -7,6 +7,7 @@ import { createRoot } from "react-dom/client";
 import {
   TimelineWorkbench,
   createTimelineAudioExtension,
+  createTimelineVideoExtension,
   formatTimelineEditorTimeMs,
   type TimelineEditorDocument,
   type TimelineEditorItem,
@@ -16,6 +17,7 @@ import {
 
 const zooAudioFileName = "Me at the zoo [jNQXAC9IVRw].mp3";
 const zooAudioUrl = `/${encodeURIComponent(zooAudioFileName)}`;
+const previewVideoUrl = "/timeline-preview-fixture.webm";
 
 const initialDocument: TimelineEditorDocument = {
   durationMs: 18_000,
@@ -40,6 +42,16 @@ const initialDocument: TimelineEditorDocument = {
           startMs: 0,
           durationMs: 4_200,
           color: "#2563eb",
+          data: {
+            mediaType: "video",
+            source: {
+              label: "timeline-preview-fixture.webm",
+              uri: previewVideoUrl,
+              mimeType: "video/webm",
+            },
+            muted: true,
+            fit: "contain",
+          },
         },
         {
           id: "product-demo",
@@ -131,7 +143,13 @@ const assets = [
     description: "Video insert",
     data: {
       mediaType: "video",
-      source: { label: "b-roll.mp4", mimeType: "video/mp4" },
+      source: {
+        label: "timeline-preview-fixture.webm",
+        uri: previewVideoUrl,
+        mimeType: "video/webm",
+      },
+      muted: true,
+      fit: "contain",
     },
   },
   {
@@ -219,7 +237,7 @@ function App() {
           pixelsPerSecond={84}
           snapMs={100}
           assets={assets}
-          extensions={[createTimelineAudioExtension()]}
+          extensions={[createTimelineAudioExtension(), createTimelineVideoExtension()]}
           inspectorSchema={{
             transformFields: [
               { id: "x", label: "X", step: 1, defaultValue: 0 },

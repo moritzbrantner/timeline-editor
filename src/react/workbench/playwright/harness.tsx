@@ -9,6 +9,7 @@ import {
   TimelineWorkbench,
   createTimelineAudioExtension,
   createTimelineAudioFileAsset,
+  createTimelineMediaFileSource,
   createTimelineVideoExtension,
   type TimelineEditorDocument,
   type TimelineEditorEditPolicy,
@@ -21,6 +22,10 @@ import {
   type TimelineWorkbenchTransportChangeReason,
   type TimelineWorkbenchTransportState,
 } from "@moritzbrantner/timeline-editor";
+
+const previewAudioFixtureFileName = "Me at the zoo [jNQXAC9IVRw].mp3";
+const previewAudioFixtureUrl = `/${encodeURIComponent(previewAudioFixtureFileName)}`;
+const previewVideoFixtureUrl = "/timeline-preview-fixture.webm";
 
 type HarnessState = {
   changes: string[];
@@ -245,7 +250,11 @@ const createTransportMediaDocument = (): TimelineEditorDocument => ({
           color: "#92400e",
           data: {
             mediaType: "video",
-            source: { uri: "https://example.test/demo.mp4", label: "demo.mp4" },
+            source: {
+              uri: previewVideoFixtureUrl,
+              label: "timeline-preview-fixture.webm",
+              mimeType: "video/webm",
+            },
             poster:
               "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='360'%3E%3Crect width='640' height='360' fill='%2316a34a'/%3E%3C/svg%3E",
             fit: "contain",
@@ -264,7 +273,11 @@ const createTransportMediaDocument = (): TimelineEditorDocument => ({
           color: "#9333ea",
           data: {
             mediaType: "audio",
-            source: { uri: "https://example.test/demo.mp3", label: "demo.mp3" },
+            source: {
+              uri: previewAudioFixtureUrl,
+              label: previewAudioFixtureFileName,
+              mimeType: "audio/mpeg",
+            },
             volume: 0.5,
             sourceStartMs: 500,
           },
@@ -484,6 +497,10 @@ function App() {
           });
         }
 
+        const fileSource = source.file
+          ? createTimelineMediaFileSource(source.file, { label })
+          : undefined;
+
         return {
           asset: {
             id: `imported-${label
@@ -498,7 +515,7 @@ function App() {
             description: "Imported file",
             data: {
               fileName: source.file?.name,
-              source: source.url ? { uri: source.url } : undefined,
+              source: source.url ? { uri: source.url, label } : fileSource?.source,
               imported: true,
               mediaType: "video",
             },
