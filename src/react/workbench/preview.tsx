@@ -12,6 +12,7 @@ import {
   type TimelineEditorTimeRange,
   type TimelineEditorTrack,
 } from "../../core";
+import { findTimelineEditorExtensionForItem } from "../../extensions";
 import { getTimelineMediaTypeForItem } from "../../media-types";
 import {
   getTimelineTextCuesAt,
@@ -624,23 +625,15 @@ function getTimelineWorkbenchPreviewExtension<
   items: Array<TimelineEditorItem<TItemData>>,
   extensions: Array<TimelineEditorExtension<TItemData, TTrackData, TAssetData>>,
 ) {
-  const itemKindExtension = extensions.find(
-    (extension) =>
-      extension.renderPreview &&
-      items.some((item) => (item.kind ? extension.itemKinds?.includes(item.kind) : false)),
-  );
+  for (const item of items) {
+    const extension = findTimelineEditorExtensionForItem(item, extensions, {
+      predicate: (candidate) => Boolean(candidate.renderPreview),
+    });
 
-  if (itemKindExtension) {
-    return itemKindExtension;
+    if (extension) {
+      return extension;
+    }
   }
 
-  return extensions.find(
-    (extension) =>
-      extension.renderPreview &&
-      items.some((item) => {
-        const mediaType = getTimelineMediaTypeForItem(item);
-
-        return mediaType ? extension.mediaTypes?.includes(mediaType) : false;
-      }),
-  );
+  return undefined;
 }

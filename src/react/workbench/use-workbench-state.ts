@@ -6,7 +6,7 @@ import {
   type TimelineEditorTimeRange,
   type TimelineEditorTrack,
 } from "../../core";
-import { getTimelineMediaTypeForItem } from "../../media-types";
+import { findTimelineEditorExtensionForItem } from "../../extensions";
 import type {
   TimelineEditorExtension,
   TimelineWorkbenchAsset,
@@ -73,24 +73,9 @@ export function getTimelineWorkbenchItemRenderExtension<
   item: TimelineEditorItem<TItemData>,
   extensions: Array<TimelineEditorExtension<TItemData, TTrackData, TAssetData>>,
 ) {
-  const itemKind = item.kind;
-  const itemKindExtension = itemKind
-    ? extensions.find(
-        (extension) => extension.renderItem && extension.itemKinds?.includes(itemKind),
-      )
-    : undefined;
-
-  if (itemKindExtension) {
-    return itemKindExtension;
-  }
-
-  const mediaType = getTimelineMediaTypeForItem(item);
-
-  return mediaType
-    ? extensions.find(
-        (extension) => extension.renderItem && extension.mediaTypes?.includes(mediaType),
-      )
-    : undefined;
+  return findTimelineEditorExtensionForItem(item, extensions, {
+    predicate: (extension) => Boolean(extension.renderItem),
+  });
 }
 
 export function getTimelineWorkbenchTrackKinds<

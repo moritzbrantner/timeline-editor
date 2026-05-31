@@ -234,6 +234,8 @@ Use `bun run verify:quick` for normal changes before opening a PR. Use
 ## Deeper Docs
 
 - [Core document model and operations](./docs/core.md)
+- [Architecture and package layering](./docs/architecture.md)
+- [Domain extension boundaries](./docs/domain-extensions.md)
 - [Workbench integration](./docs/workbench.md)
 - [Extensions and media foundations](./docs/extensions.md)
 - [Serialization and migrations](./docs/serialization.md)

@@ -219,8 +219,10 @@ export type TimelineEditorExtension<
 > = {
   id: string;
   itemKinds?: string[];
+  domains?: string[];
   mediaTypes?: TimelineMediaType[];
   trackKinds?: string[];
+  matchItem?: (item: TimelineEditorItem<TItemData>) => boolean;
   renderItem?: (context: TimelineEditorItemRenderContext<TItemData>) => ReactNode;
   renderPreview?: (context: TimelinePreviewContext<TItemData>) => ReactNode;
   inspectorSections?: Array<TimelineInspectorSectionFactory<TItemData, TTrackData>>;

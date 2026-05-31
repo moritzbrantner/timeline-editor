@@ -3525,6 +3525,51 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     expect(screen.getByText("Media fallback")).toBeTruthy();
   });
 
+  test("resolves workbench extensions by item data domain before media type", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks: [
+        {
+          id: "map",
+          label: "Map",
+          acceptsItemKinds: ["route"],
+          items: [
+            {
+              id: "route",
+              trackId: "map",
+              label: "Route",
+              kind: "route",
+              startMs: 0,
+              durationMs: 1_000,
+              data: { domain: "map", mediaType: "text", layerId: "route-main" },
+            },
+          ],
+        },
+      ],
+    };
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        extensions={[
+          {
+            id: "text-media",
+            mediaTypes: ["text"],
+            renderItem: () => <span>Media fallback</span>,
+          },
+          {
+            id: "map-domain",
+            domains: ["map"],
+            renderItem: () => <span>Domain renderer</span>,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Domain renderer")).toBeTruthy();
+    expect(screen.queryByText("Media fallback")).toBeNull();
+  });
+
   test("asset insertion preserves media data and asset media type metadata", () => {
     const document: TimelineEditorDocument = {
       durationMs: 8_000,

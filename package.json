@@ -44,6 +44,10 @@
       "types": "./dist/serialization.d.ts",
       "import": "./dist/serialization.js"
     },
+    "./extensions": {
+      "types": "./dist/extensions.d.ts",
+      "import": "./dist/extensions.js"
+    },
     "./media-types": {
       "types": "./dist/media-types.d.ts",
       "import": "./dist/media-types.js"
@@ -110,7 +114,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsup src/index.ts src/core.ts src/react.tsx src/commands.ts src/history.ts src/serialization.ts src/media-types.ts src/text.ts src/audio.ts src/video.ts src/image.ts src/data.ts --format esm --dts --clean --out-dir dist",
+    "build": "tsup src/index.ts src/core.ts src/react.tsx src/commands.ts src/history.ts src/serialization.ts src/extensions.ts src/media-types.ts src/text.ts src/audio.ts src/video.ts src/image.ts src/data.ts --format esm --dts --clean --out-dir dist",
     "build-storybook": "storybook build",
     "changeset": "changeset",
     "dev": "vite --config examples/dev/vite.config.ts --host 127.0.0.1",

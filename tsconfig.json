@@ -10,6 +10,7 @@
       "@moritzbrantner/timeline-editor": ["./src/index.ts"],
       "@moritzbrantner/timeline-editor/core": ["./src/core.ts"],
       "@moritzbrantner/timeline-editor/react": ["./src/react.tsx"],
+      "@moritzbrantner/timeline-editor/extensions": ["./src/extensions.ts"],
       "@moritzbrantner/timeline-editor/media-types": ["./src/media-types.ts"],
       "@moritzbrantner/timeline-editor/text": ["./src/text.ts"],
       "@moritzbrantner/timeline-editor/audio": ["./src/audio.ts"],

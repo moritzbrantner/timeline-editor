@@ -19,6 +19,7 @@ const entryFiles = [
   "commands.js",
   "history.js",
   "serialization.js",
+  "extensions.js",
   "media-types.js",
   "text.js",
   "audio.js",
@@ -110,6 +111,12 @@ const expectedRuntimeExports = {
     "validateTimelineEditorDocument",
   ],
   "data.js": ["createTimelineNumericDataExtension"],
+  "extensions.js": [
+    "doesTimelineEditorExtensionMatchItem",
+    "findTimelineEditorExtensionForItem",
+    "getTimelineEditorDomainForItem",
+    "getTimelineEditorItemDataDomain",
+  ],
   "history.js": [
     "applyTimelineEditorCommandWithHistory",
     "createTimelineEditorHistory",
@@ -119,6 +126,10 @@ const expectedRuntimeExports = {
   "image.js": ["createTimelineImageExtension"],
   "media-types.js": [
     "assertTimelineMediaKindMatchesData",
+    "createTimelineMediaFileSource",
+    "createTimelineMediaObjectUrl",
+    "createTimelineMediaSourceRegistry",
+    "getTimelineMediaSourceKey",
     "getTimelineMediaTypeForAsset",
     "getTimelineMediaTypeForItem",
     "getTimelineMediaTypeForKind",

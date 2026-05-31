@@ -5,9 +5,13 @@ extension can contribute item rendering, preview rendering, inspector sections,
 toolbar actions, context menu items, timeline context menu items, and pure
 operations.
 
+For the long-term multi-domain package boundaries, see
+[Architecture](./architecture.md) and [Domain Extensions](./domain-extensions.md).
+
 `TimelineWorkbench` resolves item renderers by exact `extension.itemKinds`
-first, then by normalized `extension.mediaTypes`, then by the consumer
-`renderTimelineItem` fallback.
+first, then by explicit `extension.matchItem`, then by `extension.domains`, then
+by normalized `extension.mediaTypes`, then by the consumer `renderTimelineItem`
+fallback.
 
 Built-in media foundations are available from these subpaths:
 

@@ -280,7 +280,9 @@ export function TimelineWorkbench<
       extensions.filter(
         (extension) =>
           (extension.itemKinds && extension.itemKinds.length > 0) ||
-          (extension.mediaTypes && extension.mediaTypes.length > 0),
+          (extension.domains && extension.domains.length > 0) ||
+          (extension.mediaTypes && extension.mediaTypes.length > 0) ||
+          Boolean(extension.matchItem),
       ),
     [extensions],
   );
