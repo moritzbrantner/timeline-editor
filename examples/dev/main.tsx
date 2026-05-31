@@ -85,6 +85,9 @@ const initialDocument: TimelineEditorDocument = {
               mimeType: "audio/mpeg",
             },
             volume: 0.85,
+            channels: 2,
+            sampleRate: 44_100,
+            waveform: [0.12, 0.34, 0.68, 0.92, 0.56, 0.77, 0.42, 0.25],
           },
         },
         {
@@ -176,6 +179,9 @@ const assets = [
         mimeType: "audio/mpeg",
       },
       volume: 0.85,
+      channels: 2,
+      sampleRate: 44_100,
+      waveform: [0.2, 0.6, 0.95, 0.45, 0.7, 0.3],
     },
   },
   {

@@ -69,6 +69,9 @@ const editingDocument: TimelineEditorDocument = {
             mediaType: "audio",
             source: { label: "Me at the zoo", uri: zooAudioUrl, mimeType: "audio/mpeg" },
             volume: 0.85,
+            channels: 2,
+            sampleRate: 44_100,
+            waveform: [0.12, 0.34, 0.68, 0.92, 0.56, 0.77, 0.42, 0.25],
           },
         },
         {
@@ -249,6 +252,7 @@ function TimelineWorkbenchStory({
           return createTimelineAudioFileAsset(source.file, {
             durationMs: 1_000,
             color: "#15803d",
+            waveformSampleCount: 96,
           });
         }
 

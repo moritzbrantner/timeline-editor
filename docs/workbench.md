@@ -21,7 +21,9 @@ to expose compact URL controls that emit `TimelineWorkbenchImportSource`
 entries with `type: "url"` and a normalized `url`. For audio imports,
 `createTimelineAudioFileAsset(file)` from
 `@moritzbrantner/timeline-editor/audio` creates an `audio` asset with source
-metadata and a playable object URL. For video imports,
+metadata, a playable object URL, and best-effort Web Audio duration, channel,
+sample-rate, and waveform metadata. Pass `generateWaveform: false` to skip
+browser decoding, or pass `waveform` when the host already has peaks. For video imports,
 `createTimelineVideoFileAsset(file)` from
 `@moritzbrantner/timeline-editor/video` creates a `video` asset with duration,
 dimensions, poster, optional thumbnails, MIME/source metadata, and a playable

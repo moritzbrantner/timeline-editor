@@ -39,12 +39,16 @@ lifecycle helpers expose explicit cleanup callbacks. `TimelineEditor` and
 selection, viewport, clipboard, hotkey, and history state when they pass the
 matching props.
 
-`createTimelineAudioExtension()` from `./audio` includes audio source metadata
-and waveform item rendering. Browser `File` and URL imports remain host-owned
-through `onImportAssets`; use `createTimelineAudioFileAsset(file)` to turn an
-audio file into an asset and `createTimelineVideoFileAsset(file)` from `./video`
-to probe video duration, dimensions, poster, optional thumbnails, and source
-metadata. The returned cleanup callback is also accepted by
+`createTimelineAudioExtension()` from `./audio` includes audio source metadata,
+waveform item rendering, and a selected-item audio metadata inspector. Browser
+`File` and URL imports remain host-owned through `onImportAssets`; use
+`createTimelineAudioFileAsset(file)` to turn an audio file into an asset. It
+best-effort extracts duration, channels, sample rate, and a compact waveform
+with browser Web Audio APIs, can be disabled with `generateWaveform: false`,
+and gracefully falls back when decoding is unavailable. Use
+`createTimelineVideoFileAsset(file)` from `./video` to probe video duration,
+dimensions, poster, optional thumbnails, and source metadata. The returned
+cleanup callback is also accepted by
 `TimelineWorkbenchImportResult`, so workbench-owned imports are revoked on
 unmount. Use `createTimelineMediaSourceRegistry()` from `./media-types` when a
 host owns sources outside the workbench import flow. Set `allowUrlImport` with

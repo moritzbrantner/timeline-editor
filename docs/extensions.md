@@ -22,22 +22,26 @@ Built-in media foundations are available from these subpaths:
 - `@moritzbrantner/timeline-editor/image`
 - `@moritzbrantner/timeline-editor/data`
 
-`createTimelineAudioExtension()` includes a default browser audio preview. It
-renders native audio controls for selected or active audio items when the item
-data includes a playable `data.source.uri`; otherwise it shows the available
-source metadata and a compact `No audio source` state.
+`createTimelineAudioExtension()` includes source metadata rendering, waveform
+clip rendering, a selected-item audio metadata inspector, and synchronized
+workbench audio preview for items with a playable `data.source.uri`. If an
+audio item has no playable source, the preview shows the available source
+metadata and a compact `No audio source` state.
 
 Browser file import is still owned by the host workbench integration. Use
 `createTimelineAudioFileAsset(file)` from `@moritzbrantner/timeline-editor/audio`
 inside `onImportAssets` to create an audio asset from a `File`. The helper
-returns an object URL and optional cleanup callback. `TimelineWorkbench` stores
-that cleanup when it is returned from `onImportAssets` and revokes
-workbench-owned imports on unmount; hosts that keep sources elsewhere can use
-`createTimelineMediaSourceRegistry()` from `@moritzbrantner/timeline-editor/media-types`.
+returns an object URL and optional cleanup callback. It best-effort extracts
+duration, channels, sample rate, and a compact waveform with browser Web Audio
+APIs; pass `generateWaveform: false` to disable decoding, or pass `waveform` to
+use host-supplied peaks. `TimelineWorkbench` stores that cleanup when it is
+returned from `onImportAssets` and revokes workbench-owned imports on unmount;
+hosts that keep sources elsewhere can use `createTimelineMediaSourceRegistry()`
+from `@moritzbrantner/timeline-editor/media-types`.
 Use `createTimelineVideoFileAsset(file)` from
 `@moritzbrantner/timeline-editor/video` for matching video imports with
 duration, dimensions, poster, optional thumbnails, and MIME/source metadata.
 
-These foundations do not generate audio waveforms, export renders, apply
-effects, or implement transitions. Audio preview uses browser media controls
-rather than a synchronized timeline transport.
+These foundations do not export renders, apply effects, or implement
+transitions. Audio waveform generation is lightweight and browser-only; heavy
+worker, cache, and proxy pipelines remain host-owned.

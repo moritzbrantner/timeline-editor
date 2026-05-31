@@ -23,6 +23,8 @@ import {
 import {
   createTimelineAudioExtension,
   createTimelineAudioFileAsset,
+  createTimelineAudioWaveformFromAudioBuffer,
+  loadTimelineAudioMetadata,
   type TimelineAudioItemData,
 } from "@moritzbrantner/timeline-editor/audio";
 import {
@@ -208,6 +210,52 @@ function installMockMediaElement() {
           delete (HTMLMediaElement.prototype as unknown as Record<string, unknown>)[key];
         }
       });
+    },
+  };
+}
+
+function createMockAudioBuffer(
+  channels: number[][],
+  options: { duration?: number; sampleRate?: number } = {},
+): AudioBuffer {
+  return {
+    duration: options.duration ?? 1,
+    length: channels[0]?.length ?? 0,
+    numberOfChannels: channels.length,
+    sampleRate: options.sampleRate ?? 44_100,
+    getChannelData: (channelIndex: number) => Float32Array.from(channels[channelIndex] ?? []),
+  } as AudioBuffer;
+}
+
+function installMockAudioContext(audioBuffer: AudioBuffer | Error) {
+  const previousDescriptor = Object.getOwnPropertyDescriptor(window, "AudioContext");
+  const decodeAudioData = vi.fn(async () => {
+    if (audioBuffer instanceof Error) {
+      throw audioBuffer;
+    }
+
+    return audioBuffer;
+  });
+  const close = vi.fn(async () => undefined);
+  const AudioContextMock = vi.fn(function AudioContextMock(this: unknown) {
+    Object.assign(this as object, { close, decodeAudioData });
+  });
+
+  Object.defineProperty(window, "AudioContext", {
+    configurable: true,
+    value: AudioContextMock,
+  });
+
+  return {
+    close,
+    constructor: AudioContextMock,
+    decodeAudioData,
+    restore() {
+      if (previousDescriptor) {
+        Object.defineProperty(window, "AudioContext", previousDescriptor);
+      } else {
+        delete (window as Window & { AudioContext?: typeof AudioContext }).AudioContext;
+      }
     },
   };
 }
@@ -3195,10 +3243,14 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
                 mediaType: "audio",
                 muted: true,
                 volume: 0.35,
+                channels: 2,
+                sampleRate: 48_000,
+                waveform: [0.1, 0.5, 1, 0.25],
                 source: {
                   label: "voice.wav",
                   uri: "blob:voice",
                   mimeType: "audio/wav",
+                  metadata: { size: 2_048 },
                 },
               },
             },
@@ -3219,6 +3271,13 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     ) as HTMLAudioElement | null;
 
     expect(container.querySelector("[data-slot='timeline-media-audio-preview-player']")).toBeNull();
+    expect(container.querySelector("[data-slot='timeline-media-audio-waveform']")).toBeTruthy();
+    expect(
+      container.querySelector("[data-slot='timeline-media-audio-metadata']")?.textContent,
+    ).toBe("voice.wav · audio/wav · 0:03.0 · 2 ch · 48 kHz · Muted");
+    expect(container.querySelector("[data-slot='timeline-media-audio-inspector']")).toBeTruthy();
+    expect(screen.getAllByText("Sample Rate").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("2 KB").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Voiceover").length).toBeGreaterThan(0);
     expect(player).toBeTruthy();
     expect(player?.src).toContain("blob:voice");
@@ -3306,49 +3365,161 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     expect(container.querySelector("[data-slot='timeline-media-audio-preview-player']")).toBeNull();
   });
 
+  test("creates normalized waveform peaks from audio buffers", () => {
+    const waveform = createTimelineAudioWaveformFromAudioBuffer(
+      createMockAudioBuffer([
+        [0, 0.25, -0.5, 0.75, 1.5, 0, Number.NaN, -0.25],
+        [0.1, -0.2, 0.4, -0.6, 0.8, 0.2, 0, 0],
+      ]),
+      { sampleCount: 4 },
+    );
+
+    expect(waveform).toEqual([0.25, 0.75, 1, 0.25]);
+    expect(
+      createTimelineAudioWaveformFromAudioBuffer(createMockAudioBuffer([[0, 0, 0]]), {
+        sampleCount: 3,
+      }),
+    ).toEqual([0, 0, 0]);
+  });
+
+  test("loads browser audio metadata with Web Audio", async () => {
+    const audioContext = installMockAudioContext(
+      createMockAudioBuffer(
+        [
+          [0, 0.25, -0.5, 1],
+          [0.5, -0.75, 0.25, 0],
+        ],
+        { duration: 1.25, sampleRate: 48_000 },
+      ),
+    );
+
+    try {
+      const metadata = await loadTimelineAudioMetadata(new File(["audio"], "voice.wav"), {
+        sampleCount: 2,
+      });
+
+      expect(metadata).toEqual({
+        durationMs: 1_250,
+        channels: 2,
+        sampleRate: 48_000,
+        waveform: [0.75, 1],
+      });
+      expect(audioContext.constructor).toHaveBeenCalledTimes(1);
+      expect(audioContext.decodeAudioData).toHaveBeenCalledTimes(1);
+      expect(audioContext.close).toHaveBeenCalledTimes(1);
+    } finally {
+      audioContext.restore();
+    }
+  });
+
   test("creates browser audio assets from files", async () => {
     const file = new File(["audio"], "click.wav", {
       type: "audio/wav",
       lastModified: 12,
     });
+    const audioContext = installMockAudioContext(createMockAudioBuffer([[0, 1]]));
     const revokeObjectUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
 
-    const result = await createTimelineAudioFileAsset(file, {
-      createObjectUrl: () => "blob:click",
-      durationMs: 750,
-      color: "#16a34a",
-      waveform: [0.2, 0.8],
-    });
-
-    expect(result.objectUrl).toBe("blob:click");
-    expect(result.asset).toEqual(
-      expect.objectContaining({
-        id: "audio-click-wav",
-        label: "click.wav",
-        kind: "audio",
-        mediaType: "audio",
+    try {
+      const result = await createTimelineAudioFileAsset(file, {
+        createObjectUrl: () => "blob:click",
         durationMs: 750,
         color: "#16a34a",
-        data: expect.objectContaining({
+        waveform: [0.2, 0.8],
+      });
+
+      expect(result.objectUrl).toBe("blob:click");
+      expect(audioContext.constructor).not.toHaveBeenCalled();
+      expect(result.asset).toEqual(
+        expect.objectContaining({
+          id: "audio-click-wav",
+          label: "click.wav",
+          kind: "audio",
           mediaType: "audio",
-          waveform: [0.2, 0.8],
+          durationMs: 750,
+          color: "#16a34a",
+          data: expect.objectContaining({
+            mediaType: "audio",
+            waveform: [0.2, 0.8],
+            source: expect.objectContaining({
+              uri: "blob:click",
+              label: "click.wav",
+              mimeType: "audio/wav",
+              metadata: expect.objectContaining({
+                fileName: "click.wav",
+                lastModified: 12,
+                size: 5,
+                durationMs: 750,
+              }),
+            }),
+          }),
+        }),
+      );
+
+      result.revoke?.();
+      expect(revokeObjectUrl).toHaveBeenCalledWith("blob:click");
+      revokeObjectUrl.mockRestore();
+    } finally {
+      audioContext.restore();
+    }
+  });
+
+  test("generates audio file asset waveform and metadata when available", async () => {
+    const audioContext = installMockAudioContext(
+      createMockAudioBuffer([[0, 0.2, 0.4, 0.8]], { duration: 2.5, sampleRate: 44_100 }),
+    );
+
+    try {
+      const result = await createTimelineAudioFileAsset(
+        new File(["audio"], "music.mp3", { type: "audio/mpeg", lastModified: 10 }),
+        {
+          createObjectUrl: () => "blob:music",
+          waveformSampleCount: 2,
+        },
+      );
+
+      expect(result.asset.durationMs).toBe(2_500);
+      expect(result.asset.data).toEqual(
+        expect.objectContaining({
+          mediaType: "audio",
+          waveform: [0.25, 1],
+          channels: 1,
+          sampleRate: 44_100,
           source: expect.objectContaining({
-            uri: "blob:click",
-            label: "click.wav",
-            mimeType: "audio/wav",
             metadata: expect.objectContaining({
-              fileName: "click.wav",
-              lastModified: 12,
+              durationMs: 2_500,
+              channels: 1,
+              sampleRate: 44_100,
+              fileName: "music.mp3",
               size: 5,
             }),
           }),
         }),
-      }),
-    );
+      );
+    } finally {
+      audioContext.restore();
+    }
+  });
 
-    result.revoke?.();
-    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:click");
-    revokeObjectUrl.mockRestore();
+  test("audio file asset import falls back when waveform decoding is unavailable", async () => {
+    const audioContext = installMockAudioContext(new Error("decode failed"));
+
+    try {
+      const result = await createTimelineAudioFileAsset(new File(["audio"], "flat.wav"), {
+        createObjectUrl: () => "blob:flat",
+        durationMs: 900,
+      });
+
+      expect(result.asset.durationMs).toBe(900);
+      expect(result.asset.data?.waveform).toBeUndefined();
+      expect(result.asset.data?.channels).toBeUndefined();
+      expect(result.asset.data?.sampleRate).toBeUndefined();
+      expect(result.asset.data?.source?.metadata).toEqual(
+        expect.objectContaining({ durationMs: 900 }),
+      );
+    } finally {
+      audioContext.restore();
+    }
   });
 
   test("asset insertion preserves audio file asset data", async () => {

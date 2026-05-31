@@ -390,6 +390,7 @@ test("imports an audio file asset and previews it", async ({ page }) => {
         | {
             kind?: string;
             data?: {
+              waveform?: number[];
               mediaType?: string;
               source?: { label?: string; mimeType?: string; uri?: string };
             };
@@ -403,6 +404,7 @@ test("imports an audio file asset and previews it", async ({ page }) => {
             sourceLabel: item.data?.source?.label,
             sourceMimeType: item.data?.source?.mimeType,
             hasSourceUri: Boolean(item.data?.source?.uri),
+            waveformLength: item.data?.waveform?.length,
           }
         : undefined;
     })
@@ -412,6 +414,7 @@ test("imports an audio file asset and previews it", async ({ page }) => {
       sourceLabel: audioFile.name,
       sourceMimeType: "audio/mpeg",
       hasSourceUri: true,
+      waveformLength: 6,
     });
   await expect
     .poll(async () => {
@@ -425,6 +428,9 @@ test("imports an audio file asset and previews it", async ({ page }) => {
     .toBe(audioFile.name);
   await expect(page.locator("[data-slot='timeline-media-audio-preview-player']")).toHaveCount(0);
   await expect(page.locator("[data-slot='timeline-workbench-scene-audio']")).toHaveCount(1);
+  await expect(
+    getClip(page, audioFile.name).locator("[data-slot='timeline-media-audio-waveform']"),
+  ).toBeVisible();
   await expect(page.getByText(audioFile.name).first()).toBeVisible();
 });
 

@@ -62,9 +62,72 @@ export function getTimelineWorkbenchAssetBrowserItems<TAssetData>(
         Duration: formatTimelineEditorTimeMs(asset.durationMs),
         Kind: asset.kind ?? "item",
         ...(mediaType ? { "Media Type": mediaType } : {}),
+        ...getTimelineWorkbenchAudioAssetMetadata(asset, mediaType),
       },
     };
   });
+}
+
+function getTimelineWorkbenchAudioAssetMetadata<TAssetData>(
+  asset: TimelineWorkbenchAsset<TAssetData>,
+  mediaType: TimelineMediaType | undefined,
+) {
+  if (mediaType !== "audio") {
+    return {};
+  }
+
+  const data = asset.data as
+    | {
+        channels?: unknown;
+        sampleRate?: unknown;
+        source?: {
+          label?: unknown;
+          mimeType?: unknown;
+          metadata?: Record<string, unknown>;
+        };
+      }
+    | undefined;
+  const source = data?.source;
+  const sourceMetadata = source?.metadata;
+  const channels = toTimelineWorkbenchMetadataNumber(data?.channels ?? sourceMetadata?.channels);
+  const sampleRate = toTimelineWorkbenchMetadataNumber(
+    data?.sampleRate ?? sourceMetadata?.sampleRate,
+  );
+  const size = toTimelineWorkbenchMetadataNumber(sourceMetadata?.size);
+
+  return {
+    ...(typeof source?.label === "string" && source.label ? { Source: source.label } : {}),
+    ...(typeof source?.mimeType === "string" && source.mimeType
+      ? { "MIME Type": source.mimeType }
+      : {}),
+    ...(size !== undefined ? { Size: formatTimelineWorkbenchAssetFileSize(size) } : {}),
+    ...(channels !== undefined ? { Channels: `${Math.round(channels)} ch` } : {}),
+    ...(sampleRate !== undefined
+      ? { "Sample Rate": formatTimelineWorkbenchSampleRate(sampleRate) }
+      : {}),
+  };
+}
+
+function toTimelineWorkbenchMetadataNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function formatTimelineWorkbenchSampleRate(sampleRate: number) {
+  return sampleRate >= 1_000
+    ? `${Math.round(sampleRate / 100) / 10} kHz`
+    : `${Math.round(sampleRate)} Hz`;
+}
+
+function formatTimelineWorkbenchAssetFileSize(size: number) {
+  if (size < 1_024) {
+    return `${Math.round(size)} B`;
+  }
+
+  if (size < 1_024 * 1_024) {
+    return `${Math.round((size / 1_024) * 10) / 10} KB`;
+  }
+
+  return `${Math.round((size / (1_024 * 1_024)) * 10) / 10} MB`;
 }
 
 export function createTimelineWorkbenchItemFromAsset<TItemData, TAssetData>(

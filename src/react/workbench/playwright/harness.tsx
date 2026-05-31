@@ -494,6 +494,7 @@ function App() {
           return createTimelineAudioFileAsset(source.file, {
             durationMs: 750,
             color: "#15803d",
+            waveform: [0.2, 0.6, 0.95, 0.45, 0.7, 0.3],
           });
         }
 

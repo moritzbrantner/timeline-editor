@@ -28,7 +28,12 @@ const entryFiles = [
   "data.js",
 ];
 const expectedRuntimeExports = {
-  "audio.js": ["createTimelineAudioExtension", "createTimelineAudioFileAsset"],
+  "audio.js": [
+    "createTimelineAudioExtension",
+    "createTimelineAudioFileAsset",
+    "createTimelineAudioWaveformFromAudioBuffer",
+    "loadTimelineAudioMetadata",
+  ],
   "commands.js": ["applyTimelineEditorCommand"],
   "core.js": [
     "addTimelineEditorMarker",

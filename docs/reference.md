@@ -176,18 +176,22 @@ Built-in media foundations are available from media-specific subpaths:
 synchronized hidden workbench preview playback for audio items with
 `data.source.uri`. Use
 `createTimelineAudioFileAsset(file)` inside a host `onImportAssets` callback to
-create audio assets from browser files; returning the helper result lets
-`TimelineWorkbench` revoke workbench-owned object URLs on unmount. Use
+create audio assets from browser files with source metadata, optional Web Audio
+duration/channel/sample-rate probing, and best-effort waveform peaks. Pass
+`generateWaveform: false` to skip browser decoding, or pass `waveform` to use
+host-supplied peaks; returning the helper result lets `TimelineWorkbench`
+revoke workbench-owned object URLs on unmount. Use
 `createTimelineVideoFileAsset(file)` for matching video file imports with
 duration probing, dimensions, poster generation, optional thumbnails, MIME
 metadata, and object URL cleanup. Use `createTimelineMediaSourceRegistry()`
 for host-owned source lifetimes outside the workbench import flow.
 
-Built-in media extensions do not generate audio waveforms, export renders, apply
-effects, or implement transitions. Workbench audio preview
-is timeline-driven rather than a native audio player, while video controls remain
-available for manual preview. Workbench transport playback synchronizes active
-media elements to the timeline playhead.
+The audio file helper can generate lightweight browser-only waveform peaks with
+Web Audio and falls back when decoding is unavailable. Built-in media extensions
+do not export renders, apply effects, or implement transitions. Workbench audio
+preview is timeline-driven rather than a native audio player, while video
+controls remain available for manual preview. Workbench transport playback
+synchronizes active media elements to the timeline playhead.
 
 Subtitle preview supports common ASS/SSA, SRT, and WebVTT timing and styling in
 the workbench scene preview. The ASS renderer is intentionally a practical
