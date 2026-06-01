@@ -32,6 +32,29 @@ will run its cleanup when those imported sources are no longer mounted. Use
 `createTimelineMediaSourceRegistry()` when the host owns source lifetimes
 outside the workbench import result.
 
+Hosts that need heavier import analysis can use split packages and pass a
+shared compute backend:
+
+```ts
+import { createTimelineAdaptiveBackend } from "@timeline-editor/compute";
+import { createTimelineTauriBackend } from "@timeline-editor/tauri";
+import {
+  createTimelineAudioBrowserBackend,
+  createTimelineAudioFileAsset,
+} from "@timeline-editor/audio";
+
+const backend = createTimelineAdaptiveBackend({
+  tauri: isTauri ? createTimelineTauriBackend({ invoke }) : undefined,
+  browserWasm: createTimelineAudioBrowserBackend(),
+});
+
+const result = await createTimelineAudioFileAsset(file, { backend });
+```
+
+The same task contract is used for browser workers and Tauri Rust commands.
+When no backend supports a task, split packages fall back to the lightweight
+root helper behavior or return typed warnings with the import result.
+
 Track selection is represented with `selection.trackIds`. Selecting a default
 track header clears item, marker, and range selection, reports the selected
 track through `onSelectedItemChange`, and shows the default track inspector.

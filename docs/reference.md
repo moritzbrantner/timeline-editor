@@ -360,15 +360,19 @@ const mediaIssues = validateTimelineEditorMediaTypes(document);
 
 ## Package Layout
 
-The main `@moritzbrantner/timeline-editor` package owns all public exports. The
-private workspace packages under `packages/audio`, `packages/video`, and
-`packages/captions` currently re-export media entrypoints for future split-package
-compatibility. Consumers should not depend on the private `@timeline-editor/*`
-packages.
+The main `@moritzbrantner/timeline-editor` package owns the generic editor and
+lightweight root exports. Optional split packages under `@timeline-editor/*`
+provide accelerated domain entrypoints:
 
-Split media packages should wait until there is a concrete need: independent
-install requests, heavier optional media dependencies, or a measured main-package
-size problem.
+- `@timeline-editor/compute` for the shared browser worker, Tauri, adaptive,
+  and fallback compute backend contract.
+- `@timeline-editor/audio`, `@timeline-editor/video`,
+  `@timeline-editor/image`, `@timeline-editor/captions`,
+  `@timeline-editor/geo`, and `@timeline-editor/data` for domain helpers that
+  accept an optional backend and fall back to lightweight behavior.
+- `@timeline-editor/tauri` for the Tauri invoke backend adapter.
+
+The root package does not import these split packages.
 
 ## Recipes
 

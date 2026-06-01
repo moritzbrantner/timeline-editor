@@ -1,0 +1,11 @@
+[package]
+name = "timeline_tauri_plugin"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+timeline_compute.workspace = true
+timeline_geo = { path = "../timeline_geo" }

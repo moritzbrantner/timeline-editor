@@ -22,6 +22,20 @@ Built-in media foundations are available from these subpaths:
 - `@moritzbrantner/timeline-editor/image`
 - `@moritzbrantner/timeline-editor/data`
 
+Accelerated split packages are available under `@timeline-editor/*` for hosts
+that want browser worker/WASM or Tauri-backed computation:
+
+- `@timeline-editor/compute` for `TimelineComputeBackend`,
+  `createTimelineBrowserWasmBackend(...)`, `createTimelineTauriBackend(...)`,
+  and `createTimelineAdaptiveBackend(...)`.
+- `@timeline-editor/audio`, `@timeline-editor/video`,
+  `@timeline-editor/image`, `@timeline-editor/captions`,
+  `@timeline-editor/geo`, and `@timeline-editor/data` for domain extension
+  factories and async import/analysis helpers.
+
+These packages are optional wrappers. The root package remains lightweight and
+does not import them.
+
 `createTimelineAudioExtension()` includes source metadata rendering, waveform
 clip rendering, a selected-item audio metadata inspector, and synchronized
 workbench audio preview for items with a playable `data.source.uri`. If an
@@ -43,5 +57,6 @@ Use `createTimelineVideoFileAsset(file)` from
 duration, dimensions, poster, optional thumbnails, and MIME/source metadata.
 
 These foundations do not export renders, apply effects, or implement
-transitions. Audio waveform generation is lightweight and browser-only; heavy
-worker, cache, and proxy pipelines remain host-owned.
+transitions. Audio waveform generation in the root package is lightweight and
+browser-only; heavy worker, cache, Tauri, and proxy pipelines belong in the
+split `@timeline-editor/*` packages or host applications.

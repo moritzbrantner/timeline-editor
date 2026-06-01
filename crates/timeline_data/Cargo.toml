@@ -1,0 +1,8 @@
+[package]
+name = "timeline_data"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+timeline_compute.workspace = true

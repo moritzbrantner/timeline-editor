@@ -198,6 +198,81 @@ const expectedRuntimeExports = {
   ],
   "video.js": ["createTimelineVideoExtension", "createTimelineVideoFileAsset"],
 };
+const expectedSplitPackageExports = {
+  audio: [
+    "analyzeTimelineAudioSource",
+    "createTimelineAudioBrowserBackend",
+    "createTimelineAudioExtension",
+    "createTimelineAudioFileAsset",
+    "createTimelineAudioWaveformFromAudioBuffer",
+    "loadTimelineAudioMetadata",
+  ],
+  captions: [
+    "createTimelineCaptionExtension",
+    "createTimelineCaptionFileAsset",
+    "createTimelineCaptionSource",
+    "createTimelineCaptionsBrowserBackend",
+    "createTimelineCaptionsExtension",
+    "createTimelineTextExtension",
+    "createTimelineTextFileAsset",
+    "detectTimelineCaptionFormat",
+    "detectTimelineTextFormat",
+    "getTimelineCaptionCueAt",
+    "getTimelineCaptionCuesAt",
+    "getTimelineCaptionDisplayText",
+    "getTimelineCaptionStyleForCue",
+    "getTimelineTextCueAt",
+    "getTimelineTextCuesAt",
+    "getTimelineTextDisplayText",
+    "getTimelineTextStyleForCue",
+    "parseTimelineAssCaptions",
+    "parseTimelineAssText",
+    "parseTimelineCaptions",
+    "parseTimelineCaptionsSync",
+    "parseTimelineSrtCaptions",
+    "parseTimelineSrtText",
+    "parseTimelineText",
+    "parseTimelineWebVttCaptions",
+    "parseTimelineWebVttText",
+  ],
+  compute: [
+    "createTimelineAdaptiveBackend",
+    "createTimelineBrowserWasmBackend",
+    "createTimelineComputeError",
+    "createTimelineJsFallbackBackend",
+    "createTimelineTauriBackend",
+    "createTimelineWorkerHandler",
+    "isTimelineComputeError",
+    "normalizeTimelineComputeError",
+  ],
+  data: [
+    "analyzeTimelineNumericData",
+    "analyzeTimelineNumericDataSync",
+    "createTimelineDataBrowserBackend",
+    "createTimelineNumericDataExtension",
+  ],
+  geo: [
+    "analyzeTimelineGeoJson",
+    "analyzeTimelineGeoJsonSync",
+    "createTimelineGeoBrowserBackend",
+    "createTimelineGeoExtension",
+    "createTimelineGeoJsonAsset",
+    "createTimelineGeoJsonSource",
+  ],
+  image: [
+    "analyzeTimelineImageSource",
+    "createTimelineImageBrowserBackend",
+    "createTimelineImageExtension",
+    "createTimelineImageFileAsset",
+  ],
+  tauri: ["createTimelineTauriBackend"],
+  video: [
+    "analyzeTimelineVideoSource",
+    "createTimelineVideoBrowserBackend",
+    "createTimelineVideoExtension",
+    "createTimelineVideoFileAsset",
+  ],
+};
 
 for (const entryFile of entryFiles) {
   const entryPath = path.join(distDir, entryFile);
@@ -264,12 +339,43 @@ for (const privatePackageName of [
   "@timeline-editor/audio",
   "@timeline-editor/video",
   "@timeline-editor/captions",
+  "@timeline-editor/compute",
+  "@timeline-editor/image",
+  "@timeline-editor/geo",
+  "@timeline-editor/data",
+  "@timeline-editor/tauri",
 ]) {
   assert(
     packageJson.name !== privatePackageName,
     `Private package ${privatePackageName} must not be published from the root package`,
   );
 }
+
+await Promise.all(
+  Object.entries(expectedSplitPackageExports).map(async ([packageDirectory, expectedExports]) => {
+    const splitPackageDir = path.join(rootDir, "packages", packageDirectory);
+    const splitPackageJson = JSON.parse(
+      readFileSync(path.join(splitPackageDir, "package.json"), "utf8"),
+    );
+    const packageName = `@timeline-editor/${packageDirectory}`;
+
+    assert(splitPackageJson.name === packageName, `${packageName} package name changed`);
+    assert(splitPackageJson.private === false, `${packageName} should be publishable`);
+    assert(splitPackageJson.exports?.["."], `${packageName} is missing a root export`);
+
+    for (const exportTarget of Object.values(splitPackageJson.exports)) {
+      for (const relativePath of Object.values(exportTarget)) {
+        assert(
+          existsSync(path.join(splitPackageDir, relativePath)),
+          `${packageName} export target does not exist: ${relativePath}`,
+        );
+      }
+    }
+
+    const runtime = await import(pathToFileURL(path.join(splitPackageDir, "dist/index.js")).href);
+    assertSetEqual(Object.keys(runtime).sort(), expectedExports, `${packageName} exports changed`);
+  }),
+);
 
 for (const [subpath, exportTarget] of Object.entries(packageJson.exports)) {
   assert("import" in exportTarget, `Package export ${subpath} is missing an import target`);

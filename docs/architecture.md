@@ -44,6 +44,12 @@ media-editor-react
 
 media-editor-renderer
   -> export/render pipeline, Rust/FFmpeg/native/server integration
+
+@timeline-editor/compute
+  -> shared browser worker, WASM, and Tauri compute task protocol
+
+@timeline-editor/audio|video|image|captions|geo|data
+  -> optional accelerated domain packages built on TimelineWorkbench extensions
 ```
 
 ## Package Responsibilities
@@ -86,6 +92,9 @@ render workflows.
   media-editor packages.
 - Rust/WASM packages must not leak into the generic core unless they are hidden
   behind small, optional, domain-neutral interfaces.
+- Browser worker and Tauri compute backends must use the same task envelope so
+  hosts can move expensive processing between WASM workers and native Rust
+  without changing timeline item data.
 - Browser-only code must not be required by pure core packages.
 - React code must not be required by pure core packages.
 - Renderer and export logic must not be required by editor UI packages.
@@ -143,6 +152,15 @@ Phase 3:
 - add Rust/WASM workers for heavy operations
 - add proxy, thumbnail, waveform, and cache pipelines
 - add render-plan generation
+
+The split package path starts with `@timeline-editor/compute`, which defines
+the shared `TimelineComputeBackend` contract, browser worker backend, adaptive
+backend selection, and Tauri invoke adapter. Domain packages such as
+`@timeline-editor/audio`, `@timeline-editor/video`, `@timeline-editor/image`,
+`@timeline-editor/captions`, `@timeline-editor/geo`, and
+`@timeline-editor/data` wrap the lightweight root helpers and accept an
+optional backend for expensive import or analysis work. They must fall back to
+root helpers or typed warnings when a backend is unavailable.
 
 Phase 4:
 

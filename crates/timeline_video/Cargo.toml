@@ -1,0 +1,8 @@
+[package]
+name = "timeline_video"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+serde.workspace = true

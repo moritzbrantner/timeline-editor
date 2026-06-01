@@ -16,8 +16,16 @@
       "@moritzbrantner/timeline-editor/audio": ["./src/audio.ts"],
       "@moritzbrantner/timeline-editor/video": ["./src/video.ts"],
       "@moritzbrantner/timeline-editor/image": ["./src/image.ts"],
-      "@moritzbrantner/timeline-editor/data": ["./src/data.ts"]
+      "@moritzbrantner/timeline-editor/data": ["./src/data.ts"],
+      "@timeline-editor/compute": ["./packages/compute/src/index.ts"],
+      "@timeline-editor/audio": ["./packages/audio/src/index.ts"],
+      "@timeline-editor/video": ["./packages/video/src/index.ts"],
+      "@timeline-editor/image": ["./packages/image/src/index.ts"],
+      "@timeline-editor/captions": ["./packages/captions/src/index.ts"],
+      "@timeline-editor/geo": ["./packages/geo/src/index.ts"],
+      "@timeline-editor/data": ["./packages/data/src/index.ts"],
+      "@timeline-editor/tauri": ["./packages/tauri/src/index.ts"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "packages/**/*.ts"]
 }

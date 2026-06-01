@@ -32,9 +32,15 @@ same release preparation unless the release has already been cut.
 
 ## Package Layout
 
-The main `@moritzbrantner/timeline-editor` package owns all public exports. The
-private workspace packages under `packages/audio`, `packages/video`, and
-`packages/captions` currently re-export media entrypoints for future split
-package compatibility. Do not publish those private packages until there is a
-concrete need such as independent install requests, heavier optional media
-dependencies, or a measured main-package size problem.
+The main `@moritzbrantner/timeline-editor` package owns the generic editor and
+lightweight root exports. Split workspace packages under `packages/*` provide
+optional accelerated domain entrypoints such as `@timeline-editor/compute`,
+`@timeline-editor/audio`, `@timeline-editor/video`,
+`@timeline-editor/image`, `@timeline-editor/captions`,
+`@timeline-editor/geo`, `@timeline-editor/data`, and
+`@timeline-editor/tauri`.
+
+Split packages may depend on `@timeline-editor/compute` and peer-depend on the
+root package, but the root package must not import split packages. Runtime
+exports for split packages are covered by `tests/package/smoke.mjs` after
+`bun run build:packages`.
