@@ -128,7 +128,7 @@
     "lint": "oxlint --format=github",
     "prepack": "bun run build",
     "check-types": "tsc --noEmit",
-    "check-examples": "tsc --ignoreConfig --noEmit --jsx react-jsx --module ESNext --moduleResolution Bundler --target ES2022 --strict --skipLibCheck tests/examples/*.tsx",
+    "check-examples": "tsc -p tests/examples/tsconfig.json",
     "storybook": "storybook dev -p 6006 --host 127.0.0.1",
     "test": "vitest run --config vitest.workspace.ts",
     "test:packages": "vitest run --config vitest.config.ts $(find packages -name '*.test.ts')",

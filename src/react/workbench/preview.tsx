@@ -456,6 +456,7 @@ function TimelineWorkbenchSceneVideo({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const data = getTimelineWorkbenchItemData(item);
   const sourceUri = getTimelineWorkbenchSourceUri(data);
+  const mediaStatus = useTimelineWorkbenchMediaElementStatus(videoRef, sourceUri);
   const sync = useTimelineWorkbenchSynchronizedMediaElement({
     elementRef: videoRef,
     item,
@@ -466,7 +467,6 @@ function TimelineWorkbenchSceneVideo({
     muted: getBooleanField(data, "muted"),
     volume: getNumberField(data, "volume"),
   });
-  const mediaStatus = useTimelineWorkbenchMediaElementStatus(videoRef, sourceUri);
 
   if (!sourceUri) {
     return <TimelineWorkbenchSourceState item={item} label="No video source" zIndex={zIndex} />;
@@ -508,6 +508,7 @@ function TimelineWorkbenchSceneAudio({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const data = getTimelineWorkbenchItemData(item);
   const sourceUri = getTimelineWorkbenchSourceUri(data);
+  const mediaStatus = useTimelineWorkbenchMediaElementStatus(audioRef, sourceUri);
   const sync = useTimelineWorkbenchSynchronizedMediaElement({
     elementRef: audioRef,
     item,
@@ -518,7 +519,6 @@ function TimelineWorkbenchSceneAudio({
     muted: getBooleanField(data, "muted"),
     volume: getNumberField(data, "volume"),
   });
-  const mediaStatus = useTimelineWorkbenchMediaElementStatus(audioRef, sourceUri);
 
   if (!sourceUri) {
     return null;

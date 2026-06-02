@@ -195,6 +195,7 @@ type TimelineWorkbenchAssetsPanelProps<TAssetData> = {
   onMinimize?: () => void;
   onImportAssets?: (sources: TimelineWorkbenchImportSource[]) => void | Promise<void>;
   onImportCancel?: () => void;
+  onImportRetry?: () => void;
   onImportStateClear?: () => void;
   onInsertAsset: (asset: TimelineWorkbenchAsset<TAssetData>) => void;
   onAssetDragEnd?: () => void;
@@ -214,6 +215,7 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
   onMinimize,
   onImportAssets,
   onImportCancel,
+  onImportRetry,
   onImportStateClear,
   onInsertAsset,
   onAssetDragEnd,
@@ -263,6 +265,9 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
     setMediaTypeFilter("");
     setCompatibleOnly(false);
   };
+  const diagnosticSources = (importState.sources ?? []).filter(
+    (source) => source.error || source.warnings?.length,
+  );
   const handleFileImport = (files: FileList | null) => {
     const selectedFiles = Array.from(files ?? []);
 
@@ -406,11 +411,15 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
               </div>
             ) : null}
             {importState.warnings?.length ? (
-              <div
-                data-slot="timeline-workbench-import-warnings"
-                className="rounded border border-amber-500/40 bg-background px-2 py-1 text-xs text-amber-700 dark:text-amber-300"
-              >
-                {formatTimelineWorkbenchImportWarnings(importState.warnings)}
+              <div className="flex items-center justify-between gap-2 rounded border border-amber-500/40 bg-background px-2 py-1 text-xs text-amber-700 dark:text-amber-300">
+                <div data-slot="timeline-workbench-import-warnings" className="min-w-0">
+                  {formatTimelineWorkbenchImportWarnings(importState.warnings)}
+                </div>
+                {onImportStateClear ? (
+                  <Button type="button" size="sm" variant="ghost" onClick={onImportStateClear}>
+                    Clear
+                  </Button>
+                ) : null}
               </div>
             ) : null}
             {allowUrlImport && !readOnly ? (
@@ -452,26 +461,47 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
             {importState.status === "failed" ? (
               <div className="flex items-center justify-between gap-2 rounded border border-destructive/40 bg-background px-2 py-1 text-xs text-destructive">
                 <span className="min-w-0 truncate">{importState.error ?? "Import failed."}</span>
-                {onImportStateClear ? (
-                  <Button type="button" size="sm" variant="ghost" onClick={onImportStateClear}>
-                    Clear
-                  </Button>
-                ) : null}
+                <span className="flex shrink-0 items-center gap-1">
+                  {onImportRetry ? (
+                    <Button type="button" size="sm" variant="ghost" onClick={onImportRetry}>
+                      Retry
+                    </Button>
+                  ) : null}
+                  {onImportStateClear ? (
+                    <Button type="button" size="sm" variant="ghost" onClick={onImportStateClear}>
+                      Clear
+                    </Button>
+                  ) : null}
+                </span>
               </div>
             ) : null}
-            {importState.sources?.some((source) => source.error || source.warnings?.length) ? (
+            {diagnosticSources.length > 0 ? (
               <div
                 data-slot="timeline-workbench-import-source-states"
-                className="grid gap-1 text-xs text-muted-foreground"
+                className="grid gap-1 rounded border border-border bg-background p-2 text-xs text-muted-foreground"
               >
-                {importState.sources
-                  .filter((source) => source.error || source.warnings?.length)
-                  .slice(0, 3)
-                  .map((source) => (
-                    <div key={source.id} className="truncate">
-                      {source.label}: {source.error ?? source.warnings?.[0]}
+                {diagnosticSources.map((source) => (
+                  <div key={source.id} className="grid gap-0.5">
+                    <div
+                      className={
+                        source.error ? "text-destructive" : "text-amber-700 dark:text-amber-300"
+                      }
+                    >
+                      {source.label}:{" "}
+                      {source.error ??
+                        (source.warnings?.length === 1
+                          ? source.warnings[0]
+                          : `${source.warnings?.length ?? 0} warnings`)}
                     </div>
-                  ))}
+                    {source.warnings && source.warnings.length > 1
+                      ? source.warnings.map((warning, index) => (
+                          <div key={`${source.id}-warning-${index}`} className="pl-2">
+                            {warning}
+                          </div>
+                        ))
+                      : null}
+                  </div>
+                ))}
               </div>
             ) : null}
           </div>

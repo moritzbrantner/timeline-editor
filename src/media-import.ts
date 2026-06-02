@@ -36,7 +36,18 @@ export function createTimelineMediaImportResolver(
   options: TimelineMediaImportResolverOptions = {},
 ): (sources: TimelineWorkbenchImportSource[]) => Promise<TimelineMediaImportResolverResult[]> {
   return async (sources) =>
-    Promise.all(sources.map((source) => resolveTimelineMediaImportSource(source, options)));
+    Promise.all(
+      sources.map(async (source) => {
+        try {
+          return await resolveTimelineMediaImportSource(source, options);
+        } catch (error) {
+          return {
+            errors: [getTimelineMediaImportErrorMessage(error)],
+            metadata: isRecord(source.metadata) ? source.metadata : undefined,
+          };
+        }
+      }),
+    );
 }
 
 async function resolveTimelineMediaImportSource(
@@ -315,6 +326,10 @@ function toTimelineMediaImportResult(result: {
     revoke: result.revoke,
     metadata: result.objectUrl ? { objectUrl: result.objectUrl } : undefined,
   };
+}
+
+function getTimelineMediaImportErrorMessage(error: unknown) {
+  return error instanceof Error && error.message ? error.message : "Import failed.";
 }
 
 function getTimelineMediaTypeFromMimeType(mimeType: string | undefined) {

@@ -294,6 +294,13 @@ export function useTimelineWorkbenchMediaElementStatus(
     element.addEventListener("waiting", updateStalled);
     element.addEventListener("stalled", updateStalled);
     element.addEventListener("error", updateError);
+    if (element.readyState < HTMLMediaElement.HAVE_METADATA) {
+      try {
+        element.load();
+      } catch {
+        // Some test DOMs and browser edge cases expose media elements without a usable load method.
+      }
+    }
 
     return () => {
       globalThis.clearTimeout(stalledTimeout);

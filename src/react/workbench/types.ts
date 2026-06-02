@@ -55,7 +55,7 @@ export type TimelineWorkbenchImportSource<
 };
 
 export type TimelineWorkbenchImportResult<TAssetData = Record<string, unknown>> = {
-  asset: TimelineWorkbenchAsset<TAssetData>;
+  asset?: TimelineWorkbenchAsset<TAssetData>;
   cleanup?: TimelineMediaSourceCleanup;
   revoke?: TimelineMediaSourceCleanup;
   warnings?: string[];
@@ -77,6 +77,7 @@ export type TimelineWorkbenchImportSourceState = {
   progress?: TimelineWorkbenchImportProgress;
   warnings?: string[];
   error?: string;
+  metadata?: Record<string, unknown>;
 };
 
 export type TimelineWorkbenchImportState = {

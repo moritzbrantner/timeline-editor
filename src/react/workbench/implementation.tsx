@@ -239,6 +239,7 @@ export function TimelineWorkbench<
   });
   const importedAssetCleanupsRef = useRef<Array<() => void>>([]);
   const importAbortControllerRef = useRef<AbortController | null>(null);
+  const retryImportSourcesRef = useRef<TimelineWorkbenchImportSource[]>([]);
   const [announcement, setAnnouncement] = useState("");
   const resolvedAssets = useMemo(() => assets.concat(importedAssets), [assets, importedAssets]);
   const resolvedViewport = viewport ?? internalViewport;
@@ -1047,11 +1048,15 @@ export function TimelineWorkbench<
       return;
     }
 
+    retryImportSourcesRef.current = sources;
     const sourceLabel = getTimelineWorkbenchImportSourceLabel(sources);
     const sourceStates = sources.map((source, index) => ({
       id: getTimelineWorkbenchImportSourceStateId(source, index),
       label: source.label ?? source.file?.name ?? source.url ?? `Source ${index + 1}`,
       status: "pending" as const,
+      metadata: isTimelineWorkbenchImportSourceMetadata(source.metadata)
+        ? source.metadata
+        : undefined,
     }));
 
     if (!onImportAssets) {
@@ -1102,7 +1107,9 @@ export function TimelineWorkbench<
         return;
       }
 
-      const resultAssets = results.map((result) => result.asset);
+      const resultAssets = results
+        .map((result) => result.asset)
+        .filter((asset): asset is TimelineWorkbenchAsset<TAssetData> => Boolean(asset));
       const resultCleanups = results
         .map((result) => result.cleanup ?? result.revoke)
         .filter((cleanup): cleanup is () => void => Boolean(cleanup));
@@ -1136,6 +1143,7 @@ export function TimelineWorkbench<
             status: result?.asset ? ("ready" as const) : ("failed" as const),
             warnings: sourceWarnings?.length ? sourceWarnings : undefined,
             error: sourceError,
+            metadata: result?.metadata ?? source.metadata,
           };
         }),
         canCancel: false,
@@ -1151,14 +1159,18 @@ export function TimelineWorkbench<
         return;
       }
 
+      const errorMessage = getTimelineWorkbenchImportErrorMessage(error);
+
       setImportState({
         status: "failed",
         sourceLabel,
-        error: getTimelineWorkbenchImportErrorMessage(error),
+        error: errorMessage,
         sources: sourceStates.map((source) => ({
-          ...source,
+          id: source.id,
+          label: source.label,
           status: "failed",
-          error: getTimelineWorkbenchImportErrorMessage(error),
+          error: errorMessage,
+          metadata: source.metadata,
         })),
         canCancel: false,
       });
@@ -2072,6 +2084,9 @@ export function TimelineWorkbench<
       renderAsset={renderAsset}
       onImportAssets={onImportAssets ? importAssets : undefined}
       onImportCancel={cancelImport}
+      onImportRetry={() => {
+        void importAssets(retryImportSourcesRef.current);
+      }}
       onImportStateClear={() => setImportState({ status: "idle" })}
       onAssetDragEnd={() => setDraggedAssetId(null)}
       onAssetDragStart={(asset) => setDraggedAssetId(asset.id)}
@@ -2277,4 +2292,10 @@ function updateTimelineWorkbenchImportSourceWarning(
     warnings: [...(state.warnings ?? []), warning],
     sources,
   };
+}
+
+function isTimelineWorkbenchImportSourceMetadata(
+  metadata: unknown,
+): metadata is Record<string, unknown> {
+  return Boolean(metadata && typeof metadata === "object" && !Array.isArray(metadata));
 }

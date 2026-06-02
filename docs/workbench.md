@@ -50,7 +50,9 @@ older host code that owns source lifetimes outside the workbench import result.
 `onImportAssets` receives an optional second argument with an `AbortSignal`,
 `onProgress`, and `onWarning`. Hosts can ignore it, or use it to report
 per-source progress and recoverable warnings. The assets panel surfaces progress,
-warnings, failed source details, and a cancel action while an import is active.
+all failed or warned sources, retry and clear actions, and a cancel action while
+an import is active. `TimelineWorkbenchImportSourceState.metadata` preserves
+host-provided or result-provided source metadata for custom diagnostics.
 
 Hosts that need heavier import analysis can use split packages and pass a
 shared compute backend:
@@ -74,6 +76,10 @@ const result = await createTimelineAudioFileAsset(file, { backend });
 The same task contract is used for browser workers and Tauri Rust commands.
 When no backend supports a task, split packages fall back to the lightweight
 root helper behavior or return typed warnings with the import result.
+
+The compile-checked recipes in `tests/examples/host-adoption-examples.tsx`
+cover a controlled workbench, unified file/URL import, split-package compute
+backends, and extension composition.
 
 Track selection is represented with `selection.trackIds`. Selecting a default
 track header clears item, marker, and range selection, reports the selected

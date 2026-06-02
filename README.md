@@ -9,7 +9,7 @@ bun add @moritzbrantner/timeline-editor
 ```
 
 The React components expect `react` and `react-dom` as peer dependencies and use
-`@moritzbrantner/ui@^0.8.0` for workbench chrome. Timeline rendering is owned by
+`@moritzbrantner/ui@^0.9.1` for workbench chrome. Timeline rendering is owned by
 this package.
 
 ## Main APIs
@@ -29,8 +29,8 @@ this package.
 ## API Policy
 
 The public package surface is the root export plus these subpaths: `./core`,
-`./react`, `./commands`, `./history`, `./serialization`, `./media-types`,
-`./text`, `./audio`, `./video`, `./image`, and `./data`.
+`./react`, `./commands`, `./history`, `./serialization`, `./extensions`,
+`./media-types`, `./text`, `./audio`, `./video`, `./image`, and `./data`.
 
 Core document utilities, commands, history helpers, validation, serialization,
 and serializable media data helpers are pure functions. Browser media source
@@ -73,7 +73,9 @@ states, and the track state exposes concrete track metadata plus track actions.
 Workbench import state reports progress, warnings, cancellation, and per-source
 failures when the host uses the optional import context passed to
 `onImportAssets`. Existing one-argument import callbacks continue to work, and
-returned `warnings` are surfaced in the assets panel.
+returned `warnings` are surfaced in the assets panel. Per-source diagnostics
+preserve source/result metadata and the default panel shows all failed or warned
+sources with retry and clear recovery controls.
 
 `TimelineWorkbench` preview defaults to `previewMode="active-scene"`, which
 shows items active at `document.currentTimeMs`. Use

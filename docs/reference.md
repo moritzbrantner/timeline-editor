@@ -9,7 +9,7 @@ bun add @moritzbrantner/timeline-editor
 ```
 
 The React components expect `react` and `react-dom` as peer dependencies and use
-`@moritzbrantner/ui@^0.8.0` for workbench chrome. Timeline rendering is owned by
+`@moritzbrantner/ui@^0.9.1` for workbench chrome. Timeline rendering is owned by
 this package.
 
 ## Main APIs
@@ -26,9 +26,9 @@ this package.
 
 ## API Policy
 
-The public `0.x` package surface is the root export plus these subpaths: `./core`,
-`./react`, `./commands`, `./history`, `./serialization`, `./media-types`,
-`./text`, `./audio`, `./video`, `./image`, and `./data`.
+The public `1.x` package surface is the root export plus these subpaths: `./core`,
+`./react`, `./commands`, `./history`, `./serialization`, `./extensions`,
+`./media-types`, `./text`, `./audio`, `./video`, `./image`, and `./data`.
 
 Core document utilities, commands, history helpers, validation, serialization,
 and media data helpers are pure functions. `TimelineEditor` and
@@ -80,6 +80,9 @@ File and URL import are host-owned. `onImportAssets` receives browser `File`
 sources for file import and URL sources when `allowUrlImport` is enabled. URL
 sources use `type: "url"` and include a normalized absolute `url`; the host
 returns imported `TimelineWorkbenchAsset` records just like file imports.
+Import results may also return per-source `warnings`, `errors`, and `metadata`;
+the default assets panel shows all warned or failed sources with retry and clear
+recovery controls.
 
 The workbench preview defaults to `previewMode="active-scene"`. The other public
 modes are `selection-first` and `mini-timeline`; use `onPreviewModeChange` to

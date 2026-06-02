@@ -324,6 +324,7 @@ function App() {
   const largeFixture = fixture === "large";
   const timelineMenuFixture = searchParams.get("timelineMenu") === "true";
   const importAssetsFixture = searchParams.get("importAssets") === "true";
+  const importMode = searchParams.get("importMode");
   const allowUrlImport = searchParams.get("allowUrlImport") === "true";
   const assetActionsFixture = searchParams.get("assetActions") === "true";
   const emptyAssetsFixture = searchParams.get("assets") === "none";
@@ -468,6 +469,7 @@ function App() {
   };
 
   const handleImportAssets = async (sources: TimelineWorkbenchImportSource[]) => {
+    const previousImportCount = imports.current.length;
     const nextImports = sources.map((source) => ({
       type: source.type,
       label: source.label,
@@ -485,6 +487,42 @@ function App() {
     recordChange(
       `import:${nextImports.map((source) => source.fileName ?? source.label).join(",")}`,
     );
+
+    if (importMode === "fail") {
+      return sources.map((source) => ({
+        errors: [`Could not import ${source.label ?? source.file?.name ?? source.url}.`],
+        metadata: source.metadata,
+      }));
+    }
+
+    if (importMode === "retry" && previousImportCount === 0) {
+      return sources.map((source) => ({
+        errors: [`Temporary failure for ${source.label ?? source.file?.name ?? source.url}.`],
+        metadata: source.metadata,
+      }));
+    }
+
+    if (importMode === "warnings") {
+      return sources.map((source, index) => {
+        const label = source.label ?? source.file?.name ?? source.url ?? "Imported asset";
+
+        return {
+          asset: {
+            id: `warning-${index}-${label
+              .toLowerCase()
+              .replaceAll(/[^a-z0-9]+/g, "-")
+              .replaceAll(/^-|-$/g, "")}`,
+            label,
+            kind: "task",
+            mediaType: "video",
+            durationMs: 750,
+            description: "Imported with warnings",
+          } satisfies TimelineWorkbenchAsset,
+          warnings: [`Recovered ${label} with fallback metadata.`],
+          metadata: source.metadata,
+        };
+      });
+    }
 
     return Promise.all(
       sources.map(async (source) => {

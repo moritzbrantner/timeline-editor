@@ -26,6 +26,7 @@ import {
   createTimelineEditorHistory as createSubpathTimelineEditorHistory,
   undoTimelineEditorHistory,
 } from "@moritzbrantner/timeline-editor/history";
+import { getTimelineEditorDomainForItem } from "@moritzbrantner/timeline-editor/extensions";
 import {
   getTimelineMediaTypeForKind,
   validateTimelineEditorMediaTypes,
@@ -157,6 +158,7 @@ export function ComposableTimelineEditorExample() {
 }
 
 export function exercisePackageSubpaths(document = initialDocument) {
+  const firstItem = document.tracks[0]?.items[0];
   const mediaExtensions = [
     createTimelineAudioExtension(),
     createTimelineVideoExtension(),
@@ -181,6 +183,7 @@ export function exercisePackageSubpaths(document = initialDocument) {
     history: undoTimelineEditorHistory(history).history,
     mediaIssues: validateTimelineEditorMediaTypes(parsed),
     mediaExtensions,
+    mediaDomain: firstItem ? getTimelineEditorDomainForItem(firstItem) : undefined,
     mediaType: getTimelineMediaTypeForKind("video"),
     schemaVersion: currentTimelineEditorSchemaVersion,
     snap: createTimelineEditorSnapOptions(100, { enabled: true }),

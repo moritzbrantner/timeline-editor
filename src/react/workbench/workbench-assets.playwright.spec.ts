@@ -434,6 +434,66 @@ test("imports an audio file asset and previews it", async ({ page }) => {
   await expect(page.getByText(audioFile.name).first()).toBeVisible();
 });
 
+test("shows all failed import sources and retries the batch", async ({ page }) => {
+  await page.goto("/?importAssets=true&importMode=retry");
+
+  await page.locator("[data-slot='timeline-workbench-file-import']").setInputFiles([
+    {
+      name: "camera-a.mp4",
+      mimeType: "video/mp4",
+      buffer: Buffer.from("fake video a"),
+    },
+    {
+      name: "camera-b.mp4",
+      mimeType: "video/mp4",
+      buffer: Buffer.from("fake video b"),
+    },
+  ]);
+
+  const sourceStates = page.locator("[data-slot='timeline-workbench-import-source-states']");
+
+  await expect(sourceStates).toContainText("camera-a.mp4: Temporary failure for camera-a.mp4.");
+  await expect(sourceStates).toContainText("camera-b.mp4: Temporary failure for camera-b.mp4.");
+
+  await page.getByRole("button", { name: "Retry" }).click();
+
+  await expect(page.getByRole("button", { name: /camera-a\.mp4/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /camera-b\.mp4/ })).toBeVisible();
+  await expect(sourceStates).toBeHidden();
+  await expect.poll(async () => (await getHarnessState(page)).imports).toHaveLength(4);
+});
+
+test("shows all import warnings and clears diagnostics", async ({ page }) => {
+  await page.goto("/?importAssets=true&importMode=warnings");
+
+  await page.locator("[data-slot='timeline-workbench-file-import']").setInputFiles([
+    {
+      name: "fallback-a.mp4",
+      mimeType: "video/mp4",
+      buffer: Buffer.from("fake video a"),
+    },
+    {
+      name: "fallback-b.mp4",
+      mimeType: "video/mp4",
+      buffer: Buffer.from("fake video b"),
+    },
+  ]);
+
+  const sourceStates = page.locator("[data-slot='timeline-workbench-import-source-states']");
+
+  await expect(sourceStates).toContainText(
+    "fallback-a.mp4: Recovered fallback-a.mp4 with fallback metadata.",
+  );
+  await expect(sourceStates).toContainText(
+    "fallback-b.mp4: Recovered fallback-b.mp4 with fallback metadata.",
+  );
+
+  await page.getByRole("button", { name: "Clear" }).click();
+
+  await expect(sourceStates).toBeHidden();
+  await expect(page.locator("[data-slot='timeline-workbench-import-warnings']")).toBeHidden();
+});
+
 test("hides import controls without importer", async ({ page }) => {
   await page.goto("/");
 

@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "baseUrl": "../..",
+    "ignoreDeprecations": "6.0",
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "paths": {
+      "@moritzbrantner/timeline-editor": ["src/index.ts"],
+      "@moritzbrantner/timeline-editor/*": ["src/*"],
+      "@timeline-editor/*": ["packages/*/src/index.ts"]
+    },
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2022"
+  },
+  "include": ["*.tsx"]
+}

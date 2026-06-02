@@ -35,15 +35,15 @@ describe("media import resolver", () => {
       },
     ]);
 
-    expect(results.map((result) => result.asset.mediaType)).toEqual(["audio", "video", "image"]);
-    expect(results.map((result) => result.asset.kind)).toEqual(["audio", "video", "image"]);
-    expect(results[0]?.asset.data).toEqual(
+    expect(results.map((result) => result.asset?.mediaType)).toEqual(["audio", "video", "image"]);
+    expect(results.map((result) => result.asset?.kind)).toEqual(["audio", "video", "image"]);
+    expect(results[0]?.asset?.data).toEqual(
       expect.objectContaining({
         mediaType: "audio",
         source: expect.objectContaining({ uri: "blob:voice.mp3" }),
       }),
     );
-    expect(results[1]?.asset.data).toEqual(
+    expect(results[1]?.asset?.data).toEqual(
       expect.objectContaining({
         mediaType: "video",
         source: expect.objectContaining({ uri: "blob:scene.mp4" }),
@@ -52,7 +52,7 @@ describe("media import resolver", () => {
         poster: "data:image/jpeg;base64,poster",
       }),
     );
-    expect(results[2]?.asset.data).toEqual(
+    expect(results[2]?.asset?.data).toEqual(
       expect.objectContaining({
         mediaType: "image",
         src: "blob:still.png",
@@ -137,12 +137,38 @@ describe("media import resolver", () => {
     );
   });
 
-  test("throws a clear error for unsupported files", async () => {
+  test("returns a per-source error for unsupported files", async () => {
     const resolver = createTimelineMediaImportResolver();
+    const [result] = await resolver([
+      { type: "file", file: new File(["notes"], "notes.txt", { type: "text/plain" }) },
+    ]);
 
-    await expect(
-      resolver([{ type: "file", file: new File(["notes"], "notes.txt", { type: "text/plain" }) }]),
-    ).rejects.toThrow("Unsupported file import source: notes.txt.");
+    expect(result).toEqual({
+      errors: ["Unsupported file import source: notes.txt."],
+      metadata: undefined,
+    });
+  });
+
+  test("keeps importing supported sources when another source fails", async () => {
+    setTimelineTestImage(undefined);
+    const resolver = createTimelineMediaImportResolver({
+      createObjectUrl: (file) => `blob:${file.name}`,
+    });
+    const results = await resolver([
+      { type: "file", file: new File(["notes"], "notes.txt", { type: "text/plain" }) },
+      { type: "file", file: new File(["image"], "still.png", { type: "image/png" }) },
+    ]);
+
+    expect(results[0]).toEqual({
+      errors: ["Unsupported file import source: notes.txt."],
+      metadata: undefined,
+    });
+    expect(results[1]?.asset).toEqual(
+      expect.objectContaining({
+        kind: "image",
+        label: "still.png",
+      }),
+    );
   });
 
   test("lets explicit mediaType override ambiguous file metadata", async () => {
@@ -158,8 +184,8 @@ describe("media import resolver", () => {
       },
     ]);
 
-    expect(result?.asset.kind).toBe("image");
-    expect(result?.asset.data).toEqual(
+    expect(result?.asset?.kind).toBe("image");
+    expect(result?.asset?.data).toEqual(
       expect.objectContaining({
         mediaType: "image",
         src: "blob:ambiguous",

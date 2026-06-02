@@ -269,7 +269,9 @@ function TimelineWorkbenchStory({
         };
       }),
     );
-    const nextAssets = results.map((result) => result.asset);
+    const nextAssets = results.flatMap((result) =>
+      result.asset ? [result.asset as TimelineWorkbenchAsset] : [],
+    );
 
     setImportedAssets((currentAssets) => currentAssets.concat(nextAssets));
 
