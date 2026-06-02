@@ -31,7 +31,6 @@ const config: StorybookConfig = {
   },
   core: {
     builder: "@storybook/builder-vite",
-    renderer: "@storybook/react",
   },
   viteFinal: (config) =>
     mergeConfig(config, {

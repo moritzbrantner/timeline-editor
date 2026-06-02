@@ -95,7 +95,7 @@ export function createTimelineAudioExtension(
               "span",
               {
                 "data-slot": "timeline-media-audio-metadata",
-                className: "truncate text-[10px] leading-tight text-white/70",
+                className: "truncate text-[10px] leading-tight text-white/75",
               },
               metadataLabel,
             )
