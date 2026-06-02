@@ -3,14 +3,20 @@ import { createElement, useEffect, useRef } from "react";
 import { formatTimelineEditorTimeMs, type TimelineEditorItem } from "./core";
 import type {
   TimelineEditorExtension,
+  TimelineWorkbenchMediaErrorCode,
+  TimelineWorkbenchMediaStatus,
   TimelinePreviewTransportContext,
 } from "./react/workbench/types";
 import type { TimelineWorkbenchAsset } from "./react/workbench/types";
-import { useTimelineWorkbenchSynchronizedMediaElement } from "./react/workbench/use-synchronized-media";
+import {
+  useTimelineWorkbenchMediaElementStatus,
+  useTimelineWorkbenchSynchronizedMediaElement,
+} from "./react/workbench/use-synchronized-media";
 import {
   createTimelineMediaObjectUrl,
   type TimelineMediaDisplayRange,
   type TimelineMediaSourceCleanup,
+  type TimelineMediaSourceLibrary,
   type TimelineMediaSourceRef,
   type TimelineMediaSourceRegistry,
 } from "./media-types";
@@ -62,6 +68,7 @@ export type TimelineAudioFileAssetOptions = {
   metadata?: Record<string, unknown>;
   createObjectUrl?: (file: File) => string;
   sourceRegistry?: TimelineMediaSourceRegistry;
+  sourceLibrary?: TimelineMediaSourceLibrary;
   generateWaveform?: boolean;
   waveformSampleCount?: number;
   normalizeWaveform?: boolean;
@@ -158,9 +165,11 @@ export async function createTimelineAudioFileAsset(
       ...options.metadata,
     },
   };
-  const registeredSource = options.sourceRegistry
-    ? options.sourceRegistry.register(source, sourceLifecycle)
-    : undefined;
+  const registeredSource = options.sourceLibrary
+    ? options.sourceLibrary.register(source, sourceLifecycle)
+    : options.sourceRegistry
+      ? options.sourceRegistry.register(source, sourceLifecycle)
+      : undefined;
   const cleanup = registeredSource?.cleanup ?? sourceLifecycle.cleanup;
 
   return {
@@ -547,6 +556,7 @@ function TimelineAudioPreviewPlayer({
     muted,
     volume,
   });
+  const mediaStatus = useTimelineWorkbenchMediaElementStatus(audioRef, src);
 
   useEffect(() => {
     if (audioRef.current && volume !== undefined) {
@@ -566,14 +576,18 @@ function TimelineAudioPreviewPlayer({
       preload: "metadata",
       src,
     }),
-    sync.blocked
+    createTimelineAudioMediaStateMessage(mediaStatus.status, mediaStatus.errorCode, sync.blocked)
       ? createElement(
           "div",
           {
-            "data-slot": "timeline-media-playback-blocked",
+            "data-slot": sync.blocked ? "timeline-media-playback-blocked" : "timeline-media-state",
             className: "text-xs text-white/60",
           },
-          "Media playback blocked",
+          createTimelineAudioMediaStateMessage(
+            mediaStatus.status,
+            mediaStatus.errorCode,
+            sync.blocked,
+          ),
         )
       : null,
   );
@@ -620,6 +634,28 @@ function createTimelineAudioWaveform(waveform: number[], color?: string) {
       }),
     ),
   );
+}
+
+function createTimelineAudioMediaStateMessage(
+  status: TimelineWorkbenchMediaStatus,
+  errorCode?: TimelineWorkbenchMediaErrorCode,
+  blocked?: boolean,
+) {
+  if (blocked || status === "blocked") {
+    return "Media playback blocked";
+  }
+
+  if (status === "stalled") {
+    return "Media stalled";
+  }
+
+  if (status === "error") {
+    return errorCode === "decode-failed" || errorCode === "unsupported-source"
+      ? "Unsupported or corrupt media"
+      : "Media source unavailable";
+  }
+
+  return undefined;
 }
 
 function createTimelineAudioFileAssetId(label: string) {

@@ -6,6 +6,7 @@ export * from "./migrations";
 export * from "./react";
 export * from "./serialization";
 export * from "./media-types";
+export * from "./media-import";
 export * from "./text";
 export * from "./audio";
 export * from "./video";

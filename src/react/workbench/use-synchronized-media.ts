@@ -3,7 +3,11 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 
 import { getTimelineEditorItemEndMs, type TimelineEditorItem } from "../../core";
-import type { TimelinePreviewTransportContext } from "./types";
+import type {
+  TimelinePreviewTransportContext,
+  TimelineWorkbenchMediaErrorCode,
+  TimelineWorkbenchMediaStatus,
+} from "./types";
 
 export type TimelineWorkbenchSynchronizedMediaElementOptions = {
   elementRef: RefObject<HTMLMediaElement | null>;
@@ -217,6 +221,110 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
   );
 
   return { blocked, localTimeMs };
+}
+
+export function useTimelineWorkbenchMediaElementStatus(
+  elementRef: RefObject<HTMLMediaElement | null>,
+  sourceUri?: string,
+): {
+  status: TimelineWorkbenchMediaStatus;
+  errorCode?: TimelineWorkbenchMediaErrorCode;
+} {
+  const [state, setState] = useState<{
+    status: TimelineWorkbenchMediaStatus;
+    errorCode?: TimelineWorkbenchMediaErrorCode;
+  }>(() => (sourceUri ? { status: "loading" } : { status: "idle", errorCode: "no-source" }));
+
+  useEffect(() => {
+    const element = elementRef.current;
+
+    if (!sourceUri) {
+      setState({ status: "idle", errorCode: "no-source" });
+      return;
+    }
+
+    if (!element) {
+      setState({ status: "loading" });
+      return;
+    }
+
+    const resolveStatus = (): TimelineWorkbenchMediaStatus => {
+      if (element.error) {
+        return "error";
+      }
+
+      if (element.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+        return element.paused ? "ready" : "playing";
+      }
+
+      if (element.readyState >= HTMLMediaElement.HAVE_METADATA) {
+        return "metadata-ready";
+      }
+
+      return "loading";
+    };
+    const updateStatus = () => {
+      setState({ status: resolveStatus() });
+    };
+    const updatePaused = () => {
+      setState({ status: "paused" });
+    };
+    const updateLoading = () => {
+      setState({ status: "loading" });
+    };
+    const updateStalled = () => {
+      setState({ status: "stalled", errorCode: "stalled" });
+    };
+    const updateError = () => {
+      setState({ status: "error", errorCode: getTimelineWorkbenchMediaErrorCode(element) });
+    };
+    const stalledTimeout = globalThis.setTimeout(() => {
+      if (element.readyState < HTMLMediaElement.HAVE_METADATA) {
+        updateStalled();
+      }
+    }, 4_000);
+
+    updateStatus();
+    element.addEventListener("loadstart", updateLoading);
+    element.addEventListener("loadedmetadata", updateStatus);
+    element.addEventListener("loadeddata", updateStatus);
+    element.addEventListener("canplay", updateStatus);
+    element.addEventListener("playing", updateStatus);
+    element.addEventListener("pause", updatePaused);
+    element.addEventListener("waiting", updateStalled);
+    element.addEventListener("stalled", updateStalled);
+    element.addEventListener("error", updateError);
+
+    return () => {
+      globalThis.clearTimeout(stalledTimeout);
+      element.removeEventListener("loadstart", updateLoading);
+      element.removeEventListener("loadedmetadata", updateStatus);
+      element.removeEventListener("loadeddata", updateStatus);
+      element.removeEventListener("canplay", updateStatus);
+      element.removeEventListener("playing", updateStatus);
+      element.removeEventListener("pause", updatePaused);
+      element.removeEventListener("waiting", updateStalled);
+      element.removeEventListener("stalled", updateStalled);
+      element.removeEventListener("error", updateError);
+    };
+  }, [elementRef, sourceUri]);
+
+  return state;
+}
+
+function getTimelineWorkbenchMediaErrorCode(
+  element: HTMLMediaElement,
+): TimelineWorkbenchMediaErrorCode {
+  switch (element.error?.code) {
+    case 4:
+      return "unsupported-source";
+    case 3:
+      return "decode-failed";
+    case 2:
+    case 1:
+    default:
+      return "load-failed";
+  }
 }
 
 function pauseTimelineWorkbenchMediaElement(element: HTMLMediaElement, force = false) {

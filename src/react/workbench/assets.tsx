@@ -130,6 +130,26 @@ function formatTimelineWorkbenchAssetFileSize(size: number) {
   return `${Math.round((size / (1_024 * 1_024)) * 10) / 10} MB`;
 }
 
+function formatTimelineWorkbenchImportProgress(
+  progress: NonNullable<TimelineWorkbenchImportState["progress"]>,
+) {
+  const completed =
+    progress.completed !== undefined && progress.total
+      ? ` ${Math.round(Math.min(1, Math.max(0, progress.completed / progress.total)) * 100)}%`
+      : "";
+  const message = progress.message ? ` · ${progress.message}` : "";
+
+  return `${progress.phase}${completed}${message}`;
+}
+
+function formatTimelineWorkbenchImportWarnings(warnings: string[]) {
+  if (warnings.length === 1) {
+    return warnings[0];
+  }
+
+  return `${warnings.length} import warnings · ${warnings[0]}`;
+}
+
 export function createTimelineWorkbenchItemFromAsset<TItemData, TAssetData>(
   asset: TimelineWorkbenchAsset<TAssetData>,
   placement: { trackId: string; timeMs: number },
@@ -174,6 +194,7 @@ type TimelineWorkbenchAssetsPanelProps<TAssetData> = {
   renderAsset?: (asset: TimelineWorkbenchAsset<TAssetData>) => ReactNode;
   onMinimize?: () => void;
   onImportAssets?: (sources: TimelineWorkbenchImportSource[]) => void | Promise<void>;
+  onImportCancel?: () => void;
   onImportStateClear?: () => void;
   onInsertAsset: (asset: TimelineWorkbenchAsset<TAssetData>) => void;
   onAssetDragEnd?: () => void;
@@ -192,6 +213,7 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
   renderAsset,
   onMinimize,
   onImportAssets,
+  onImportCancel,
   onImportStateClear,
   onInsertAsset,
   onAssetDragEnd,
@@ -359,12 +381,38 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
               >
                 {importState.status === "importing" ? "Importing..." : "Import files"}
               </Button>
+              {importState.status === "importing" && importState.canCancel && onImportCancel ? (
+                <Button type="button" size="sm" variant="ghost" onClick={onImportCancel}>
+                  Cancel
+                </Button>
+              ) : null}
               {importState.status === "ready" && importState.sourceLabel ? (
                 <span className="truncate text-xs text-muted-foreground">
                   Imported {importState.sourceLabel}
                 </span>
               ) : null}
+              {importState.status === "cancelled" && importState.sourceLabel ? (
+                <span className="truncate text-xs text-muted-foreground">
+                  Cancelled {importState.sourceLabel}
+                </span>
+              ) : null}
             </div>
+            {importState.status === "importing" && importState.progress ? (
+              <div
+                data-slot="timeline-workbench-import-progress"
+                className="text-xs text-muted-foreground"
+              >
+                {formatTimelineWorkbenchImportProgress(importState.progress)}
+              </div>
+            ) : null}
+            {importState.warnings?.length ? (
+              <div
+                data-slot="timeline-workbench-import-warnings"
+                className="rounded border border-amber-500/40 bg-background px-2 py-1 text-xs text-amber-700 dark:text-amber-300"
+              >
+                {formatTimelineWorkbenchImportWarnings(importState.warnings)}
+              </div>
+            ) : null}
             {allowUrlImport && !readOnly ? (
               <form
                 className="grid gap-1"
@@ -409,6 +457,21 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
                     Clear
                   </Button>
                 ) : null}
+              </div>
+            ) : null}
+            {importState.sources?.some((source) => source.error || source.warnings?.length) ? (
+              <div
+                data-slot="timeline-workbench-import-source-states"
+                className="grid gap-1 text-xs text-muted-foreground"
+              >
+                {importState.sources
+                  .filter((source) => source.error || source.warnings?.length)
+                  .slice(0, 3)
+                  .map((source) => (
+                    <div key={source.id} className="truncate">
+                      {source.label}: {source.error ?? source.warnings?.[0]}
+                    </div>
+                  ))}
               </div>
             ) : null}
           </div>

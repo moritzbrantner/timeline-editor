@@ -128,11 +128,12 @@ const expectedRuntimeExports = {
     "redoTimelineEditorHistory",
     "undoTimelineEditorHistory",
   ],
-  "image.js": ["createTimelineImageExtension"],
+  "image.js": ["createTimelineImageExtension", "createTimelineImageFileAsset"],
   "media-types.js": [
     "assertTimelineMediaKindMatchesData",
     "createTimelineMediaFileSource",
     "createTimelineMediaObjectUrl",
+    "createTimelineMediaSourceLibrary",
     "createTimelineMediaSourceRegistry",
     "getTimelineMediaSourceKey",
     "getTimelineMediaTypeForAsset",
@@ -291,6 +292,7 @@ const importedEntries = Object.fromEntries(
 const expectedIndexExports = [
   ...new Set([
     ...Object.values(expectedRuntimeExports).flat(),
+    "createTimelineMediaImportResolver",
     "TimelineEditorMigrationError",
     "migrateTimelineEditorDocument",
   ]),

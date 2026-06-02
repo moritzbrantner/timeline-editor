@@ -117,12 +117,17 @@ export { defaultTimelineWorkbenchHotkeys } from "./toolbar";
 export type {
   TimelineWorkbenchAsset,
   TimelineEditorExtension,
+  TimelineWorkbenchImportContext,
+  TimelineWorkbenchImportProgress,
   TimelineWorkbenchImportResult,
   TimelineWorkbenchImportSource,
+  TimelineWorkbenchImportSourceState,
   TimelineWorkbenchImportState,
   TimelineWorkbenchInspectorContext,
   TimelineWorkbenchInspectorSchema,
   TimelineWorkbenchItemContextMenuContext,
+  TimelineWorkbenchMediaErrorCode,
+  TimelineWorkbenchMediaStatus,
   TimelineWorkbenchProps,
   TimelineWorkbenchPreviewMode,
   TimelineWorkbenchSelection,
@@ -172,6 +177,7 @@ export function TimelineWorkbench<
   inspectorSchema,
   assets = [],
   onImportAssets,
+  onImportCancel,
   acceptedImportTypes,
   allowUrlImport,
   showAssetsPanel = true,
@@ -232,6 +238,7 @@ export function TimelineWorkbench<
     status: "idle",
   });
   const importedAssetCleanupsRef = useRef<Array<() => void>>([]);
+  const importAbortControllerRef = useRef<AbortController | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const resolvedAssets = useMemo(() => assets.concat(importedAssets), [assets, importedAssets]);
   const resolvedViewport = viewport ?? internalViewport;
@@ -569,6 +576,8 @@ export function TimelineWorkbench<
 
   useEffect(
     () => () => {
+      importAbortControllerRef.current?.abort();
+      importAbortControllerRef.current = null;
       const cleanups = importedAssetCleanupsRef.current;
       importedAssetCleanupsRef.current = [];
 
@@ -1039,24 +1048,66 @@ export function TimelineWorkbench<
     }
 
     const sourceLabel = getTimelineWorkbenchImportSourceLabel(sources);
+    const sourceStates = sources.map((source, index) => ({
+      id: getTimelineWorkbenchImportSourceStateId(source, index),
+      label: source.label ?? source.file?.name ?? source.url ?? `Source ${index + 1}`,
+      status: "pending" as const,
+    }));
 
     if (!onImportAssets) {
       setImportState({
         status: "failed",
         sourceLabel,
         error: "Import is not configured for this workbench.",
+        sources: sourceStates.map((source) => ({
+          ...source,
+          status: "failed",
+          error: "Import is not configured for this workbench.",
+        })),
       });
       return;
     }
 
-    setImportState({ status: "importing", sourceLabel });
+    importAbortControllerRef.current?.abort();
+    const abortController = new AbortController();
+    importAbortControllerRef.current = abortController;
+
+    setImportState({ status: "importing", sourceLabel, sources: sourceStates, canCancel: true });
 
     try {
-      const results = await onImportAssets(sources);
+      const results = await onImportAssets(sources, {
+        signal: abortController.signal,
+        onProgress(sourceId, progress) {
+          setImportState((currentState) =>
+            updateTimelineWorkbenchImportSourceState(currentState, sourceId, {
+              progress,
+              status: "importing",
+            }),
+          );
+        },
+        onWarning(sourceId, warning) {
+          setImportState((currentState) =>
+            updateTimelineWorkbenchImportSourceWarning(currentState, sourceId, warning),
+          );
+        },
+      });
+
+      if (abortController.signal.aborted) {
+        setImportState({
+          status: "cancelled",
+          sourceLabel,
+          sources: sourceStates.map((source) => ({ ...source, status: "cancelled" })),
+          canCancel: false,
+        });
+        return;
+      }
+
       const resultAssets = results.map((result) => result.asset);
       const resultCleanups = results
         .map((result) => result.cleanup ?? result.revoke)
         .filter((cleanup): cleanup is () => void => Boolean(cleanup));
+      const warnings = results.flatMap((result) => result.warnings ?? []);
+      const errors = results.flatMap((result) => result.errors ?? []);
 
       if (resultAssets.length > 0) {
         importedAssetCleanupsRef.current.push(...resultCleanups);
@@ -1067,14 +1118,74 @@ export function TimelineWorkbench<
         );
       }
 
-      setImportState({ status: "ready", sourceLabel });
+      setImportState({
+        status: resultAssets.length > 0 ? "ready" : "failed",
+        sourceLabel,
+        warnings: warnings.length > 0 ? warnings : undefined,
+        error:
+          resultAssets.length === 0
+            ? (errors[0] ?? warnings[0] ?? "Import did not return any assets.")
+            : undefined,
+        sources: sourceStates.map((source, index) => {
+          const result = results[index];
+          const sourceWarnings = result?.warnings;
+          const sourceError = result?.errors?.[0];
+
+          return {
+            ...source,
+            status: result?.asset ? ("ready" as const) : ("failed" as const),
+            warnings: sourceWarnings?.length ? sourceWarnings : undefined,
+            error: sourceError,
+          };
+        }),
+        canCancel: false,
+      });
     } catch (error) {
+      if (abortController.signal.aborted) {
+        setImportState({
+          status: "cancelled",
+          sourceLabel,
+          sources: sourceStates.map((source) => ({ ...source, status: "cancelled" })),
+          canCancel: false,
+        });
+        return;
+      }
+
       setImportState({
         status: "failed",
         sourceLabel,
         error: getTimelineWorkbenchImportErrorMessage(error),
+        sources: sourceStates.map((source) => ({
+          ...source,
+          status: "failed",
+          error: getTimelineWorkbenchImportErrorMessage(error),
+        })),
+        canCancel: false,
       });
+    } finally {
+      if (importAbortControllerRef.current === abortController) {
+        importAbortControllerRef.current = null;
+      }
     }
+  };
+
+  const cancelImport = () => {
+    importAbortControllerRef.current?.abort();
+    onImportCancel?.();
+    setImportState((currentState) =>
+      currentState.status === "importing"
+        ? {
+            ...currentState,
+            status: "cancelled",
+            canCancel: false,
+            sources: currentState.sources?.map((source) =>
+              source.status === "ready" || source.status === "failed"
+                ? source
+                : { ...source, status: "cancelled" },
+            ),
+          }
+        : currentState,
+    );
   };
 
   const getRangeTargetTrackId = () =>
@@ -1960,6 +2071,7 @@ export function TimelineWorkbench<
       importState={importState}
       renderAsset={renderAsset}
       onImportAssets={onImportAssets ? importAssets : undefined}
+      onImportCancel={cancelImport}
       onImportStateClear={() => setImportState({ status: "idle" })}
       onAssetDragEnd={() => setDraggedAssetId(null)}
       onAssetDragStart={(asset) => setDraggedAssetId(asset.id)}
@@ -2124,4 +2236,45 @@ export function TimelineWorkbench<
       </ResizablePanelGroup>
     </div>
   );
+}
+
+function getTimelineWorkbenchImportSourceStateId(
+  source: TimelineWorkbenchImportSource,
+  index: number,
+) {
+  return source.label ?? source.file?.name ?? source.url ?? `source-${index + 1}`;
+}
+
+function updateTimelineWorkbenchImportSourceState(
+  state: TimelineWorkbenchImportState,
+  sourceId: string,
+  patch: Partial<NonNullable<TimelineWorkbenchImportState["sources"]>[number]>,
+): TimelineWorkbenchImportState {
+  const sources = state.sources?.map((source) =>
+    source.id === sourceId ? { ...source, ...patch } : source,
+  );
+
+  return {
+    ...state,
+    progress: patch.progress ?? state.progress,
+    sources,
+  };
+}
+
+function updateTimelineWorkbenchImportSourceWarning(
+  state: TimelineWorkbenchImportState,
+  sourceId: string,
+  warning: string,
+): TimelineWorkbenchImportState {
+  const sources = state.sources?.map((source) =>
+    source.id === sourceId
+      ? { ...source, warnings: [...(source.warnings ?? []), warning] }
+      : source,
+  );
+
+  return {
+    ...state,
+    warnings: [...(state.warnings ?? []), warning],
+    sources,
+  };
 }

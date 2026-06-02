@@ -47,17 +47,33 @@ best-effort extracts duration, channels, sample rate, and a compact waveform
 with browser Web Audio APIs, can be disabled with `generateWaveform: false`,
 and gracefully falls back when decoding is unavailable. Use
 `createTimelineVideoFileAsset(file)` from `./video` to probe video duration,
-dimensions, poster, optional thumbnails, and source metadata. The returned
-cleanup callback is also accepted by
-`TimelineWorkbenchImportResult`, so workbench-owned imports are revoked on
-unmount. Use `createTimelineMediaSourceRegistry()` from `./media-types` when a
-host owns sources outside the workbench import flow. Set `allowUrlImport` with
+dimensions, poster, optional thumbnails, and source metadata, and
+`createTimelineImageFileAsset(file)` from `./image` for image object URL assets.
+For common host-owned imports, create one source library and pass the unified
+resolver to the workbench:
+
+```tsx
+const sourceLibrary = createTimelineMediaSourceLibrary();
+
+<TimelineWorkbench onImportAssets={createTimelineMediaImportResolver({ sourceLibrary })} />;
+```
+
+Call `sourceLibrary.dispose()` when the editing session is destroyed. The
+returned cleanup callbacks are also accepted by `TimelineWorkbenchImportResult`,
+so workbench-owned imports are revoked on unmount. Use
+`createTimelineMediaSourceRegistry()` from `./media-types` for older host code
+that owns sources outside the workbench import flow. Set `allowUrlImport` with
 `onImportAssets` to expose URL import controls that emit
 `TimelineWorkbenchImportSource` entries with `type: "url"`.
 
 Track selection is represented with `selection.trackIds`. The default
 workbench inspector has document, track, range, marker, item, and multi-item
 states, and the track state exposes concrete track metadata plus track actions.
+
+Workbench import state reports progress, warnings, cancellation, and per-source
+failures when the host uses the optional import context passed to
+`onImportAssets`. Existing one-argument import callbacks continue to work, and
+returned `warnings` are surfaced in the assets panel.
 
 `TimelineWorkbench` preview defaults to `previewMode="active-scene"`, which
 shows items active at `document.currentTimeMs`. Use
@@ -70,10 +86,12 @@ controlled or observed playback. Loop playback uses a valid selected range and
 falls back to the whole document, wrapping at exact selected-range or document
 boundaries. It advances `document.currentTimeMs`, moves the main timeline
 playhead, and keeps the playhead visible with keep-visible scrolling while
-playing. Workbench audio preview is timeline-driven and hidden rather than a
-native audio player: it starts with the workbench transport and pauses when the
-transport stops. Video controls remain independent manual browser controls;
-reverse synchronization uses timeline-driven seeking instead of native negative
+playing. Scene preview audio and video are controlled by the workbench
+transport; native browser controls are intentionally omitted from the scene
+preview. Detail and extension preview players may still expose browser controls
+for inspection. Browser autoplay restrictions and source failures are surfaced
+in preview as blocked, stalled, or unavailable media states, and reverse
+synchronization uses timeline-driven seeking instead of native negative
 playback.
 
 ## Controlled Timeline

@@ -139,6 +139,10 @@ test("preview modes expose scene, selected item, and mini timeline views", async
   await expect(page.locator("[data-slot='timeline-workbench-scene-preview']")).toBeVisible();
   await expect(page.locator("[data-slot='timeline-workbench-scene-image']")).toBeVisible();
   await expect(page.locator("[data-slot='timeline-workbench-scene-video']")).toBeVisible();
+  await expect(page.locator("[data-slot='timeline-workbench-scene-video']")).not.toHaveAttribute(
+    "controls",
+    "",
+  );
   await expect(page.locator("[data-slot='timeline-workbench-scene-subtitles']")).toBeVisible();
   await expect(page.locator("[data-slot='timeline-workbench-scene-audio']")).toHaveCount(1);
   await expect(page.locator("[data-slot='timeline-media-audio-preview-player']")).toHaveCount(0);

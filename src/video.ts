@@ -3,14 +3,20 @@ import { createElement, useRef } from "react";
 import type { TimelineEditorItem } from "./core";
 import type {
   TimelineEditorExtension,
+  TimelineWorkbenchMediaErrorCode,
+  TimelineWorkbenchMediaStatus,
   TimelinePreviewTransportContext,
 } from "./react/workbench/types";
 import type { TimelineWorkbenchAsset } from "./react/workbench/types";
-import { useTimelineWorkbenchSynchronizedMediaElement } from "./react/workbench/use-synchronized-media";
+import {
+  useTimelineWorkbenchMediaElementStatus,
+  useTimelineWorkbenchSynchronizedMediaElement,
+} from "./react/workbench/use-synchronized-media";
 import type {
   TimelineMediaDisplayRange,
   TimelineMediaFit,
   TimelineMediaSourceCleanup,
+  TimelineMediaSourceLibrary,
   TimelineMediaSourceRef,
   TimelineMediaSourceRegistry,
 } from "./media-types";
@@ -47,6 +53,7 @@ export type TimelineVideoFileAssetOptions = {
   metadata?: Record<string, unknown>;
   createObjectUrl?: (file: File) => string;
   sourceRegistry?: TimelineMediaSourceRegistry;
+  sourceLibrary?: TimelineMediaSourceLibrary;
   generatePoster?: boolean;
   posterTimeMs?: number;
   thumbnailMimeType?: string;
@@ -141,9 +148,11 @@ export async function createTimelineVideoFileAsset(
       ...options.metadata,
     },
   };
-  const registeredSource = options.sourceRegistry
-    ? options.sourceRegistry.register(source, sourceLifecycle)
-    : undefined;
+  const registeredSource = options.sourceLibrary
+    ? options.sourceLibrary.register(source, sourceLifecycle)
+    : options.sourceRegistry
+      ? options.sourceRegistry.register(source, sourceLifecycle)
+      : undefined;
   const cleanup = registeredSource?.cleanup ?? sourceLifecycle.cleanup;
 
   return {
@@ -243,6 +252,12 @@ function TimelineVideoPreviewPlayer({
     muted: item.data?.muted,
     volume: item.data?.volume,
   });
+  const mediaStatus = useTimelineWorkbenchMediaElementStatus(videoRef, src);
+  const mediaStateMessage = createTimelineVideoMediaStateMessage(
+    mediaStatus.status,
+    mediaStatus.errorCode,
+    sync.blocked,
+  );
 
   return createElement(
     "div",
@@ -259,14 +274,14 @@ function TimelineVideoPreviewPlayer({
       src,
       style: { objectFit: item.data?.fit ?? "contain" },
     }),
-    sync.blocked
+    mediaStateMessage
       ? createElement(
           "div",
           {
-            "data-slot": "timeline-media-playback-blocked",
+            "data-slot": sync.blocked ? "timeline-media-playback-blocked" : "timeline-media-state",
             className: "text-xs text-white/60",
           },
-          "Media playback blocked",
+          mediaStateMessage,
         )
       : null,
   );
@@ -552,4 +567,26 @@ function getTimelineVideoThumbnailTimesMs({
 
     return Math.max(0, Math.min(durationMs - 1, Math.round(durationMs * ratio)));
   });
+}
+
+function createTimelineVideoMediaStateMessage(
+  status: TimelineWorkbenchMediaStatus,
+  errorCode?: TimelineWorkbenchMediaErrorCode,
+  blocked?: boolean,
+) {
+  if (blocked || status === "blocked") {
+    return "Media playback blocked";
+  }
+
+  if (status === "stalled") {
+    return "Media stalled";
+  }
+
+  if (status === "error") {
+    return errorCode === "decode-failed" || errorCode === "unsupported-source"
+      ? "Unsupported or corrupt media"
+      : "Media source unavailable";
+  }
+
+  return undefined;
 }

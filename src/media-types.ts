@@ -42,6 +42,26 @@ export type TimelineMediaSourceLifecycle = {
 
 export type TimelineMediaObjectUrlLifecycle = Omit<TimelineMediaSourceLifecycle, "source">;
 
+export type TimelineMediaSourceLibraryEntry = {
+  source: TimelineMediaSourceRef;
+  objectUrl?: string;
+  refCount: number;
+  cleanup?: TimelineMediaSourceCleanup;
+};
+
+export type TimelineMediaSourceLibrary = {
+  register: (
+    source: TimelineMediaSourceRef,
+    lifecycle?: TimelineMediaObjectUrlLifecycle,
+  ) => TimelineMediaSourceLifecycle;
+  retain: (source: TimelineMediaSourceRef | string | undefined) => void;
+  release: (source: TimelineMediaSourceRef | string | undefined) => void;
+  get: (
+    source: TimelineMediaSourceRef | string | undefined,
+  ) => TimelineMediaSourceLibraryEntry | undefined;
+  dispose: () => void;
+};
+
 export type TimelineMediaObjectUrlOptions = {
   createObjectUrl?: (file: File) => string;
   revokeObjectUrl?: (objectUrl: string) => void;
@@ -68,34 +88,36 @@ export type TimelineMediaSourceRegistry = {
   release: (source: TimelineMediaSourceRef | string | undefined) => void;
 };
 
-export function createTimelineMediaSourceRegistry(): TimelineMediaSourceRegistry {
-  const entries = new Map<string, TimelineMediaSourceLifecycle>();
-  const registry: TimelineMediaSourceRegistry = {
-    createFileSource(file, options = {}) {
-      return createTimelineMediaFileSource(file, { ...options, registry });
-    },
-    dispose() {
-      for (const entry of entries.values()) {
-        entry.cleanup?.();
-      }
+export function createTimelineMediaSourceLibrary(): TimelineMediaSourceLibrary {
+  const entries = new Map<string, TimelineMediaSourceLibraryEntry>();
 
-      entries.clear();
-    },
+  const library: TimelineMediaSourceLibrary = {
     register(source, lifecycle = {}) {
       const key = getTimelineMediaSourceKey(source);
       const cleanup = createTimelineMediaSourceCleanup(lifecycle.cleanup ?? lifecycle.revoke);
-      const entry: TimelineMediaSourceLifecycle = {
+      const entry: TimelineMediaSourceLibraryEntry = {
         source,
         objectUrl: lifecycle.objectUrl,
+        refCount: 1,
         cleanup,
-        revoke: cleanup,
       };
 
       if (!key) {
-        return entry;
+        return {
+          source,
+          objectUrl: lifecycle.objectUrl,
+          cleanup,
+          revoke: cleanup,
+        };
       }
 
-      entries.get(key)?.cleanup?.();
+      const previousEntry = entries.get(key);
+
+      if (previousEntry) {
+        entries.delete(key);
+        previousEntry.cleanup?.();
+      }
+
       entries.set(key, entry);
 
       const release = createTimelineMediaSourceCleanup(() => {
@@ -103,11 +125,22 @@ export function createTimelineMediaSourceRegistry(): TimelineMediaSourceRegistry
           return;
         }
 
-        entries.delete(key);
-        cleanup?.();
+        library.release(key);
       });
 
-      return { ...entry, cleanup: release, revoke: release };
+      return {
+        source,
+        objectUrl: lifecycle.objectUrl,
+        cleanup: release,
+        revoke: release,
+      };
+    },
+    retain(source) {
+      const entry = library.get(source);
+
+      if (entry) {
+        entry.refCount += 1;
+      }
     },
     release(source) {
       const key = typeof source === "string" ? source : getTimelineMediaSourceKey(source);
@@ -122,9 +155,42 @@ export function createTimelineMediaSourceRegistry(): TimelineMediaSourceRegistry
         return;
       }
 
+      entry.refCount -= 1;
+
+      if (entry.refCount > 0) {
+        return;
+      }
+
       entries.delete(key);
       entry.cleanup?.();
     },
+    get(source) {
+      const key = typeof source === "string" ? source : getTimelineMediaSourceKey(source);
+
+      return key ? entries.get(key) : undefined;
+    },
+    dispose() {
+      const activeEntries = Array.from(entries.values());
+
+      entries.clear();
+      for (const entry of activeEntries) {
+        entry.cleanup?.();
+      }
+    },
+  };
+
+  return library;
+}
+
+export function createTimelineMediaSourceRegistry(): TimelineMediaSourceRegistry {
+  const library = createTimelineMediaSourceLibrary();
+  const registry: TimelineMediaSourceRegistry = {
+    createFileSource(file, options = {}) {
+      return createTimelineMediaFileSource(file, { ...options, registry });
+    },
+    dispose: library.dispose,
+    register: library.register,
+    release: library.release,
   };
 
   return registry;

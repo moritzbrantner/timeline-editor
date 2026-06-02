@@ -63,11 +63,56 @@ export type TimelineWorkbenchImportResult<TAssetData = Record<string, unknown>> 
   metadata?: Record<string, unknown>;
 };
 
-export type TimelineWorkbenchImportState = {
-  status: "idle" | "importing" | "ready" | "failed";
-  sourceLabel?: string;
+export type TimelineWorkbenchImportProgress = {
+  phase: string;
+  completed?: number;
+  total?: number;
+  message?: string;
+};
+
+export type TimelineWorkbenchImportSourceState = {
+  id: string;
+  label: string;
+  status: "pending" | "importing" | "ready" | "failed" | "cancelled";
+  progress?: TimelineWorkbenchImportProgress;
+  warnings?: string[];
   error?: string;
 };
+
+export type TimelineWorkbenchImportState = {
+  status: "idle" | "importing" | "ready" | "failed" | "cancelled";
+  sourceLabel?: string;
+  error?: string;
+  warnings?: string[];
+  progress?: TimelineWorkbenchImportProgress;
+  sources?: TimelineWorkbenchImportSourceState[];
+  canCancel?: boolean;
+};
+
+export type TimelineWorkbenchImportContext = {
+  signal: AbortSignal;
+  onProgress: (sourceId: string, progress: TimelineWorkbenchImportProgress) => void;
+  onWarning: (sourceId: string, warning: string) => void;
+};
+
+export type TimelineWorkbenchMediaStatus =
+  | "idle"
+  | "loading"
+  | "metadata-ready"
+  | "ready"
+  | "playing"
+  | "paused"
+  | "blocked"
+  | "stalled"
+  | "error";
+
+export type TimelineWorkbenchMediaErrorCode =
+  | "no-source"
+  | "load-failed"
+  | "decode-failed"
+  | "unsupported-source"
+  | "playback-blocked"
+  | "stalled";
 
 export type TimelineWorkbenchPreviewMode = "active-scene" | "selection-first" | "mini-timeline";
 
@@ -314,9 +359,11 @@ export type TimelineWorkbenchProps<
   assets?: Array<TimelineWorkbenchAsset<TAssetData>>;
   onImportAssets?: (
     sources: TimelineWorkbenchImportSource[],
+    context?: TimelineWorkbenchImportContext,
   ) =>
     | Promise<Array<TimelineWorkbenchImportResult<TAssetData>>>
     | Array<TimelineWorkbenchImportResult<TAssetData>>;
+  onImportCancel?: () => void;
   acceptedImportTypes?: string[];
   allowUrlImport?: boolean;
   showAssetsPanel?: boolean;

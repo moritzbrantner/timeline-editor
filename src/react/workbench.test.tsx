@@ -929,15 +929,111 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     fireEvent.click(screen.getByRole("button", { name: "Import URL" }));
 
     await waitFor(() => expect(handleImportAssets).toHaveBeenCalledTimes(1));
-    expect(handleImportAssets).toHaveBeenCalledWith([
+    expect(handleImportAssets).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          type: "url",
+          url: "https://example.com/media/clip.mp4",
+          label: "clip.mp4",
+          metadata: expect.objectContaining({ hostname: "example.com", protocol: "https:" }),
+        }),
+      ],
       expect.objectContaining({
-        type: "url",
-        url: "https://example.com/media/clip.mp4",
-        label: "clip.mp4",
-        metadata: expect.objectContaining({ hostname: "example.com", protocol: "https:" }),
+        signal: expect.any(Object),
+        onProgress: expect.any(Function),
+        onWarning: expect.any(Function),
       }),
-    ]);
+    );
     expect(screen.getByRole("button", { name: /clip\.mp4/ })).toBeTruthy();
+  });
+
+  test("shows import progress, warnings, and cancellation state", async () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks,
+    };
+    let finishImport:
+      | ((
+          value: Array<{ asset: { id: string; label: string; kind: string; durationMs: number } }>,
+        ) => void)
+      | undefined;
+    const handleImportAssets = vi.fn((_sources, context) => {
+      context?.onProgress("clip.mp4", {
+        phase: "decode",
+        completed: 1,
+        total: 2,
+        message: "Reading media",
+      });
+      context?.onWarning("clip.mp4", "Poster extraction failed.");
+
+      return new Promise<
+        Array<{ asset: { id: string; label: string; kind: string; durationMs: number } }>
+      >((resolve) => {
+        finishImport = resolve;
+      });
+    });
+    const handleImportCancel = vi.fn();
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        assets={[]}
+        onImportAssets={handleImportAssets}
+        onImportCancel={handleImportCancel}
+        allowUrlImport
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Import asset URL"), {
+      target: { value: "https://example.com/media/clip.mp4" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Import URL" }));
+
+    await waitFor(() => expect(screen.getByText("decode 50% · Reading media")).toBeTruthy());
+    expect(screen.getByText("Poster extraction failed.")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(handleImportCancel).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Cancelled clip.mp4")).toBeTruthy();
+
+    finishImport?.([
+      { asset: { id: "imported-clip-mp4", label: "clip.mp4", kind: "task", durationMs: 1_000 } },
+    ]);
+  });
+
+  test("shows import warnings after successful import", async () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks,
+    };
+    const handleImportAssets = vi.fn(async () => [
+      {
+        asset: {
+          id: "imported-clip-mp4",
+          label: "clip.mp4",
+          kind: "task",
+          durationMs: 1_000,
+        },
+        warnings: ["Thumbnail capture failed."],
+      },
+    ]);
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        assets={[]}
+        onImportAssets={handleImportAssets}
+        allowUrlImport
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Import asset URL"), {
+      target: { value: "https://example.com/media/clip.mp4" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Import URL" }));
+
+    await waitFor(() => expect(screen.getByText("Thumbnail capture failed.")).toBeTruthy());
   });
 
   test("cleans up imported asset sources when the workbench unmounts", async () => {
@@ -2909,6 +3005,60 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     media.restore();
   });
 
+  test("scene media reports stalled and error states", async () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineVideoItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 1_250,
+      tracks: [
+        {
+          id: "video",
+          label: "Video",
+          acceptsItemKinds: ["video"],
+          items: [
+            {
+              id: "clip",
+              trackId: "video",
+              label: "Clip",
+              kind: "video",
+              startMs: 1_000,
+              durationMs: 1_000,
+              data: {
+                mediaType: "video",
+                source: { uri: "blob:clip" },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        transportState={{ status: "paused", playbackRate: 1, loop: false }}
+        extensions={[createTimelineVideoExtension()]}
+      />,
+    );
+    const player = container.querySelector(
+      "[data-slot='timeline-workbench-scene-video']",
+    ) as HTMLVideoElement;
+
+    act(() => {
+      player.dispatchEvent(new Event("stalled"));
+    });
+    expect(screen.getByText("Media stalled")).toBeTruthy();
+
+    Object.defineProperty(player, "error", {
+      configurable: true,
+      value: { code: 4 },
+    });
+    act(() => {
+      player.dispatchEvent(new Event("error"));
+    });
+
+    await waitFor(() => expect(screen.getByText("Unsupported or corrupt media")).toBeTruthy());
+  });
+
   test("preloads loop audio at the loop start without taking over playback", () => {
     const media = installMockMediaElement();
     const document: TimelineEditorDocument<Record<string, unknown>, TimelineAudioItemData> = {
@@ -3109,6 +3259,7 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
 
     expect(player).toBeTruthy();
     expect(player?.preload).toBe("auto");
+    expect(player?.controls).toBe(false);
   });
 
   test("preload collection includes audio and video without duplicates", () => {

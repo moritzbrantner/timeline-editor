@@ -18,19 +18,39 @@ File import is also host-owned. `TimelineWorkbench` exposes selected `File`
 objects through `onImportAssets`, but it does not import browser files by itself.
 URL import uses the same callback: pass `allowUrlImport` with `onImportAssets`
 to expose compact URL controls that emit `TimelineWorkbenchImportSource`
-entries with `type: "url"` and a normalized `url`. For audio imports,
+entries with `type: "url"` and a normalized `url`. For common audio, video, and
+image imports, use one shared source library with the unified resolver:
+
+```tsx
+import {
+  TimelineWorkbench,
+  createTimelineMediaImportResolver,
+  createTimelineMediaSourceLibrary,
+} from "@moritzbrantner/timeline-editor";
+
+const sourceLibrary = createTimelineMediaSourceLibrary();
+
+<TimelineWorkbench
+  onImportAssets={createTimelineMediaImportResolver({ sourceLibrary })}
+  // ...
+/>;
+```
+
+Call `sourceLibrary.dispose()` when the editing session is destroyed. The source
+library keeps object URLs alive while hosts retain them and makes cleanup
+idempotent. Lower-level helpers are still available:
 `createTimelineAudioFileAsset(file)` from
-`@moritzbrantner/timeline-editor/audio` creates an `audio` asset with source
-metadata, a playable object URL, and best-effort Web Audio duration, channel,
-sample-rate, and waveform metadata. Pass `generateWaveform: false` to skip
-browser decoding, or pass `waveform` when the host already has peaks. For video imports,
-`createTimelineVideoFileAsset(file)` from
-`@moritzbrantner/timeline-editor/video` creates a `video` asset with duration,
-dimensions, poster, optional thumbnails, MIME/source metadata, and a playable
-object URL. Return the helper result from `onImportAssets` and the workbench
-will run its cleanup when those imported sources are no longer mounted. Use
-`createTimelineMediaSourceRegistry()` when the host owns source lifetimes
-outside the workbench import result.
+`@moritzbrantner/timeline-editor/audio`, `createTimelineVideoFileAsset(file)`
+from `@moritzbrantner/timeline-editor/video`, and
+`createTimelineImageFileAsset(file)` from
+`@moritzbrantner/timeline-editor/image`. Return helper results from
+`onImportAssets` and the workbench will run their cleanup when those imported
+sources are no longer mounted. Use `createTimelineMediaSourceRegistry()` for
+older host code that owns source lifetimes outside the workbench import result.
+`onImportAssets` receives an optional second argument with an `AbortSignal`,
+`onProgress`, and `onWarning`. Hosts can ignore it, or use it to report
+per-source progress and recoverable warnings. The assets panel surfaces progress,
+warnings, failed source details, and a cancel action while an import is active.
 
 Hosts that need heavier import analysis can use split packages and pass a
 shared compute backend:
@@ -85,9 +105,13 @@ through -1x/-2x/-4x, and Shift+L toggles loop playback. Loop uses the selected
 range when it spans at least 1ms after clamping to the document; otherwise it
 loops the whole document. Forward playback wraps at the selected range end or
 document end, and reverse playback wraps at the selected range start or document
-start. Video controls remain independent browser media controls; they do not
-drive the synchronized workbench transport. Reverse media playback uses
-timeline-driven seeking because native negative media playback is not portable.
+start. Scene preview audio and video are owned by the workbench transport, so
+native media controls are omitted from the scene compositor and browser media
+events do not drive `document.currentTimeMs`. Detail and extension preview
+players may still expose browser controls for inspection. Browser autoplay
+restrictions and source failures are surfaced in preview as blocked, stalled,
+or unavailable media states. Reverse media playback uses timeline-driven
+seeking because native negative media playback is not portable.
 
 Hosts can control transport with `transportState`, initialize uncontrolled
 transport with `defaultTransportState`, and observe changes with

@@ -22,6 +22,8 @@ import {
 import type {
   TimelineEditorExtension,
   TimelinePreviewTransportContext,
+  TimelineWorkbenchMediaErrorCode,
+  TimelineWorkbenchMediaStatus,
   TimelineWorkbenchPreviewMode,
 } from "./types";
 import { getTimelineWorkbenchPreviewItems, TimelineWorkbenchMiniPreview } from "./preview-mini";
@@ -43,7 +45,10 @@ import {
   getTimelineWorkbenchSourceUri,
   isTimelineWorkbenchKnownSceneItem,
 } from "./preview-utils";
-import { useTimelineWorkbenchSynchronizedMediaElement } from "./use-synchronized-media";
+import {
+  useTimelineWorkbenchMediaElementStatus,
+  useTimelineWorkbenchSynchronizedMediaElement,
+} from "./use-synchronized-media";
 
 type TimelineWorkbenchPreviewProps<
   TTrackData extends Record<string, unknown>,
@@ -461,6 +466,7 @@ function TimelineWorkbenchSceneVideo({
     muted: getBooleanField(data, "muted"),
     volume: getNumberField(data, "volume"),
   });
+  const mediaStatus = useTimelineWorkbenchMediaElementStatus(videoRef, sourceUri);
 
   if (!sourceUri) {
     return <TimelineWorkbenchSourceState item={item} label="No video source" zIndex={zIndex} />;
@@ -470,7 +476,6 @@ function TimelineWorkbenchSceneVideo({
     <>
       <video
         ref={videoRef}
-        controls
         data-slot="timeline-workbench-scene-video"
         className="absolute inset-0 h-full w-full"
         muted={getBooleanField(data, "muted")}
@@ -480,15 +485,13 @@ function TimelineWorkbenchSceneVideo({
         src={sourceUri}
         style={{ objectFit: getTimelineWorkbenchObjectFit(data), zIndex }}
       />
-      {sync.blocked ? (
-        <div
-          data-slot="timeline-media-playback-blocked"
-          className="absolute right-3 top-3 rounded bg-black/70 px-2 py-1 text-xs"
-          style={{ zIndex: zIndex + 1 }}
-        >
-          Media playback blocked
-        </div>
-      ) : null}
+      <TimelineWorkbenchMediaStateOverlay
+        blocked={sync.blocked}
+        errorCode={mediaStatus.errorCode}
+        item={item}
+        status={mediaStatus.status}
+        zIndex={zIndex + 1}
+      />
     </>
   );
 }
@@ -515,6 +518,7 @@ function TimelineWorkbenchSceneAudio({
     muted: getBooleanField(data, "muted"),
     volume: getNumberField(data, "volume"),
   });
+  const mediaStatus = useTimelineWorkbenchMediaElementStatus(audioRef, sourceUri);
 
   if (!sourceUri) {
     return null;
@@ -529,16 +533,77 @@ function TimelineWorkbenchSceneAudio({
         preload="auto"
         src={sourceUri}
       />
-      {sync.blocked ? (
-        <div
-          data-slot="timeline-media-playback-blocked"
-          className="absolute right-3 top-3 z-50 rounded bg-black/70 px-2 py-1 text-xs"
-        >
-          Media playback blocked
-        </div>
-      ) : null}
+      <TimelineWorkbenchMediaStateOverlay
+        audio
+        blocked={sync.blocked}
+        errorCode={mediaStatus.errorCode}
+        item={item}
+        status={mediaStatus.status}
+        zIndex={50}
+      />
     </>
   );
+}
+
+function TimelineWorkbenchMediaStateOverlay({
+  audio = false,
+  blocked,
+  errorCode,
+  item,
+  status,
+  zIndex,
+}: {
+  audio?: boolean;
+  blocked?: boolean;
+  errorCode?: TimelineWorkbenchMediaErrorCode;
+  item: TimelineEditorItem<unknown>;
+  status: TimelineWorkbenchMediaStatus;
+  zIndex: number;
+}) {
+  const message = getTimelineWorkbenchMediaStateMessage(status, errorCode, blocked);
+
+  if (!message) {
+    return null;
+  }
+
+  return (
+    <div
+      data-slot={blocked ? "timeline-media-playback-blocked" : "timeline-media-state"}
+      className={
+        audio
+          ? "absolute right-3 top-3 rounded bg-black/70 px-2 py-1 text-xs"
+          : "absolute right-3 top-3 max-w-56 truncate rounded bg-black/70 px-2 py-1 text-xs"
+      }
+      title={`${item.label}: ${message}`}
+      style={{ zIndex }}
+    >
+      {message}
+    </div>
+  );
+}
+
+function getTimelineWorkbenchMediaStateMessage(
+  status: TimelineWorkbenchMediaStatus,
+  errorCode: TimelineWorkbenchMediaErrorCode | undefined,
+  blocked?: boolean,
+) {
+  if (blocked || status === "blocked") {
+    return "Playback blocked";
+  }
+
+  if (status === "stalled") {
+    return "Media stalled";
+  }
+
+  if (status === "error") {
+    if (errorCode === "decode-failed" || errorCode === "unsupported-source") {
+      return "Unsupported or corrupt media";
+    }
+
+    return "Media source unavailable";
+  }
+
+  return undefined;
 }
 
 function TimelineWorkbenchSourceState({

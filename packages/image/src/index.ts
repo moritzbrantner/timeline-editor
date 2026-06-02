@@ -50,6 +50,10 @@ export type TimelineImageFileAssetOptions = {
   signal?: AbortSignal;
   onProgress?: (progress: TimelineComputeProgress) => void;
   generateThumbnail?: boolean;
+  thumbnailWidth?: number;
+  thumbnailHeight?: number;
+  thumbnailMimeType?: string;
+  thumbnailQuality?: number;
 };
 
 export type TimelineImageFileAssetResult = {
@@ -80,6 +84,10 @@ export async function createTimelineImageFileAsset(
     signal: options.signal,
     onProgress: options.onProgress,
     generateThumbnail: options.generateThumbnail,
+    thumbnailWidth: options.thumbnailWidth,
+    thumbnailHeight: options.thumbnailHeight,
+    thumbnailMimeType: options.thumbnailMimeType,
+    thumbnailQuality: options.thumbnailQuality,
   }).catch((): TimelineImageMetadata => ({}));
   const browserMetadata =
     metadata.width === undefined && objectUrl
@@ -142,6 +150,10 @@ export async function analyzeTimelineImageSource(
     signal?: AbortSignal;
     onProgress?: (progress: TimelineComputeProgress) => void;
     generateThumbnail?: boolean;
+    thumbnailWidth?: number;
+    thumbnailHeight?: number;
+    thumbnailMimeType?: string;
+    thumbnailQuality?: number;
   } = {},
 ): Promise<TimelineImageMetadata> {
   const task = {
@@ -150,6 +162,10 @@ export async function analyzeTimelineImageSource(
     source,
     options: {
       generateThumbnail: options.generateThumbnail,
+      thumbnailWidth: options.thumbnailWidth,
+      thumbnailHeight: options.thumbnailHeight,
+      thumbnailMimeType: options.thumbnailMimeType,
+      thumbnailQuality: options.thumbnailQuality,
     },
   } as const;
 

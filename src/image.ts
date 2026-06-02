@@ -1,7 +1,16 @@
 import { createElement } from "react";
 
 import type { TimelineEditorExtension } from "./react/workbench/types";
-import type { TimelineMediaFit, TimelineMediaSize, TimelineMediaSourceRef } from "./media-types";
+import type { TimelineWorkbenchAsset } from "./react/workbench/types";
+import {
+  createTimelineMediaObjectUrl,
+  type TimelineMediaFit,
+  type TimelineMediaSize,
+  type TimelineMediaSourceCleanup,
+  type TimelineMediaSourceLibrary,
+  type TimelineMediaSourceRef,
+  type TimelineMediaSourceRegistry,
+} from "./media-types";
 
 export type TimelineImageItemData = TimelineMediaSize & {
   mediaType: "image";
@@ -14,6 +23,27 @@ export type TimelineImageItemData = TimelineMediaSize & {
 };
 
 export type { TimelineMediaFit, TimelineMediaSize, TimelineMediaSourceRef } from "./media-types";
+
+export type TimelineImageFileAssetOptions = {
+  id?: string;
+  label?: string;
+  durationMs?: number;
+  color?: string;
+  alt?: string;
+  fit?: TimelineMediaFit;
+  sourceId?: string;
+  metadata?: Record<string, unknown>;
+  createObjectUrl?: (file: File) => string;
+  sourceRegistry?: TimelineMediaSourceRegistry;
+  sourceLibrary?: TimelineMediaSourceLibrary;
+};
+
+export type TimelineImageFileAssetResult = {
+  asset: TimelineWorkbenchAsset<TimelineImageItemData>;
+  objectUrl?: string;
+  cleanup?: TimelineMediaSourceCleanup;
+  revoke?: TimelineMediaSourceCleanup;
+};
 
 export function createTimelineImageExtension(): TimelineEditorExtension<TimelineImageItemData> {
   return {
@@ -51,6 +81,66 @@ export function createTimelineImageExtension(): TimelineEditorExtension<Timeline
   };
 }
 
+export async function createTimelineImageFileAsset(
+  file: File,
+  options: TimelineImageFileAssetOptions = {},
+): Promise<TimelineImageFileAssetResult> {
+  const sourceLifecycle = createTimelineMediaObjectUrl(file, {
+    createObjectUrl: options.createObjectUrl,
+  });
+  const objectUrl = sourceLifecycle.objectUrl;
+  const label = options.label ?? file.name;
+  const dimensions: TimelineMediaSize = objectUrl
+    ? await loadTimelineImageDimensions(objectUrl).catch((): TimelineMediaSize => ({}))
+    : {};
+  const durationMs = Math.max(1, options.durationMs ?? 1_000);
+  const source: TimelineMediaSourceRef = {
+    id: options.sourceId,
+    uri: objectUrl,
+    label,
+    mimeType: file.type || undefined,
+    metadata: {
+      fileName: file.name,
+      lastModified: file.lastModified,
+      size: file.size,
+      width: dimensions.width,
+      height: dimensions.height,
+      ...options.metadata,
+    },
+  };
+  const registeredSource = options.sourceLibrary
+    ? options.sourceLibrary.register(source, sourceLifecycle)
+    : options.sourceRegistry
+      ? options.sourceRegistry.register(source, sourceLifecycle)
+      : undefined;
+  const cleanup = registeredSource?.cleanup ?? sourceLifecycle.cleanup;
+
+  return {
+    asset: {
+      id: options.id ?? createTimelineImageFileAssetId(label),
+      label,
+      kind: "image",
+      mediaType: "image",
+      durationMs,
+      color: options.color,
+      description: file.type || "Image file",
+      data: {
+        mediaType: "image",
+        source,
+        src: objectUrl,
+        thumbnail: objectUrl,
+        alt: options.alt ?? label,
+        fit: options.fit,
+        width: dimensions.width,
+        height: dimensions.height,
+      },
+    },
+    objectUrl,
+    cleanup,
+    revoke: cleanup,
+  };
+}
+
 function getTimelineImageMeta(data: TimelineImageItemData | undefined) {
   if (!data) {
     return undefined;
@@ -61,4 +151,50 @@ function getTimelineImageMeta(data: TimelineImageItemData | undefined) {
   }
 
   return data.source?.label;
+}
+
+function createTimelineImageFileAssetId(label: string) {
+  const slug = label
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-|-$/g, "");
+
+  return slug ? `image-${slug}` : "image-file";
+}
+
+function loadTimelineImageDimensions(uri: string) {
+  if (typeof Image === "undefined") {
+    return Promise.resolve({});
+  }
+
+  return new Promise<TimelineMediaSize>((resolve) => {
+    const image = new Image();
+    let settled = false;
+    const timeout = globalThis.setTimeout(() => settle({}), 4_000);
+    const settle = (dimensions: TimelineMediaSize) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      globalThis.clearTimeout(timeout);
+      image.onload = null;
+      image.onerror = null;
+      resolve(dimensions);
+    };
+
+    image.onload = () =>
+      settle({
+        width:
+          Number.isFinite(image.naturalWidth) && image.naturalWidth > 0
+            ? Math.round(image.naturalWidth)
+            : undefined,
+        height:
+          Number.isFinite(image.naturalHeight) && image.naturalHeight > 0
+            ? Math.round(image.naturalHeight)
+            : undefined,
+      });
+    image.onerror = () => settle({});
+    image.src = uri;
+  });
 }
