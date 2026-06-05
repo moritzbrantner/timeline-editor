@@ -7,6 +7,12 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "paths": {
+      "@moritzbrantner/editor-core": ["../editor-core/src/index.ts"],
+      "@moritzbrantner/editor-core/history": ["../editor-core/src/history.ts"],
+      "@moritzbrantner/editor-core/hotkeys": ["../editor-core/src/hotkeys.ts"],
+      "@moritzbrantner/editor-core/json": ["../editor-core/src/json.ts"],
+      "@moritzbrantner/editor-core/react": ["../editor-core/src/react.tsx"],
+      "@moritzbrantner/editor-core/serialization": ["../editor-core/src/serialization.ts"],
       "@moritzbrantner/timeline-editor": ["./src/index.ts"],
       "@moritzbrantner/timeline-editor/core": ["./src/core.ts"],
       "@moritzbrantner/timeline-editor/react": ["./src/react.tsx"],

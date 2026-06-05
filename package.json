@@ -85,7 +85,8 @@
     "react-dom": "^19.0.0"
   },
   "dependencies": {
-    "@moritzbrantner/ui": "^0.9.1"
+    "@moritzbrantner/editor-core": "file:../editor-core",
+    "@moritzbrantner/ui": "^0.10.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.11.3",

@@ -9,7 +9,7 @@ bun add @moritzbrantner/timeline-editor
 ```
 
 The React components expect `react` and `react-dom` as peer dependencies and use
-`@moritzbrantner/ui@^0.9.1` for workbench chrome. Timeline rendering is owned by
+`@moritzbrantner/ui@^0.10.0` for workbench chrome. Timeline rendering is owned by
 this package.
 
 ## Main APIs

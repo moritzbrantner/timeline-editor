@@ -1,3 +1,12 @@
+import {
+  createEditorTransactionHistory,
+  pushEditorTransactionHistory,
+  redoEditorTransactionHistory,
+  undoEditorTransactionHistory,
+  type EditorTransaction,
+  type EditorTransactionHistory,
+} from "@moritzbrantner/editor-core/history";
+
 import { applyTimelineEditorCommand, type TimelineEditorCommand } from "./commands";
 import {
   type TimelineEditorDocument,
@@ -9,29 +18,27 @@ export type TimelineEditorTransaction<
   TTrackData = Record<string, unknown>,
   TItemData = Record<string, unknown>,
   TGroupData = Record<string, unknown>,
-> = {
-  id: string;
+> = EditorTransaction<
+  TimelineEditorDocument<TTrackData, TItemData, TGroupData>,
+  TimelineEditorSelection
+> & {
   label: string;
-  before: TimelineEditorDocument<TTrackData, TItemData, TGroupData>;
-  after: TimelineEditorDocument<TTrackData, TItemData, TGroupData>;
-  selectionBefore?: TimelineEditorSelection;
-  selectionAfter?: TimelineEditorSelection;
 };
 
 export type TimelineEditorHistory<
   TTrackData = Record<string, unknown>,
   TItemData = Record<string, unknown>,
   TGroupData = Record<string, unknown>,
-> = {
+> = EditorTransactionHistory<
+  TimelineEditorDocument<TTrackData, TItemData, TGroupData>,
+  TimelineEditorSelection
+> & {
   undoStack: Array<TimelineEditorTransaction<TTrackData, TItemData, TGroupData>>;
   redoStack: Array<TimelineEditorTransaction<TTrackData, TItemData, TGroupData>>;
 };
 
 export function createTimelineEditorHistory(): TimelineEditorHistory {
-  return {
-    undoStack: [],
-    redoStack: [],
-  };
+  return createEditorTransactionHistory() as TimelineEditorHistory;
 }
 
 export function applyTimelineEditorCommandWithHistory<
@@ -62,10 +69,9 @@ export function applyTimelineEditorCommandWithHistory<
 
   return {
     ...result,
-    history: {
-      undoStack: [...history.undoStack, transaction],
-      redoStack: [],
-    },
+    history: pushEditorTransactionHistory(history, transaction, {
+      limit: Number.MAX_SAFE_INTEGER,
+    }) as TimelineEditorHistory<TTrackData, TItemData, TGroupData>,
   };
 }
 
@@ -74,20 +80,14 @@ export function undoTimelineEditorHistory<
   TItemData = Record<string, unknown>,
   TGroupData = Record<string, unknown>,
 >(history: TimelineEditorHistory<TTrackData, TItemData, TGroupData>) {
-  const transaction = history.undoStack.at(-1);
-
-  if (!transaction) {
-    return { history };
-  }
+  const result = undoEditorTransactionHistory(history, { itemIds: [] });
 
   return {
-    document: transaction.before,
-    selection: transaction.selectionBefore ?? { itemIds: [] },
-    transaction,
-    history: {
-      undoStack: history.undoStack.slice(0, -1),
-      redoStack: [...history.redoStack, transaction],
-    },
+    ...result,
+    history: result.history as TimelineEditorHistory<TTrackData, TItemData, TGroupData>,
+    transaction: result.transaction as
+      | TimelineEditorTransaction<TTrackData, TItemData, TGroupData>
+      | undefined,
   };
 }
 
@@ -96,19 +96,13 @@ export function redoTimelineEditorHistory<
   TItemData = Record<string, unknown>,
   TGroupData = Record<string, unknown>,
 >(history: TimelineEditorHistory<TTrackData, TItemData, TGroupData>) {
-  const transaction = history.redoStack.at(-1);
-
-  if (!transaction) {
-    return { history };
-  }
+  const result = redoEditorTransactionHistory(history, { itemIds: [] });
 
   return {
-    document: transaction.after,
-    selection: transaction.selectionAfter ?? { itemIds: [] },
-    transaction,
-    history: {
-      undoStack: [...history.undoStack, transaction],
-      redoStack: history.redoStack.slice(0, -1),
-    },
+    ...result,
+    history: result.history as TimelineEditorHistory<TTrackData, TItemData, TGroupData>,
+    transaction: result.transaction as
+      | TimelineEditorTransaction<TTrackData, TItemData, TGroupData>
+      | undefined,
   };
 }

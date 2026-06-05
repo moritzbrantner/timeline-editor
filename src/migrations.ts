@@ -1,3 +1,5 @@
+import { isEditorRecord } from "@moritzbrantner/editor-core/json";
+
 import {
   currentTimelineEditorSchemaVersion,
   parseTimelineEditorDocument,
@@ -20,7 +22,7 @@ export class TimelineEditorMigrationError extends Error {
 }
 
 export function migrateTimelineEditorDocument(input: unknown): SerializedTimelineEditorDocument {
-  if (!isRecord(input) || input.schemaVersion === undefined) {
+  if (!isEditorRecord(input) || input.schemaVersion === undefined) {
     return serializeTimelineEditorDocument(parseTimelineEditorDocument(input));
   }
 
@@ -33,8 +35,4 @@ export function migrateTimelineEditorDocument(input: unknown): SerializedTimelin
       ? input.schemaVersion
       : undefined,
   );
-}
-
-function isRecord(input: unknown): input is Record<string, unknown> {
-  return typeof input === "object" && input !== null && !Array.isArray(input);
 }

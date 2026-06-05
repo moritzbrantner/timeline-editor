@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { useControllableEditorState } from "@moritzbrantner/editor-core/react";
 
 import {
   Button,
@@ -200,30 +201,45 @@ export function TimelineWorkbench<
   getItemContextMenuItems,
   getTimelineContextMenuItems,
 }: TimelineWorkbenchProps<TTrackData, TItemData, TAssetData>) {
-  const [internalViewport, setInternalViewport] = useState<TimelineEditorViewport>({
-    pixelsPerSecond,
+  const [resolvedViewport, commitViewport] = useControllableEditorState<TimelineEditorViewport>({
+    value: viewport,
+    defaultValue: { pixelsPerSecond },
+    onChange: onViewportChange,
   });
-  const [internalHistory, setInternalHistory] = useState<
+  const [resolvedHistory, commitHistory] = useControllableEditorState<
     TimelineEditorHistory<TTrackData, TItemData>
-  >(() => createTimelineEditorHistory() as TimelineEditorHistory<TTrackData, TItemData>);
-  const resolvedHistory = history ?? internalHistory;
-  const commitHistory = (nextHistory: TimelineEditorHistory<TTrackData, TItemData>) => {
-    if (!history) {
-      setInternalHistory(nextHistory);
-    }
-
-    onHistoryChange?.(nextHistory);
-  };
-  const [internalClipboard, setInternalClipboard] = useState<
+  >({
+    value: history,
+    defaultValue: () =>
+      createTimelineEditorHistory() as TimelineEditorHistory<TTrackData, TItemData>,
+    onChange: onHistoryChange,
+  });
+  const [resolvedClipboard, commitClipboard] = useControllableEditorState<
     TimelineEditorClipboard<TItemData> | undefined
-  >();
-  const [internalTool, setInternalTool] = useState<TimelineEditorTool>(tool ?? "select");
-  const [internalSnap, setInternalSnap] = useState<Partial<TimelineEditorSnapOptions>>({});
+  >({
+    value: clipboard,
+    defaultValue: undefined,
+    onChange: onClipboardChange,
+  });
+  const [resolvedTool, commitTool] = useControllableEditorState<TimelineEditorTool>({
+    value: tool,
+    defaultValue: tool ?? "select",
+    onChange: onToolChange,
+  });
+  const [inputSnap, commitSnap] = useControllableEditorState<Partial<TimelineEditorSnapOptions>>({
+    value: snap,
+    defaultValue: {},
+    onChange: onSnapChange,
+  });
   const [customHotkeys, setCustomHotkeys] = useState<
     Partial<typeof defaultTimelineWorkbenchHotkeys>
   >({});
-  const [internalPreviewMode, setInternalPreviewMode] =
-    useState<TimelineWorkbenchPreviewMode>("active-scene");
+  const [resolvedPreviewMode, commitPreviewMode] =
+    useControllableEditorState<TimelineWorkbenchPreviewMode>({
+      value: previewMode,
+      defaultValue: "active-scene",
+      onChange: onPreviewModeChange,
+    });
   const [draggedAssetId, setDraggedAssetId] = useState<string | null>(null);
   const [internalTransportState, setInternalTransportState] =
     useState<TimelineWorkbenchTransportState>(() =>
@@ -242,17 +258,13 @@ export function TimelineWorkbench<
   const retryImportSourcesRef = useRef<TimelineWorkbenchImportSource[]>([]);
   const [announcement, setAnnouncement] = useState("");
   const resolvedAssets = useMemo(() => assets.concat(importedAssets), [assets, importedAssets]);
-  const resolvedViewport = viewport ?? internalViewport;
   const durationMs = document.durationMs ?? getTimelineEditorDurationMs(document.tracks, 30_000);
   const frameDurationMs = getTimelineEditorFrameDurationMs(frameRate);
   const resolvedSnapMs = frameDurationMs ?? snapMs;
   const currentTimeMs = document.currentTimeMs ?? 0;
   const frameStepMs = frameDurationMs ?? resolvedSnapMs;
-  const resolvedTool = tool ?? internalTool;
-  const resolvedPreviewMode = previewMode ?? internalPreviewMode;
   const resolvedTransportState = transportState ?? internalTransportState;
   const resolvedHotkeys = { ...defaultTimelineWorkbenchHotkeys, ...hotkeys, ...customHotkeys };
-  const resolvedClipboard = clipboard ?? internalClipboard;
   const defaultSnapTargets: TimelineEditorSnapOptions["targets"] = [
     { type: "interval", intervalMs: resolvedSnapMs },
     { type: "marker" },
@@ -260,9 +272,9 @@ export function TimelineWorkbench<
     { type: "playhead" },
   ];
   const resolvedSnap: Partial<TimelineEditorSnapOptions> = {
-    enabled: snap?.enabled ?? internalSnap.enabled ?? resolvedSnapMs > 0,
-    thresholdPx: snap?.thresholdPx ?? internalSnap.thresholdPx ?? 8,
-    targets: snap?.targets ?? internalSnap.targets ?? defaultSnapTargets,
+    enabled: inputSnap.enabled ?? resolvedSnapMs > 0,
+    thresholdPx: inputSnap.thresholdPx ?? 8,
+    targets: inputSnap.targets ?? defaultSnapTargets,
   };
   const resolvedSelection = selection ?? {
     itemIds: selectedItemId ? [selectedItemId] : [],
@@ -491,14 +503,6 @@ export function TimelineWorkbench<
     );
   }, [commitTransportState, readOnly]);
 
-  const commitPreviewMode = (mode: TimelineWorkbenchPreviewMode) => {
-    if (previewMode === undefined) {
-      setInternalPreviewMode(mode);
-    }
-
-    onPreviewModeChange?.(mode);
-  };
-
   useEffect(() => {
     if (resolvedTransportState.status !== "playing") {
       cancelPreviewAnimationFrame();
@@ -603,14 +607,6 @@ export function TimelineWorkbench<
       pauseTransport("document-change");
     }
   }, [document, pauseTransport, resolvedTransportState.status]);
-
-  const commitClipboard = (nextClipboard: TimelineEditorClipboard<TItemData> | undefined) => {
-    if (!clipboard) {
-      setInternalClipboard(nextClipboard);
-    }
-
-    onClipboardChange?.(nextClipboard);
-  };
 
   const runCommand = (
     command: TimelineEditorCommand<TTrackData, TItemData>,
@@ -1511,22 +1507,6 @@ export function TimelineWorkbench<
     ),
   ];
 
-  const commitViewport = (nextViewport: TimelineEditorViewport) => {
-    if (!viewport) {
-      setInternalViewport(nextViewport);
-    }
-
-    onViewportChange?.(nextViewport);
-  };
-
-  const commitTool = (nextTool: typeof resolvedTool) => {
-    if (!tool) {
-      setInternalTool(nextTool);
-    }
-
-    onToolChange?.(nextTool);
-  };
-
   const commitHotkey = (id: TimelineWorkbenchHotkeyId, hotkey: string) => {
     const nextHotkeys = { ...customHotkeys, [id]: hotkey };
     setCustomHotkeys(nextHotkeys);
@@ -1536,14 +1516,6 @@ export function TimelineWorkbench<
   const resetHotkeys = () => {
     setCustomHotkeys({});
     onHotkeysChange?.({});
-  };
-
-  const commitSnap = (nextSnap: Partial<TimelineEditorSnapOptions>) => {
-    if (!snap) {
-      setInternalSnap(nextSnap);
-    }
-
-    onSnapChange?.(nextSnap);
   };
 
   const stepCurrentTimeByFrame = (direction: -1 | 1) => {

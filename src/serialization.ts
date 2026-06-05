@@ -1,3 +1,9 @@
+import { isEditorRecord } from "@moritzbrantner/editor-core/json";
+import {
+  EditorJsonParseError,
+  type EditorParseIssue,
+} from "@moritzbrantner/editor-core/serialization";
+
 import { normalizeTimelineEditorDocument } from "./operations";
 import {
   isTimelineEditorTransformEasing,
@@ -24,11 +30,13 @@ export type SerializedTimelineEditorDocument<
 
 export const currentTimelineEditorSchemaVersion = 1;
 
-export class TimelineEditorParseError extends Error {
-  issues: Array<{ path: string; message: string }>;
+export type TimelineEditorParseIssue = EditorParseIssue;
 
-  constructor(issues: Array<{ path: string; message: string }>) {
-    super(issues.map((issue) => `${issue.path}: ${issue.message}`).join("; "));
+export class TimelineEditorParseError extends EditorJsonParseError {
+  issues: TimelineEditorParseIssue[];
+
+  constructor(issues: TimelineEditorParseIssue[]) {
+    super(issues);
     this.name = "TimelineEditorParseError";
     this.issues = issues;
   }
@@ -65,14 +73,14 @@ export function parseTimelineEditorDocument(input: unknown): TimelineEditorDocum
 }
 
 export function readTimelineEditorDocument(input: unknown, path: string): TimelineEditorDocument {
-  if (!isRecord(input)) {
+  if (!isEditorRecord(input)) {
     throw new TimelineEditorParseError([{ path, message: "Expected an object." }]);
   }
 
   const maybeSerialized =
-    input.schemaVersion === 1 && isRecord(input.document) ? input.document : input;
+    input.schemaVersion === 1 && isEditorRecord(input.document) ? input.document : input;
 
-  if (!isRecord(maybeSerialized) || !Array.isArray(maybeSerialized.tracks)) {
+  if (!isEditorRecord(maybeSerialized) || !Array.isArray(maybeSerialized.tracks)) {
     throw new TimelineEditorParseError([
       { path: withPath(path, "tracks"), message: "Expected tracks array." },
     ]);
@@ -86,7 +94,7 @@ export function readTimelineEditorDocument(input: unknown, path: string): Timeli
     currentTimeMs: optionalNumber(maybeSerialized.currentTimeMs, withPath(path, "currentTimeMs")),
     markers: Array.isArray(maybeSerialized.markers)
       ? maybeSerialized.markers.map((marker, index) => {
-          if (!isRecord(marker)) {
+          if (!isEditorRecord(marker)) {
             throw new TimelineEditorParseError([
               { path: withPath(path, `markers[${index}]`), message: "Expected marker object." },
             ]);
@@ -104,7 +112,7 @@ export function readTimelineEditorDocument(input: unknown, path: string): Timeli
 
   if (Array.isArray(maybeSerialized.groups)) {
     document.groups = maybeSerialized.groups.map((group, index) => {
-      if (!isRecord(group)) {
+      if (!isEditorRecord(group)) {
         throw new TimelineEditorParseError([
           { path: withPath(path, `groups[${index}]`), message: "Expected group object." },
         ]);
@@ -116,7 +124,7 @@ export function readTimelineEditorDocument(input: unknown, path: string): Timeli
         trackIds: requiredStringArray(group.trackIds, withPath(path, `groups[${index}].trackIds`)),
         collapsed: optionalBoolean(group.collapsed, withPath(path, `groups[${index}].collapsed`)),
         locked: optionalBoolean(group.locked, withPath(path, `groups[${index}].locked`)),
-        data: isRecord(group.data) ? group.data : undefined,
+        data: isEditorRecord(group.data) ? group.data : undefined,
       };
     });
   }
@@ -131,7 +139,7 @@ export function readTimelineEditorDocument(input: unknown, path: string): Timeli
 }
 
 function readTrack(input: unknown, path: string): TimelineEditorTrack {
-  if (!isRecord(input)) {
+  if (!isEditorRecord(input)) {
     throw new TimelineEditorParseError([{ path, message: "Expected track object." }]);
   }
 
@@ -149,12 +157,12 @@ function readTrack(input: unknown, path: string): TimelineEditorTrack {
       : undefined,
     height: optionalNumber(input.height, withPath(path, "height")),
     locked: optionalBoolean(input.locked, withPath(path, "locked")),
-    data: isRecord(input.data) ? input.data : undefined,
+    data: isEditorRecord(input.data) ? input.data : undefined,
   };
 }
 
 function readItem(input: unknown, path: string): TimelineEditorItem {
-  if (!isRecord(input)) {
+  if (!isEditorRecord(input)) {
     throw new TimelineEditorParseError([{ path, message: "Expected item object." }]);
   }
 
@@ -169,12 +177,12 @@ function readItem(input: unknown, path: string): TimelineEditorItem {
     color: optionalString(input.color, withPath(path, "color")),
     locked: optionalBoolean(input.locked, withPath(path, "locked")),
     transform: input.transform === undefined ? undefined : readTransform(input.transform, path),
-    data: isRecord(input.data) ? input.data : undefined,
+    data: isEditorRecord(input.data) ? input.data : undefined,
   };
 }
 
 function readTransform(input: unknown, path: string): TimelineEditorTransform {
-  if (!isRecord(input)) {
+  if (!isEditorRecord(input)) {
     throw new TimelineEditorParseError([
       { path: withPath(path, "transform"), message: "Expected transform object." },
     ]);
@@ -184,12 +192,12 @@ function readTransform(input: unknown, path: string): TimelineEditorTransform {
     points: requiredArray(input.points, withPath(path, "transform.points")).map((point, index) =>
       readTransformPoint(point, withPath(path, `transform.points[${index}]`)),
     ),
-    data: isRecord(input.data) ? input.data : undefined,
+    data: isEditorRecord(input.data) ? input.data : undefined,
   };
 }
 
 function readTransformPoint(input: unknown, path: string): TimelineEditorTransformPoint {
-  if (!isRecord(input)) {
+  if (!isEditorRecord(input)) {
     throw new TimelineEditorParseError([{ path, message: "Expected transform point object." }]);
   }
 
@@ -201,7 +209,7 @@ function readTransformPoint(input: unknown, path: string): TimelineEditorTransfo
 }
 
 function readItemGroup(input: unknown, path: string): TimelineEditorItemGroup {
-  if (!isRecord(input)) {
+  if (!isEditorRecord(input)) {
     throw new TimelineEditorParseError([{ path, message: "Expected item group object." }]);
   }
 
@@ -209,7 +217,7 @@ function readItemGroup(input: unknown, path: string): TimelineEditorItemGroup {
     id: requiredString(input.id, withPath(path, "id")),
     label: requiredString(input.label, withPath(path, "label")),
     itemIds: requiredStringArray(input.itemIds, withPath(path, "itemIds")),
-    data: isRecord(input.data) ? input.data : undefined,
+    data: isEditorRecord(input.data) ? input.data : undefined,
   };
 }
 
@@ -252,7 +260,7 @@ function requiredNumber(input: unknown, path: string) {
 }
 
 function requiredNumberRecord(input: unknown, path: string) {
-  if (!isRecord(input)) {
+  if (!isEditorRecord(input)) {
     throw new TimelineEditorParseError([{ path, message: "Expected number record." }]);
   }
 
@@ -293,10 +301,6 @@ function optionalTransformEasing(input: unknown, path: string) {
   }
 
   return input;
-}
-
-function isRecord(input: unknown): input is Record<string, unknown> {
-  return typeof input === "object" && input !== null && !Array.isArray(input);
 }
 
 function withPath(path: string, child: string) {
