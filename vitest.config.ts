@@ -19,6 +19,10 @@ export const timelineEditorTestAlias = [
     replacement: path.resolve(rootDir, "src/media-types.ts"),
   },
   {
+    find: "@moritzbrantner/timeline-editor/media-import",
+    replacement: path.resolve(rootDir, "src/media-import.ts"),
+  },
+  {
     find: "@moritzbrantner/timeline-editor/extensions",
     replacement: path.resolve(rootDir, "src/extensions.ts"),
   },

@@ -34,7 +34,8 @@ that want browser worker/WASM or Tauri-backed computation:
   factories and async import/analysis helpers.
 
 These packages are optional wrappers. The root package remains lightweight and
-does not import them.
+does not import them. See [Media Import Adoption](./media-import-adoption.md)
+for root-package and split-package import recipes.
 
 `createTimelineAudioExtension()` includes source metadata rendering, waveform
 clip rendering, a selected-item audio metadata inspector, and synchronized

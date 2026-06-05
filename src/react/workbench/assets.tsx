@@ -62,37 +62,122 @@ export function getTimelineWorkbenchAssetBrowserItems<TAssetData>(
         Duration: formatTimelineEditorTimeMs(asset.durationMs),
         Kind: asset.kind ?? "item",
         ...(mediaType ? { "Media Type": mediaType } : {}),
-        ...getTimelineWorkbenchAudioAssetMetadata(asset, mediaType),
+        ...getTimelineWorkbenchMediaAssetMetadata(asset, mediaType),
       },
     };
   });
 }
 
-function getTimelineWorkbenchAudioAssetMetadata<TAssetData>(
+function getTimelineWorkbenchMediaAssetMetadata<TAssetData>(
   asset: TimelineWorkbenchAsset<TAssetData>,
   mediaType: TimelineMediaType | undefined,
 ) {
-  if (mediaType !== "audio") {
-    return {};
+  if (mediaType === "audio") {
+    return getTimelineWorkbenchAudioAssetMetadata(asset);
   }
 
-  const data = asset.data as
-    | {
-        channels?: unknown;
-        sampleRate?: unknown;
-        source?: {
-          label?: unknown;
-          mimeType?: unknown;
-          metadata?: Record<string, unknown>;
-        };
-      }
-    | undefined;
-  const source = data?.source;
-  const sourceMetadata = source?.metadata;
+  if (mediaType === "video") {
+    return getTimelineWorkbenchVideoAssetMetadata(asset);
+  }
+
+  if (mediaType === "image") {
+    return getTimelineWorkbenchImageAssetMetadata(asset);
+  }
+
+  if (mediaType === "text") {
+    return getTimelineWorkbenchTextAssetMetadata(asset);
+  }
+
+  return {};
+}
+
+function getTimelineWorkbenchAudioAssetMetadata<TAssetData>(
+  asset: TimelineWorkbenchAsset<TAssetData>,
+) {
+  const data = getTimelineWorkbenchAssetMetadataData(asset);
+  const sourceMetadata = getTimelineWorkbenchAssetSourceMetadata(data);
   const channels = toTimelineWorkbenchMetadataNumber(data?.channels ?? sourceMetadata?.channels);
   const sampleRate = toTimelineWorkbenchMetadataNumber(
     data?.sampleRate ?? sourceMetadata?.sampleRate,
   );
+
+  return {
+    ...getTimelineWorkbenchSourceAssetMetadata(data),
+    ...(channels !== undefined ? { Channels: `${Math.round(channels)} ch` } : {}),
+    ...(sampleRate !== undefined
+      ? { "Sample Rate": formatTimelineWorkbenchSampleRate(sampleRate) }
+      : {}),
+  };
+}
+
+function getTimelineWorkbenchVideoAssetMetadata<TAssetData>(
+  asset: TimelineWorkbenchAsset<TAssetData>,
+) {
+  const data = getTimelineWorkbenchAssetMetadataData(asset);
+  const sourceMetadata = getTimelineWorkbenchAssetSourceMetadata(data);
+  const width = toTimelineWorkbenchMetadataNumber(data?.width ?? sourceMetadata?.width);
+  const height = toTimelineWorkbenchMetadataNumber(data?.height ?? sourceMetadata?.height);
+  const frameRate = toTimelineWorkbenchMetadataNumber(
+    data?.frameRate ??
+      getTimelineWorkbenchNestedMetadata(data, "frameRate") ??
+      sourceMetadata?.frameRate,
+  );
+  const thumbnailCount = Array.isArray(data?.thumbnails)
+    ? data.thumbnails.length
+    : toTimelineWorkbenchMetadataNumber(sourceMetadata?.thumbnailCount);
+
+  return {
+    ...getTimelineWorkbenchSourceAssetMetadata(data),
+    ...(width !== undefined && height !== undefined
+      ? { Dimensions: formatTimelineWorkbenchDimensions(width, height) }
+      : {}),
+    ...(frameRate !== undefined
+      ? { "Frame Rate": formatTimelineWorkbenchFrameRate(frameRate) }
+      : {}),
+    ...(thumbnailCount !== undefined && thumbnailCount > 0
+      ? { Thumbnails: `${Math.round(thumbnailCount)}` }
+      : {}),
+  };
+}
+
+function getTimelineWorkbenchImageAssetMetadata<TAssetData>(
+  asset: TimelineWorkbenchAsset<TAssetData>,
+) {
+  const data = getTimelineWorkbenchAssetMetadataData(asset);
+  const sourceMetadata = getTimelineWorkbenchAssetSourceMetadata(data);
+  const width = toTimelineWorkbenchMetadataNumber(data?.width ?? sourceMetadata?.width);
+  const height = toTimelineWorkbenchMetadataNumber(data?.height ?? sourceMetadata?.height);
+
+  return {
+    ...getTimelineWorkbenchSourceAssetMetadata(data),
+    ...(width !== undefined && height !== undefined
+      ? { Dimensions: formatTimelineWorkbenchDimensions(width, height) }
+      : {}),
+  };
+}
+
+function getTimelineWorkbenchTextAssetMetadata<TAssetData>(
+  asset: TimelineWorkbenchAsset<TAssetData>,
+) {
+  const data = getTimelineWorkbenchAssetMetadataData(asset);
+  const sourceMetadata = getTimelineWorkbenchAssetSourceMetadata(data);
+  const format = getTimelineWorkbenchMetadataString(data?.format ?? sourceMetadata?.format);
+  const language = getTimelineWorkbenchMetadataString(data?.language ?? sourceMetadata?.language);
+  const cueCount = Array.isArray(data?.cues)
+    ? data.cues.length
+    : toTimelineWorkbenchMetadataNumber(sourceMetadata?.cueCount);
+
+  return {
+    ...getTimelineWorkbenchSourceAssetMetadata(data),
+    ...(format ? { Format: format.toUpperCase() } : {}),
+    ...(language ? { Language: language } : {}),
+    ...(cueCount !== undefined ? { Cues: `${Math.round(cueCount)}` } : {}),
+  };
+}
+
+function getTimelineWorkbenchSourceAssetMetadata(data: Record<string, unknown> | undefined) {
+  const source = getTimelineWorkbenchAssetSource(data);
+  const sourceMetadata = getTimelineWorkbenchAssetSourceMetadata(data);
   const size = toTimelineWorkbenchMetadataNumber(sourceMetadata?.size);
 
   return {
@@ -101,15 +186,54 @@ function getTimelineWorkbenchAudioAssetMetadata<TAssetData>(
       ? { "MIME Type": source.mimeType }
       : {}),
     ...(size !== undefined ? { Size: formatTimelineWorkbenchAssetFileSize(size) } : {}),
-    ...(channels !== undefined ? { Channels: `${Math.round(channels)} ch` } : {}),
-    ...(sampleRate !== undefined
-      ? { "Sample Rate": formatTimelineWorkbenchSampleRate(sampleRate) }
-      : {}),
   };
+}
+
+function getTimelineWorkbenchAssetMetadataData<TAssetData>(
+  asset: TimelineWorkbenchAsset<TAssetData>,
+): Record<string, unknown> | undefined {
+  return asset.data && typeof asset.data === "object" && !Array.isArray(asset.data)
+    ? (asset.data as Record<string, unknown>)
+    : undefined;
+}
+
+function getTimelineWorkbenchAssetSource(data: Record<string, unknown> | undefined) {
+  return data?.source && typeof data.source === "object" && !Array.isArray(data.source)
+    ? (data.source as { label?: unknown; mimeType?: unknown; metadata?: unknown })
+    : undefined;
+}
+
+function getTimelineWorkbenchAssetSourceMetadata(data: Record<string, unknown> | undefined) {
+  const sourceMetadata = getTimelineWorkbenchAssetSource(data)?.metadata;
+
+  return sourceMetadata && typeof sourceMetadata === "object" && !Array.isArray(sourceMetadata)
+    ? (sourceMetadata as Record<string, unknown>)
+    : undefined;
+}
+
+function getTimelineWorkbenchNestedMetadata(
+  data: Record<string, unknown> | undefined,
+  key: string,
+) {
+  return data?.data && typeof data.data === "object" && !Array.isArray(data.data)
+    ? (data.data as Record<string, unknown>)[key]
+    : undefined;
 }
 
 function toTimelineWorkbenchMetadataNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function getTimelineWorkbenchMetadataString(value: unknown) {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function formatTimelineWorkbenchDimensions(width: number, height: number) {
+  return `${Math.round(width)} x ${Math.round(height)}`;
+}
+
+function formatTimelineWorkbenchFrameRate(frameRate: number) {
+  return `${Math.round(frameRate * 100) / 100} fps`;
 }
 
 function formatTimelineWorkbenchSampleRate(sampleRate: number) {
@@ -647,6 +771,7 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
                           {assetBrowserItem?.description ?? asset.kind ?? "item"} ·{" "}
                           {formatTimelineEditorTimeMs(asset.durationMs)}
                         </span>
+                        <TimelineWorkbenchAssetMetadata metadata={assetBrowserItem?.metadata} />
                       </>
                     )}
                     <span className="text-[10px] text-muted-foreground">{compatibility.label}</span>
@@ -662,6 +787,27 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
         )}
       </div>
     </div>
+  );
+}
+
+function TimelineWorkbenchAssetMetadata({ metadata }: { metadata?: Record<string, string> }) {
+  const rows = Object.entries(metadata ?? {}).filter(
+    ([label]) => label !== "Duration" && label !== "Kind" && label !== "Media Type",
+  );
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return (
+    <dl data-slot="timeline-workbench-asset-metadata" className="grid gap-0.5 text-[10px]">
+      {rows.map(([label, value]) => (
+        <div key={label} className="grid grid-cols-[5rem_minmax(0,1fr)] gap-2">
+          <dt className="text-muted-foreground">{label}</dt>
+          <dd className="truncate text-muted-foreground">{value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 

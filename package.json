@@ -55,6 +55,10 @@
       "types": "./dist/media-types.d.ts",
       "import": "./dist/media-types.js"
     },
+    "./media-import": {
+      "types": "./dist/media-import.d.ts",
+      "import": "./dist/media-import.js"
+    },
     "./text": {
       "types": "./dist/text.d.ts",
       "import": "./dist/text.js"
@@ -117,7 +121,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsup src/index.ts src/core.ts src/react.tsx src/commands.ts src/history.ts src/serialization.ts src/extensions.ts src/media-types.ts src/text.ts src/audio.ts src/video.ts src/image.ts src/data.ts --format esm --dts --clean --out-dir dist",
+    "build": "tsup src/index.ts src/core.ts src/react.tsx src/commands.ts src/history.ts src/serialization.ts src/extensions.ts src/media-types.ts src/media-import.ts src/text.ts src/audio.ts src/video.ts src/image.ts src/data.ts --format esm --dts --clean --out-dir dist",
     "build:packages": "bun run build && (cd packages/compute && bun run build) && for package in packages/*; do if [ -f \"$package/package.json\" ] && [ \"$package\" != \"packages/compute\" ]; then (cd \"$package\" && bun run build); fi; done",
     "build:wasm": "cargo build --workspace --target wasm32-unknown-unknown",
     "build-storybook": "storybook build",

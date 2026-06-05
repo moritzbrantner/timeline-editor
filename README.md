@@ -30,7 +30,8 @@ this package.
 
 The public package surface is the root export plus these subpaths: `./core`,
 `./react`, `./commands`, `./history`, `./serialization`, `./extensions`,
-`./media-types`, `./text`, `./audio`, `./video`, `./image`, and `./data`.
+`./media-types`, `./media-import`, `./text`, `./audio`, `./video`, `./image`,
+and `./data`.
 
 Core document utilities, commands, history helpers, validation, serialization,
 and serializable media data helpers are pure functions. Browser media source
@@ -57,6 +58,11 @@ const sourceLibrary = createTimelineMediaSourceLibrary();
 
 <TimelineWorkbench onImportAssets={createTimelineMediaImportResolver({ sourceLibrary })} />;
 ```
+
+`createTimelineMediaImportResolver` can also be imported from
+`@moritzbrantner/timeline-editor/media-import` when hosts want the dedicated
+media-import subpath. See [Media Import Adoption](./docs/media-import-adoption.md)
+for root-package and split-package recipes.
 
 Call `sourceLibrary.dispose()` when the editing session is destroyed. The
 returned cleanup callbacks are also accepted by `TimelineWorkbenchImportResult`,

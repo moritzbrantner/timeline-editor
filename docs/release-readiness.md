@@ -17,9 +17,9 @@ cost are meaningful.
 ## Public API
 
 The release contract is the root export plus `./core`, `./react`, `./commands`,
-`./history`, `./serialization`, `./media-types`, `./text`, `./audio`, `./video`,
-`./image`, and `./data`. Any added or removed runtime export must be reflected
-in `tests/package/smoke.mjs`.
+`./history`, `./serialization`, `./media-types`, `./media-import`, `./text`,
+`./audio`, `./video`, `./image`, and `./data`. Any added or removed runtime
+export must be reflected in `tests/package/smoke.mjs`.
 
 Core-only entrypoints must not import React, React JSX runtime, or
 `@moritzbrantner/ui` at runtime.

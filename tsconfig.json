@@ -12,6 +12,7 @@
       "@moritzbrantner/timeline-editor/react": ["./src/react.tsx"],
       "@moritzbrantner/timeline-editor/extensions": ["./src/extensions.ts"],
       "@moritzbrantner/timeline-editor/media-types": ["./src/media-types.ts"],
+      "@moritzbrantner/timeline-editor/media-import": ["./src/media-import.ts"],
       "@moritzbrantner/timeline-editor/text": ["./src/text.ts"],
       "@moritzbrantner/timeline-editor/audio": ["./src/audio.ts"],
       "@moritzbrantner/timeline-editor/video": ["./src/video.ts"],

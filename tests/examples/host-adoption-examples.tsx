@@ -15,11 +15,13 @@ import {
   type TimelineEditorHistory,
   type TimelineEditorSelection,
   type TimelineEditorViewport,
+  type TimelineMediaSourceLibrary,
   type TimelineMediaItemData,
   type TimelineWorkbenchImportContext,
   type TimelineWorkbenchImportResult,
   type TimelineWorkbenchImportSource,
 } from "@moritzbrantner/timeline-editor";
+import { createTimelineMediaImportResolver as createTimelineMediaImportResolverFromSubpath } from "@moritzbrantner/timeline-editor/media-import";
 import {
   createTimelineAudioBrowserBackend,
   createTimelineAudioFileAsset,
@@ -95,6 +97,13 @@ export function createHostMediaExtensions(): Array<TimelineEditorExtension<Timel
     createTimelineImageExtension() as unknown as TimelineEditorExtension<TimelineMediaItemData>,
     createTimelineTextExtension() as unknown as TimelineEditorExtension<TimelineMediaItemData>,
   ];
+}
+
+export function createSubpathMediaImportResolverRecipe(sourceLibrary: TimelineMediaSourceLibrary) {
+  return createTimelineMediaImportResolverFromSubpath({
+    sourceLibrary,
+    defaultImageDurationMs: 2_000,
+  });
 }
 
 export function createSplitPackageImportResolver() {

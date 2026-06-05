@@ -3,6 +3,11 @@
   "version": "0.0.0",
   "private": false,
   "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -25,6 +30,10 @@
   "peerDependencies": {
     "@moritzbrantner/timeline-editor": "^1.0.0",
     "react": "^19.0.0"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
   },
   "devDependencies": {
     "tsup": "^8.5.1",

@@ -36,6 +36,16 @@ const sourceLibrary = createTimelineMediaSourceLibrary();
 />;
 ```
 
+The resolver is also available from
+`@moritzbrantner/timeline-editor/media-import`:
+
+```ts
+import { createTimelineMediaImportResolver } from "@moritzbrantner/timeline-editor/media-import";
+```
+
+For host-owned file, URL, reference, split-package, and cleanup recipes, see
+[Media Import Adoption](./media-import-adoption.md).
+
 Call `sourceLibrary.dispose()` when the editing session is destroyed. The source
 library keeps object URLs alive while hosts retain them and makes cleanup
 idempotent. Lower-level helpers are still available:

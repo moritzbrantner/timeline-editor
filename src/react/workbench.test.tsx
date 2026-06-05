@@ -862,6 +862,133 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     }
   });
 
+  test("shows media asset metadata for video, image, and captions", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks: [
+        {
+          id: "media",
+          label: "Media",
+          acceptsItemKinds: ["video", "image", "subtitle"],
+          items: [],
+        },
+      ],
+    };
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        assets={[
+          {
+            id: "video",
+            label: "Interview",
+            kind: "video",
+            mediaType: "video",
+            durationMs: 2_000,
+            data: {
+              mediaType: "video",
+              width: 1_920,
+              height: 1_080,
+              thumbnails: ["poster-a", "poster-b", "poster-c", "poster-d"],
+              source: {
+                label: "interview.mp4",
+                mimeType: "video/mp4",
+                metadata: { frameRate: 23.976, size: 1_048_576 },
+              },
+            },
+          },
+          {
+            id: "image",
+            label: "Still",
+            kind: "image",
+            mediaType: "image",
+            durationMs: 1_000,
+            data: {
+              mediaType: "image",
+              width: 1_280,
+              height: 720,
+              source: {
+                label: "still.png",
+                mimeType: "image/png",
+                metadata: { size: 12_288 },
+              },
+            },
+          },
+          {
+            id: "captions",
+            label: "Captions",
+            kind: "subtitle",
+            mediaType: "text",
+            durationMs: 2_000,
+            data: {
+              mediaType: "text",
+              format: "srt",
+              language: "en",
+              cues: [
+                { id: "cue-1", startMs: 0, endMs: 1_000, text: "Hello" },
+                { id: "cue-2", startMs: 1_000, endMs: 2_000, text: "World" },
+              ],
+              source: {
+                label: "captions.srt",
+                mimeType: "text/plain",
+                metadata: { size: 2_048 },
+              },
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("interview.mp4")).toBeTruthy();
+    expect(screen.getByText("video/mp4")).toBeTruthy();
+    expect(screen.getByText("1 MB")).toBeTruthy();
+    expect(screen.getByText("1920 x 1080")).toBeTruthy();
+    expect(screen.getByText("23.98 fps")).toBeTruthy();
+    expect(screen.getByText("4")).toBeTruthy();
+    expect(screen.getByText("still.png")).toBeTruthy();
+    expect(screen.getByText("image/png")).toBeTruthy();
+    expect(screen.getByText("12 KB")).toBeTruthy();
+    expect(screen.getByText("1280 x 720")).toBeTruthy();
+    expect(screen.getByText("captions.srt")).toBeTruthy();
+    expect(screen.getByText("text/plain")).toBeTruthy();
+    expect(screen.getByText("2 KB")).toBeTruthy();
+    expect(screen.getByText("SRT")).toBeTruthy();
+    expect(screen.getByText("en")).toBeTruthy();
+    expect(screen.getByText("2")).toBeTruthy();
+  });
+
+  test("omits blank asset metadata rows when optional media metadata is missing", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 8_000,
+      tracks: [{ id: "video", label: "Video", acceptsItemKinds: ["video"], items: [] }],
+    };
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        assets={[
+          {
+            id: "video",
+            label: "Bare clip",
+            kind: "video",
+            mediaType: "video",
+            durationMs: 2_000,
+            data: { mediaType: "video" },
+          },
+        ]}
+      />,
+    );
+
+    const asset = screen.getByRole("button", { name: "Bare clip" });
+
+    expect(within(asset).queryByText("Source")).toBeNull();
+    expect(within(asset).queryByText("MIME Type")).toBeNull();
+    expect(within(asset).queryByText("Size")).toBeNull();
+    expect(within(asset).queryByText("Dimensions")).toBeNull();
+    expect(within(asset).queryByText("Frame Rate")).toBeNull();
+    expect(within(asset).queryByText("Thumbnails")).toBeNull();
+  });
+
   test("renders URL import controls only when host URL import is enabled", () => {
     const document: TimelineEditorDocument = {
       durationMs: 8_000,

@@ -21,6 +21,7 @@ const entryFiles = [
   "serialization.js",
   "extensions.js",
   "media-types.js",
+  "media-import.js",
   "text.js",
   "audio.js",
   "video.js",
@@ -144,6 +145,7 @@ const expectedRuntimeExports = {
     "timelineMediaTypes",
     "validateTimelineEditorMediaTypes",
   ],
+  "media-import.js": ["createTimelineMediaImportResolver"],
   "react.js": [
     "TimelineEditor",
     "TimelineEditorClip",
@@ -274,6 +276,14 @@ const expectedSplitPackageExports = {
     "createTimelineVideoFileAsset",
   ],
 };
+const splitPackagesWithWorkerExports = new Set([
+  "audio",
+  "captions",
+  "data",
+  "geo",
+  "image",
+  "video",
+]);
 
 for (const entryFile of entryFiles) {
   const entryPath = path.join(distDir, entryFile);
@@ -363,7 +373,27 @@ await Promise.all(
 
     assert(splitPackageJson.name === packageName, `${packageName} package name changed`);
     assert(splitPackageJson.private === false, `${packageName} should be publishable`);
+    assert(splitPackageJson.license === "MIT", `${packageName} license changed`);
+    assert(splitPackageJson.sideEffects === false, `${packageName} should stay side-effect free`);
+    assertSetEqual(
+      splitPackageJson.files ?? [],
+      ["dist"],
+      `${packageName} published files should stay limited to dist`,
+    );
+    assert(
+      splitPackageJson.publishConfig?.registry === "https://registry.npmjs.org" &&
+        splitPackageJson.publishConfig?.access === "public",
+      `${packageName} publishConfig changed`,
+    );
     assert(splitPackageJson.exports?.["."], `${packageName} is missing a root export`);
+    if (splitPackagesWithWorkerExports.has(packageDirectory)) {
+      assert(splitPackageJson.exports?.["./worker"], `${packageName} is missing a worker export`);
+    } else {
+      assert(
+        !splitPackageJson.exports?.["./worker"],
+        `${packageName} should not expose a worker export`,
+      );
+    }
 
     for (const exportTarget of Object.values(splitPackageJson.exports)) {
       for (const relativePath of Object.values(exportTarget)) {
