@@ -80,6 +80,7 @@ function TimelineEditorClipComponent<TItemData>({
     onResizePointerDown ??
     ((edge, event) => {
       if (editor) {
+        event.preventDefault();
         editor.beginClipResize(edge, item, locked, event);
       }
     });
@@ -112,7 +113,7 @@ function TimelineEditorClipComponent<TItemData>({
       <span
         aria-hidden="true"
         data-slot="timeline-editor-resize-start"
-        className="absolute inset-y-1 left-0 w-2 cursor-ew-resize rounded-l-md bg-white/25"
+        className="absolute inset-y-0 left-0 z-10 w-4 cursor-ew-resize touch-none rounded-l-md bg-white/25"
         onPointerDown={(event) => handleResizePointerDown("start", event)}
       />
       {renderItem ? (
@@ -123,7 +124,7 @@ function TimelineEditorClipComponent<TItemData>({
       <span
         aria-hidden="true"
         data-slot="timeline-editor-resize-end"
-        className="absolute inset-y-1 right-0 w-2 cursor-ew-resize rounded-r-md bg-white/25"
+        className="absolute inset-y-0 right-0 z-10 w-4 cursor-ew-resize touch-none rounded-r-md bg-white/25"
         onPointerDown={(event) => handleResizePointerDown("end", event)}
       />
     </div>

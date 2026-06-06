@@ -2045,7 +2045,7 @@ export function TimelineWorkbench<
   );
   const assetsPanel = shouldShowAssetsPanel ? (
     <TimelineWorkbenchAssetsPanel
-      className="h-full min-w-0"
+      className="h-full min-h-0 min-w-0 overflow-auto"
       assets={resolvedAssets}
       tracks={document.tracks as Array<TimelineEditorTrack<Record<string, unknown>, unknown>>}
       selectedTrack={selectedTrack as TimelineEditorTrack<Record<string, unknown>, unknown>}
@@ -2066,7 +2066,10 @@ export function TimelineWorkbench<
     />
   ) : null;
   const inspectorPanel = showInspectorPanel ? (
-    <div data-slot="timeline-workbench-inspector" className="h-full min-w-0 p-0">
+    <div
+      data-slot="timeline-workbench-inspector"
+      className="h-full min-h-0 min-w-0 overflow-auto p-0"
+    >
       {renderInspector ? (
         renderInspector(inspectorContext)
       ) : (
@@ -2157,11 +2160,11 @@ export function TimelineWorkbench<
   const mainPanelDefaultSize = 100 - (assetsPanel ? 20 : 0) - (inspectorPanel ? 24 : 0);
   const renderMainArea = (centerPanel: ReactNode) =>
     sidePanelsVisible ? (
-      <ResizablePanelGroup orientation="horizontal" className="min-h-full">
+      <ResizablePanelGroup orientation="horizontal" className="h-full min-h-0">
         {assetsPanel ? (
           <>
             <ResizablePanel defaultSize={20} minSize={16} collapsible>
-              <WorkbenchPanel side="left" className="h-full border-r-0">
+              <WorkbenchPanel side="left" className="h-full min-h-0 border-r-0">
                 {assetsPanel}
               </WorkbenchPanel>
             </ResizablePanel>
@@ -2175,7 +2178,7 @@ export function TimelineWorkbench<
           <>
             <ResizableHandle withHandle />
             <ResizablePanel defaultSize={24} minSize={18} collapsible>
-              <WorkbenchPanel side="right" className="h-full border-l-0">
+              <WorkbenchPanel side="right" className="h-full min-h-0 border-l-0">
                 {inspectorPanel}
               </WorkbenchPanel>
             </ResizablePanel>

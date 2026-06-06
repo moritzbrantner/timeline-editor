@@ -1,7 +1,10 @@
 import { isEditorRecord } from "@moritzbrantner/editor-core/json";
 import {
+  type EditorDocumentAdapter,
   EditorJsonParseError,
   type EditorParseIssue,
+  readEditorDocument,
+  serializeEditorDocument,
 } from "@moritzbrantner/editor-core/serialization";
 
 import { normalizeTimelineEditorDocument } from "./operations";
@@ -29,6 +32,7 @@ export type SerializedTimelineEditorDocument<
 };
 
 export const currentTimelineEditorSchemaVersion = 1;
+const timelineEditorDocumentFormat = "@moritzbrantner/timeline-editor/document";
 
 export type TimelineEditorParseIssue = EditorParseIssue;
 
@@ -42,6 +46,20 @@ export class TimelineEditorParseError extends EditorJsonParseError {
   }
 }
 
+const timelineEditorDocumentAdapter: EditorDocumentAdapter<TimelineEditorDocument> = {
+  format: timelineEditorDocumentFormat,
+  schemaVersion: currentTimelineEditorSchemaVersion,
+  normalize: normalizeTimelineEditorDocument,
+  read: readTimelineEditorDocumentInput,
+  unwrapLegacyEnvelope(input) {
+    return input.schemaVersion === currentTimelineEditorSchemaVersion &&
+      isEditorRecord(input.document) &&
+      input.format === undefined
+      ? input.document
+      : undefined;
+  },
+};
+
 export function serializeTimelineEditorDocument<
   TTrackData = Record<string, unknown>,
   TItemData = Record<string, unknown>,
@@ -50,9 +68,15 @@ export function serializeTimelineEditorDocument<
 >(
   document: TimelineEditorDocument<TTrackData, TItemData, TGroupData, TTransformValues>,
 ): SerializedTimelineEditorDocument<TTrackData, TItemData, TGroupData, TTransformValues> {
+  const serialized = serializeEditorDocument(
+    document as TimelineEditorDocument,
+    timelineEditorDocumentAdapter,
+    { exportedAt: false },
+  );
+
   return {
-    schemaVersion: currentTimelineEditorSchemaVersion,
-    document: normalizeTimelineEditorDocument(document) as TimelineEditorDocument<
+    schemaVersion: serialized.schemaVersion as typeof currentTimelineEditorSchemaVersion,
+    document: serialized.document as TimelineEditorDocument<
       TTrackData,
       TItemData,
       TGroupData,
@@ -73,27 +97,40 @@ export function parseTimelineEditorDocument(input: unknown): TimelineEditorDocum
 }
 
 export function readTimelineEditorDocument(input: unknown, path: string): TimelineEditorDocument {
+  try {
+    return readEditorDocument(input, timelineEditorDocumentAdapter, { path });
+  } catch (error) {
+    if (error instanceof TimelineEditorParseError) {
+      throw error;
+    }
+
+    if (error instanceof EditorJsonParseError) {
+      throw new TimelineEditorParseError([...error.issues]);
+    }
+
+    throw error;
+  }
+}
+
+function readTimelineEditorDocumentInput(input: unknown, path = ""): TimelineEditorDocument {
   if (!isEditorRecord(input)) {
     throw new TimelineEditorParseError([{ path, message: "Expected an object." }]);
   }
 
-  const maybeSerialized =
-    input.schemaVersion === 1 && isEditorRecord(input.document) ? input.document : input;
-
-  if (!isEditorRecord(maybeSerialized) || !Array.isArray(maybeSerialized.tracks)) {
+  if (!Array.isArray(input.tracks)) {
     throw new TimelineEditorParseError([
       { path: withPath(path, "tracks"), message: "Expected tracks array." },
     ]);
   }
 
   const document: TimelineEditorDocument = {
-    tracks: maybeSerialized.tracks.map((track, index) =>
+    tracks: input.tracks.map((track, index) =>
       readTrack(track, withPath(path, `tracks[${index}]`)),
     ),
-    durationMs: optionalNumber(maybeSerialized.durationMs, withPath(path, "durationMs")),
-    currentTimeMs: optionalNumber(maybeSerialized.currentTimeMs, withPath(path, "currentTimeMs")),
-    markers: Array.isArray(maybeSerialized.markers)
-      ? maybeSerialized.markers.map((marker, index) => {
+    durationMs: optionalNumber(input.durationMs, withPath(path, "durationMs")),
+    currentTimeMs: optionalNumber(input.currentTimeMs, withPath(path, "currentTimeMs")),
+    markers: Array.isArray(input.markers)
+      ? input.markers.map((marker, index) => {
           if (!isEditorRecord(marker)) {
             throw new TimelineEditorParseError([
               { path: withPath(path, `markers[${index}]`), message: "Expected marker object." },
@@ -110,8 +147,8 @@ export function readTimelineEditorDocument(input: unknown, path: string): Timeli
       : undefined,
   };
 
-  if (Array.isArray(maybeSerialized.groups)) {
-    document.groups = maybeSerialized.groups.map((group, index) => {
+  if (Array.isArray(input.groups)) {
+    document.groups = input.groups.map((group, index) => {
       if (!isEditorRecord(group)) {
         throw new TimelineEditorParseError([
           { path: withPath(path, `groups[${index}]`), message: "Expected group object." },
@@ -129,8 +166,8 @@ export function readTimelineEditorDocument(input: unknown, path: string): Timeli
     });
   }
 
-  if (Array.isArray(maybeSerialized.itemGroups)) {
-    document.itemGroups = maybeSerialized.itemGroups.map((group, index) =>
+  if (Array.isArray(input.itemGroups)) {
+    document.itemGroups = input.itemGroups.map((group, index) =>
       readItemGroup(group, withPath(path, `itemGroups[${index}]`)),
     );
   }

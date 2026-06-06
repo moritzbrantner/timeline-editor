@@ -1,4 +1,5 @@
 import { isEditorRecord } from "@moritzbrantner/editor-core/json";
+import { EditorMigrationError } from "@moritzbrantner/editor-core/serialization";
 
 import {
   currentTimelineEditorSchemaVersion,
@@ -7,7 +8,9 @@ import {
   type SerializedTimelineEditorDocument,
 } from "./serialization";
 
-export class TimelineEditorMigrationError extends Error {
+const timelineEditorDocumentFormat = "@moritzbrantner/timeline-editor/document";
+
+export class TimelineEditorMigrationError extends EditorMigrationError {
   schemaVersion: number | string | undefined;
 
   constructor(schemaVersion: number | string | undefined) {
@@ -26,7 +29,10 @@ export function migrateTimelineEditorDocument(input: unknown): SerializedTimelin
     return serializeTimelineEditorDocument(parseTimelineEditorDocument(input));
   }
 
-  if (input.schemaVersion === currentTimelineEditorSchemaVersion) {
+  if (
+    input.schemaVersion === currentTimelineEditorSchemaVersion &&
+    (input.format === undefined || input.format === timelineEditorDocumentFormat)
+  ) {
     return serializeTimelineEditorDocument(parseTimelineEditorDocument(input));
   }
 
