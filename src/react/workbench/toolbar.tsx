@@ -25,6 +25,7 @@ import type {
   TimelineEditorSelection,
   TimelineEditorSnapOptions,
   TimelineEditorSnapTarget,
+  TimelineEditorTimeMode,
   TimelineEditorTool,
   TimelineEditorViewport,
   TimelineEditorOverlap,
@@ -57,6 +58,7 @@ type TimelineWorkbenchToolbarProps<TTrackData extends Record<string, unknown>, T
   resolvedHotkeys: TimelineEditorHotkeys;
   resolvedSelection: TimelineEditorSelection;
   resolvedSnap: Partial<TimelineEditorSnapOptions>;
+  resolvedTimeMode: TimelineEditorTimeMode;
   resolvedTool: TimelineEditorTool;
   resolvedViewport: TimelineEditorViewport;
   announcement?: string;
@@ -102,6 +104,7 @@ export function TimelineWorkbenchToolbar<TTrackData extends Record<string, unkno
   resolvedHotkeys,
   resolvedSelection,
   resolvedSnap,
+  resolvedTimeMode,
   resolvedTool,
   resolvedViewport,
   announcement,
@@ -130,6 +133,7 @@ export function TimelineWorkbenchToolbar<TTrackData extends Record<string, unkno
   const hasRange = Boolean(resolvedSelection.range);
   const selectedItemCount = resolvedSelection.itemIds.length;
   const range = normalizeTimelineWorkbenchToolbarRange(resolvedSelection.range);
+  const stepLabel = resolvedTimeMode === "frames" ? "frame" : "step";
   const moreItems: MenuActionItem[] = [
     {
       id: "paste",
@@ -146,13 +150,13 @@ export function TimelineWorkbenchToolbar<TTrackData extends Record<string, unkno
     { id: "timeline-navigation-separator", type: "separator" },
     {
       id: "previous-frame",
-      label: `Previous frame (${formatTimelineWorkbenchFrameStep(frameStepMs)})`,
+      label: `Previous ${stepLabel} (${formatTimelineWorkbenchFrameStep(frameStepMs)})`,
       disabled: readOnly || frameStepMs <= 0 || currentTimeMs <= 0,
       onSelect: () => onStepFrame(-1),
     },
     {
       id: "next-frame",
-      label: `Next frame (${formatTimelineWorkbenchFrameStep(frameStepMs)})`,
+      label: `Next ${stepLabel} (${formatTimelineWorkbenchFrameStep(frameStepMs)})`,
       disabled: readOnly || frameStepMs <= 0 || currentTimeMs >= durationMs,
       onSelect: () => onStepFrame(1),
     },

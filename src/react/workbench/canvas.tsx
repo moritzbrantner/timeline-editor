@@ -10,6 +10,7 @@ import type {
   TimelineEditorItemKind,
   TimelineEditorSelection,
   TimelineEditorSnapOptions,
+  TimelineEditorTimeMode,
   TimelineEditorTool,
   TimelineEditorViewport,
 } from "../../core";
@@ -50,6 +51,7 @@ type TimelineWorkbenchCanvasProps<
   document: TimelineEditorDocument<TTrackData, TItemData>;
   editPolicy?: Partial<TimelineEditorEditPolicy>;
   frameRate?: number;
+  timeMode?: TimelineEditorTimeMode;
   hotkeys?: Partial<TimelineEditorHotkeys>;
   readOnly: boolean;
   tool?: TimelineEditorTool;
@@ -90,6 +92,7 @@ export function TimelineWorkbenchCanvas<
   document,
   editPolicy,
   frameRate,
+  timeMode,
   hotkeys,
   readOnly,
   tool,
@@ -250,6 +253,7 @@ export function TimelineWorkbenchCanvas<
             ...snap,
           }}
           frameRate={frameRate}
+          timeMode={timeMode}
           tool={tool}
           minItemDurationMs={minItemDurationMs}
           editPolicy={editPolicy}

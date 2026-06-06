@@ -2,11 +2,15 @@ import type React from "react";
 
 import {
   clampTimelineEditorTime,
-  formatTimelineEditorTimeMs,
+  formatTimelineEditorTimeLabel,
   getTimelineEditorDurationMs,
   getTimelineEditorTicks,
 } from "../time";
-import { type TimelineEditorDocument, type TimelineEditorViewport } from "../types";
+import {
+  type TimelineEditorDocument,
+  type TimelineEditorTimeMode,
+  type TimelineEditorViewport,
+} from "../types";
 
 export function getTimelineEditorDurationForDocument<TTrackData, TItemData>(
   document: TimelineEditorDocument<TTrackData, TItemData>,
@@ -58,6 +62,7 @@ export function getVisibleTimelineEditorTicksForRange(
   viewport: TimelineEditorViewport,
   range: { startMs: number; endMs: number },
   frameDurationMs?: number,
+  options: { frameRate?: number; timeMode?: TimelineEditorTimeMode } = {},
 ) {
   const safeDurationMs = Math.max(0, durationMs);
   const stepMs = getVisibleTimelineEditorTickStepMs(safeDurationMs, viewport, frameDurationMs);
@@ -74,7 +79,7 @@ export function getVisibleTimelineEditorTicksForRange(
 
     ticks.push({
       timeMs,
-      label: formatTimelineEditorTimeMs(timeMs),
+      label: formatTimelineEditorTimeLabel(timeMs, options),
       major: tickIndex % majorEvery === 0,
     });
   }

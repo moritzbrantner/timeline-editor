@@ -149,6 +149,8 @@ export type TimelineEditorViewport = {
   visibleEndMs?: number;
 };
 
+export type TimelineEditorTimeMode = "frames" | "continuous";
+
 export type TimelineEditorSnapTarget =
   | { type: "interval"; intervalMs: number }
   | { type: "marker" }

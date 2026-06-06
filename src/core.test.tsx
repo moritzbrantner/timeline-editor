@@ -13,7 +13,9 @@ import {
   duplicateTimelineEditorItem,
   findTimelineEditorItem,
   formatTimelineEditorTimeMs,
+  formatTimelineEditorTimeLabel,
   getTimelineEditorFrameDurationMs,
+  getTimelineEditorFrameDurationMsForMode,
   getTimelineEditorItemTransformValuesAt,
   getTimelineEditorTicks,
   getTimelineEditorTransformValuesAt,
@@ -28,6 +30,7 @@ import {
   parseTimelineEditorDocument,
   removeTimelineEditorTracksFromGroup,
   removeTimelineEditorTransformPoint,
+  resolveTimelineEditorTimeMode,
   removeTimelineEditorItem,
   resizeTimelineEditorItem,
   rippleDeleteTimelineEditorItems,
@@ -81,6 +84,20 @@ describe("@moritzbrantner/timeline-editor core", () => {
   test("normalizes, formats, and moves items across compatible tracks", () => {
     expect(formatTimelineEditorTimeMs(65_430)).toBe("1:05.4");
     expect(getTimelineEditorFrameDurationMs(25)).toBe(40);
+    expect(resolveTimelineEditorTimeMode(undefined, 25)).toBe("frames");
+    expect(getTimelineEditorFrameDurationMsForMode("continuous", 25)).toBeUndefined();
+    expect(formatTimelineEditorTimeLabel(1_000, { frameRate: 25, timeMode: "frames" })).toBe("f25");
+    expect(formatTimelineEditorTimeLabel(1_000, { frameRate: 25, timeMode: "continuous" })).toBe(
+      "0:01.0",
+    );
+    expect(
+      createTimelineEditorSnapResolver(
+        { tracks, durationMs: 8_000 },
+        { enabled: false, thresholdPx: 0, targets: [] },
+        1_000,
+        { quantizeIntervalMs: 40 },
+      )(71),
+    ).toEqual({ timeMs: 80, snapped: true });
     expect(clampTimelineEditorTime(Number.POSITIVE_INFINITY, 0, 5_000)).toBe(5_000);
     expect(clampTimelineEditorTime(Number.NaN, 0, 5_000)).toBe(0);
     expect(

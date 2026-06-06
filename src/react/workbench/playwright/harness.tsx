@@ -31,6 +31,7 @@ type HarnessState = {
   changes: string[];
   document: TimelineEditorDocument;
   frameRate?: number;
+  timeMode?: "frames" | "continuous";
   imports: Array<{
     fileName?: string;
     label?: string;
@@ -336,6 +337,7 @@ function App() {
   const frameRateParam = searchParams.get("frameRate");
   const initialFrameRate = frameRateParam ? Number(frameRateParam) : undefined;
   const [frameRate, setFrameRate] = useState<number | undefined>(initialFrameRate);
+  const timeMode = searchParams.get("timeMode") === "continuous" ? "continuous" : undefined;
   const [document, setDocument] = useState(() => {
     const fixtureDocument = createFixtureDocument(fixture);
     const initialTime = searchParams.get("initialTimeMs");
@@ -405,6 +407,7 @@ function App() {
       changes: changes.current,
       document,
       frameRate,
+      timeMode: timeMode ?? (frameRate ? "frames" : "continuous"),
       imports: imports.current,
       range: selection.range,
       selectedItemId: selection.itemIds[0] ?? null,
@@ -412,7 +415,7 @@ function App() {
       transport: transport.current,
       transportChanges: transportChanges.current,
     };
-  }, [document, frameRate, selection]);
+  }, [document, frameRate, selection, timeMode]);
 
   const recordChange = (change: string) => {
     const nextChanges = [...changes.current, change];
@@ -591,6 +594,7 @@ function App() {
       virtualization={largeFixture ? { rows: true, rowOverscanPx: 80 } : undefined}
       pixelsPerSecond={80}
       frameRate={frameRate}
+      timeMode={timeMode}
       snapMs={100}
       assets={emptyAssetsFixture ? [] : timelineAssets}
       acceptedImportTypes={["audio/*", "video/*"]}

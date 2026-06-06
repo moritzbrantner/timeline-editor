@@ -13,6 +13,7 @@ import type {
   TimelineEditorSelection,
   TimelineEditorSnapOptions,
   TimelineEditorTimeRange,
+  TimelineEditorTimeMode,
   TimelineEditorTool,
   TimelineEditorTrack,
   TimelineEditorTransformPoint,
@@ -333,6 +334,7 @@ export type TimelineWorkbenchProps<
   pixelsPerSecond?: number;
   viewport?: TimelineEditorViewport;
   frameRate?: number;
+  timeMode?: TimelineEditorTimeMode;
   editPolicy?: Partial<TimelineEditorEditPolicy>;
   snapMs?: number;
   snap?: Partial<TimelineEditorSnapOptions>;

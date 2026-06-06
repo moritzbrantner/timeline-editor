@@ -40,6 +40,7 @@ export function getTimelineEditorDragCommitTracks<
   pixelsPerSecond: number,
   durationMs: number,
   editPolicy: Partial<TimelineEditorEditPolicy> | undefined,
+  snapMs?: number,
 ) {
   const deltaMs = getTimelineEditorTimeFromDelta(
     getTimelineEditorPointerClientX(event) - dragState.startX,
@@ -63,6 +64,7 @@ export function getTimelineEditorDragCommitTracks<
       resolvedDeltaMs,
       durationMs,
       editPolicy,
+      snapMs,
     );
   }
 
@@ -78,6 +80,7 @@ export function getTimelineEditorDragCommitTracks<
     snapResult.timeMs,
     durationMs,
     editPolicy,
+    snapMs,
   );
 }
 
@@ -96,6 +99,7 @@ export function getTimelineEditorMoveDragTracks<
   deltaMs: number,
   durationMs: number,
   editPolicy: Partial<TimelineEditorEditPolicy> | undefined,
+  snapMs?: number,
 ) {
   const targetTrackId = getTimelineEditorTrackIdAtClientY(visibleTracks, scroller, clientY);
   const sourceTrackIndex = document.tracks.findIndex(
@@ -126,6 +130,7 @@ export function getTimelineEditorMoveDragTracks<
   return moveTimelineEditorItems(document.tracks, [...dragState.movingItemIds], deltaMs, {
     durationMs,
     editPolicy,
+    snapMs,
     ...(trackDelta !== undefined && trackDelta !== 0 ? { trackDelta } : {}),
   });
 }
@@ -249,13 +254,14 @@ export function getTimelineEditorResizeDragTracks<TTrackData, TItemData>(
   timeMs: number,
   durationMs: number,
   editPolicy: Partial<TimelineEditorEditPolicy> | undefined,
+  snapMs?: number,
 ) {
   return resizeTimelineEditorItem(
     tracks,
     edge === "start"
       ? { itemId: item.id, edge, startMs: timeMs }
       : { itemId: item.id, edge, durationMs: timeMs - item.startMs },
-    { durationMs, editPolicy },
+    { durationMs, editPolicy, snapMs },
   );
 }
 

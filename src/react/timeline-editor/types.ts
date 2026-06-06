@@ -10,6 +10,7 @@ import type {
   TimelineEditorSelection,
   TimelineEditorSnapOptions,
   TimelineEditorTick,
+  TimelineEditorTimeMode,
   TimelineEditorTool,
   TimelineEditorTrackGroup,
   TimelineEditorTrack,
@@ -17,6 +18,8 @@ import type {
 } from "../../types";
 import type { TimelineEditorDocumentIndex } from "../../document-index";
 import type { TimelineEditorMeasuredViewport, TimelineEditorVisibleRange } from "./viewport";
+
+export type { TimelineEditorTimeMode } from "../../types";
 
 export type TimelineEditorHotkeys = {
   delete: string;
@@ -110,6 +113,7 @@ export type TimelineEditorTimelineContextMenuContext<
   document: TimelineEditorDocument<TTrackData, TItemData>;
   durationMs: number;
   frameRate?: number;
+  timeMode: TimelineEditorTimeMode;
   readOnly: boolean;
   selection: TimelineEditorSelection;
   selectedItems: Array<TimelineEditorItem<TItemData>>;
@@ -173,6 +177,7 @@ export type TimelineEditorProps<
   viewport?: TimelineEditorViewport;
   readOnly?: boolean;
   frameRate?: number;
+  timeMode?: TimelineEditorTimeMode;
   tool?: TimelineEditorTool;
   minItemDurationMs?: number;
   editPolicy?: Partial<TimelineEditorEditPolicy>;
@@ -202,6 +207,7 @@ export type TimelineEditorProviderProps<
   | "editPolicy"
   | "followCurrentTime"
   | "frameRate"
+  | "timeMode"
   | "getItemContextMenuItems"
   | "getTrackGroupContextMenuItems"
   | "getTimelineContextMenuItems"
@@ -363,6 +369,7 @@ export type TimelineEditorContextValue<
   selection: TimelineEditorSelection;
   viewport: TimelineEditorViewport;
   readOnly: boolean;
+  timeMode: TimelineEditorTimeMode;
   tool: TimelineEditorTool;
   durationMs: number;
   timelineWidthPx: number;

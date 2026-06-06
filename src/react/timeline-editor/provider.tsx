@@ -19,8 +19,10 @@ import {
   createTimelineEditorSnapOptions,
   createTimelineEditorSnapResolver,
   getTimelineEditorFrameDurationMs,
+  getTimelineEditorFrameDurationMsForMode,
   getTimelineEditorItemEndMs,
   clampTimelineEditorTime,
+  resolveTimelineEditorTimeMode,
   snapTimelineEditorTime,
 } from "../../time";
 import {
@@ -116,6 +118,7 @@ export function TimelineEditorProvider<
   viewport,
   readOnly = false,
   frameRate,
+  timeMode,
   tool = "select",
   minItemDurationMs,
   editPolicy,
@@ -155,14 +158,22 @@ export function TimelineEditorProvider<
   );
   const timelineWidthPx = getTimelineEditorWidthPx(durationMs, resolvedViewport.pixelsPerSecond);
   const editorWidthPx = timelineEditorTrackHeaderWidthPx + timelineWidthPx;
-  const frameDurationMs = useMemo(() => getTimelineEditorFrameDurationMs(frameRate), [frameRate]);
+  const resolvedTimeMode = useMemo(
+    () => resolveTimelineEditorTimeMode(timeMode, frameRate),
+    [frameRate, timeMode],
+  );
+  const frameDurationMs = useMemo(
+    () => getTimelineEditorFrameDurationMsForMode(resolvedTimeMode, frameRate),
+    [frameRate, resolvedTimeMode],
+  );
+  const slotSnapMs = useMemo(() => getTimelineEditorFrameDurationMs(frameRate), [frameRate]);
   const resolvedSnap = useMemo(
-    () => createTimelineEditorSnapOptions(frameDurationMs ?? defaultTimelineEditorSnapMs, snap),
-    [frameDurationMs, snap],
+    () => createTimelineEditorSnapOptions(slotSnapMs ?? defaultTimelineEditorSnapMs, snap),
+    [slotSnapMs, snap],
   );
   const nudgeMs = useMemo(
-    () => getTimelineEditorNudgeMs(frameDurationMs, resolvedSnap),
-    [frameDurationMs, resolvedSnap],
+    () => getTimelineEditorNudgeMs(slotSnapMs, resolvedSnap),
+    [resolvedSnap, slotSnapMs],
   );
   const resolvedHotkeys = useMemo(
     () => ({ ...defaultTimelineEditorHotkeys, ...hotkeys }),
@@ -227,8 +238,9 @@ export function TimelineEditorProvider<
         resolvedViewport,
         visibleRange,
         frameDurationMs,
+        { frameRate, timeMode: resolvedTimeMode },
       ),
-    [durationMs, frameDurationMs, resolvedViewport, visibleRange],
+    [durationMs, frameDurationMs, frameRate, resolvedTimeMode, resolvedViewport, visibleRange],
   );
 
   const commitDocument = onDocumentChange ?? (() => undefined);
@@ -376,6 +388,7 @@ export function TimelineEditorProvider<
       document,
       resolvedSnap,
       resolvedViewport.pixelsPerSecond,
+      { quantizeIntervalMs: slotSnapMs },
     )(timeMs);
     const snappedTimeMs = clampTimelineEditorTime(snapResult.timeMs, 0, durationMs);
 
@@ -383,6 +396,7 @@ export function TimelineEditorProvider<
       document,
       durationMs,
       frameRate,
+      timeMode: resolvedTimeMode,
       readOnly,
       selection,
       selectedItems,
@@ -450,6 +464,7 @@ export function TimelineEditorProvider<
         resolvedDeltaMs,
         durationMs,
         editPolicy,
+        slotSnapMs,
       );
 
       schedulePreviewUpdate(
@@ -470,6 +485,7 @@ export function TimelineEditorProvider<
       snapResult.timeMs,
       durationMs,
       editPolicy,
+      slotSnapMs,
     );
 
     schedulePreviewUpdate(
@@ -488,6 +504,7 @@ export function TimelineEditorProvider<
         document,
         resolvedSnap,
         resolvedViewport.pixelsPerSecond,
+        { quantizeIntervalMs: slotSnapMs },
       );
       const snapResult = snapResolver(markerDragState.originalTimeMs + deltaMs);
       if (snapResult.timeMs === markerDragState.originalTimeMs) {
@@ -519,6 +536,7 @@ export function TimelineEditorProvider<
         resolvedViewport.pixelsPerSecond,
         durationMs,
         editPolicy,
+        slotSnapMs,
       );
 
       if (tracks !== document.tracks) {
@@ -998,7 +1016,7 @@ export function TimelineEditorProvider<
         document,
         resolvedSnap,
         resolvedViewport.pixelsPerSecond,
-        { excludeItemIds: activeSelectionIds },
+        { excludeItemIds: activeSelectionIds, quantizeIntervalMs: slotSnapMs },
       ),
     });
   };
@@ -1027,7 +1045,7 @@ export function TimelineEditorProvider<
         document,
         resolvedSnap,
         resolvedViewport.pixelsPerSecond,
-        { excludeItemIds: [item.id] },
+        { excludeItemIds: [item.id], quantizeIntervalMs: slotSnapMs },
       ),
     });
   };
@@ -1081,6 +1099,7 @@ export function TimelineEditorProvider<
         selectedItems,
         selection,
         snapGuideMs,
+        timeMode: resolvedTimeMode,
         ticks,
         timelineWidthPx,
         tool,
@@ -1127,6 +1146,7 @@ export function TimelineEditorProvider<
       selectedItems,
       selection,
       snapGuideMs,
+      resolvedTimeMode,
       ticks,
       timelineWidthPx,
       tool,

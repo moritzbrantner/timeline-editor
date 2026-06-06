@@ -23,8 +23,10 @@ import {
   formatTimelineEditorTimeMs,
   getTimelineEditorDurationMs,
   getTimelineEditorFrameDurationMs,
+  getTimelineEditorFrameDurationMsForMode,
   getTimelineEditorItemEndMs,
   normalizeTimelineEditorDocument,
+  resolveTimelineEditorTimeMode,
   setTimelineEditorCurrentTime,
   type TimelineEditorDocument,
   type TimelineEditorClipboard,
@@ -155,6 +157,7 @@ export function TimelineWorkbench<
   pixelsPerSecond = 80,
   viewport,
   frameRate,
+  timeMode,
   editPolicy,
   snapMs = 100,
   snap,
@@ -259,10 +262,12 @@ export function TimelineWorkbench<
   const [announcement, setAnnouncement] = useState("");
   const resolvedAssets = useMemo(() => assets.concat(importedAssets), [assets, importedAssets]);
   const durationMs = document.durationMs ?? getTimelineEditorDurationMs(document.tracks, 30_000);
-  const frameDurationMs = getTimelineEditorFrameDurationMs(frameRate);
-  const resolvedSnapMs = frameDurationMs ?? snapMs;
+  const resolvedTimeMode = resolveTimelineEditorTimeMode(timeMode, frameRate);
+  const frameDurationMs = getTimelineEditorFrameDurationMsForMode(resolvedTimeMode, frameRate);
+  const frameSlotDurationMs = getTimelineEditorFrameDurationMs(frameRate);
+  const resolvedSnapMs = frameSlotDurationMs ?? snapMs;
   const currentTimeMs = document.currentTimeMs ?? 0;
-  const frameStepMs = frameDurationMs ?? resolvedSnapMs;
+  const frameStepMs = frameSlotDurationMs ?? resolvedSnapMs;
   const resolvedTransportState = transportState ?? internalTransportState;
   const resolvedHotkeys = { ...defaultTimelineWorkbenchHotkeys, ...hotkeys, ...customHotkeys };
   const defaultSnapTargets: TimelineEditorSnapOptions["targets"] = [
@@ -1958,6 +1963,7 @@ export function TimelineWorkbench<
       readOnly={readOnly}
       resolvedHotkeys={resolvedHotkeys}
       resolvedSnap={resolvedSnap}
+      resolvedTimeMode={resolvedTimeMode}
       resolvedTool={resolvedTool}
       renderToolbarActions={renderToolbarActions}
       resolvedSelection={resolvedSelection}
@@ -2019,7 +2025,8 @@ export function TimelineWorkbench<
       }}
       onStepFrame={(direction) => {
         stepCurrentTimeByFrame(direction);
-        announce(direction < 0 ? "Moved to previous frame" : "Moved to next frame");
+        const stepLabel = resolvedTimeMode === "frames" ? "frame" : "step";
+        announce(direction < 0 ? `Moved to previous ${stepLabel}` : `Moved to next ${stepLabel}`);
       }}
       onUndo={() => {
         const undo = undoTimelineEditorHistory(resolvedHistory);
@@ -2105,6 +2112,7 @@ export function TimelineWorkbench<
         currentTimeMs={currentTimeMs}
         durationMs={durationMs}
         frameStepMs={frameStepMs}
+        timeMode={resolvedTimeMode}
         loopRange={transportLoopRange}
         readOnly={readOnly}
         transportState={resolvedTransportState}
@@ -2123,6 +2131,7 @@ export function TimelineWorkbench<
         document={document}
         editPolicy={editPolicy}
         frameRate={frameRate}
+        timeMode={resolvedTimeMode}
         hotkeys={resolvedHotkeys}
         getItemContextMenuItems={getWorkbenchItemContextMenuItems}
         getTimelineContextMenuItems={

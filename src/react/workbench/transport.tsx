@@ -3,13 +3,14 @@
 import { Button, cn } from "@moritzbrantner/ui";
 
 import { formatTimelineEditorTimeMs } from "../../core";
-import type { TimelineEditorTimeRange } from "../../core";
+import type { TimelineEditorTimeMode, TimelineEditorTimeRange } from "../../core";
 import type { TimelineWorkbenchTransportState } from "./types";
 
 type TimelineWorkbenchTransportProps = {
   currentTimeMs: number;
   durationMs: number;
   frameStepMs: number;
+  timeMode: TimelineEditorTimeMode;
   loopRange?: TimelineEditorTimeRange;
   readOnly: boolean;
   transportState: TimelineWorkbenchTransportState;
@@ -27,6 +28,7 @@ export function TimelineWorkbenchTransport({
   currentTimeMs,
   durationMs,
   frameStepMs,
+  timeMode,
   loopRange,
   readOnly,
   transportState,
@@ -42,6 +44,7 @@ export function TimelineWorkbenchTransport({
   const disabled = readOnly || durationMs <= 0;
   const isPlaying = transportState.status === "playing";
   const rateLabel = `${transportState.playbackRate}x`;
+  const stepLabel = timeMode === "frames" ? "frame" : "step";
   const loopLabel = loopRange
     ? `${formatTimelineEditorTimeMs(loopRange.startMs)} - ${formatTimelineEditorTimeMs(loopRange.endMs)}`
     : "Document";
@@ -56,7 +59,7 @@ export function TimelineWorkbenchTransport({
           |&lt;
         </TransportButton>
         <TransportButton
-          label="Step back one frame"
+          label={`Step back one ${stepLabel}`}
           disabled={disabled || frameStepMs <= 0}
           onClick={onPreviousFrame}
         >
@@ -77,7 +80,7 @@ export function TimelineWorkbenchTransport({
           L
         </TransportButton>
         <TransportButton
-          label="Step ahead one frame"
+          label={`Step ahead one ${stepLabel}`}
           disabled={disabled || frameStepMs <= 0}
           onClick={onNextFrame}
         >

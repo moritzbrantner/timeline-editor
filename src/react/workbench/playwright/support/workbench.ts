@@ -38,6 +38,7 @@ export type TimelineEditorHarnessState = {
   selectedItemIds: string[];
   range?: { startMs: number; endMs: number };
   frameRate?: number;
+  timeMode?: "frames" | "continuous";
   transport?: {
     status: "paused" | "playing";
     playbackRate: -4 | -2 | -1 | 1 | 2 | 4;

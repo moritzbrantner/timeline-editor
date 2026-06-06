@@ -3,6 +3,7 @@ import {
   type TimelineEditorDocument,
   type TimelineEditorSnapOptions,
   type TimelineEditorTick,
+  type TimelineEditorTimeMode,
   type TimelineEditorTrack,
 } from "./types";
 
@@ -36,6 +37,47 @@ export function getTimelineEditorFrameDurationMs(frameRate?: number) {
   }
 
   return 1_000 / frameRate;
+}
+
+export function resolveTimelineEditorTimeMode(
+  timeMode?: TimelineEditorTimeMode,
+  frameRate?: number,
+): TimelineEditorTimeMode {
+  return timeMode ?? (getTimelineEditorFrameDurationMs(frameRate) ? "frames" : "continuous");
+}
+
+export function getTimelineEditorFrameDurationMsForMode(
+  timeMode?: TimelineEditorTimeMode,
+  frameRate?: number,
+) {
+  return resolveTimelineEditorTimeMode(timeMode, frameRate) === "frames"
+    ? getTimelineEditorFrameDurationMs(frameRate)
+    : undefined;
+}
+
+export function getTimelineEditorFrameNumber(timeMs: number, frameRate: number) {
+  const frameDurationMs = getTimelineEditorFrameDurationMs(frameRate);
+
+  if (!frameDurationMs) {
+    return undefined;
+  }
+
+  return Math.max(0, Math.round(timeMs / frameDurationMs));
+}
+
+export function formatTimelineEditorTimeLabel(
+  timeMs: number,
+  options: { frameRate?: number; timeMode?: TimelineEditorTimeMode } = {},
+) {
+  if (resolveTimelineEditorTimeMode(options.timeMode, options.frameRate) === "frames") {
+    const frame = getTimelineEditorFrameNumber(timeMs, options.frameRate ?? 0);
+
+    if (frame !== undefined) {
+      return `f${frame}`;
+    }
+  }
+
+  return formatTimelineEditorTimeMs(timeMs);
 }
 
 export function getTimelineEditorItemEndMs(item: { durationMs: number; startMs: number }) {
@@ -163,6 +205,7 @@ export function getTimelineEditorSnapTimes<TTrackData, TItemData>(
 
 export type TimelineEditorSnapResolverOptions = {
   excludeItemIds?: ReadonlySet<string> | readonly string[];
+  quantizeIntervalMs?: number;
 };
 
 export function createTimelineEditorSnapResolver<TTrackData, TItemData>(
@@ -171,6 +214,24 @@ export function createTimelineEditorSnapResolver<TTrackData, TItemData>(
   pixelsPerSecond: number,
   options: TimelineEditorSnapResolverOptions = {},
 ) {
+  const quantizeIntervalMs =
+    Number.isFinite(options.quantizeIntervalMs) &&
+    options.quantizeIntervalMs !== undefined &&
+    options.quantizeIntervalMs > 0
+      ? options.quantizeIntervalMs
+      : undefined;
+
+  if (quantizeIntervalMs) {
+    return (timeMs: number) => {
+      const quantizedTimeMs = snapTimelineEditorTime(timeMs, quantizeIntervalMs);
+
+      return {
+        timeMs: quantizedTimeMs,
+        snapped: quantizedTimeMs !== timeMs,
+      };
+    };
+  }
+
   if (!snap.enabled) {
     return (timeMs: number) => ({ timeMs, snapped: false });
   }

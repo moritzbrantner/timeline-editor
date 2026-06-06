@@ -141,6 +141,18 @@ test("nudges selected clip by frame when frameRate is set", async ({ page }) => 
   await expectItem(page, "brief", { startMs: 1_040 });
 });
 
+test("nudges selected clip by frame slot in continuous mode with frameRate set", async ({
+  page,
+}) => {
+  await page.goto("/?frameRate=25&timeMode=continuous");
+
+  await clickClip(page, "Brief");
+  await getTimelineEditor(page).focus();
+  await page.keyboard.press("ArrowRight");
+
+  await expectItem(page, "brief", { startMs: 1_040 });
+});
+
 test("steps playhead by frame controls when frameRate is set", async ({ page }) => {
   await page.goto("/?frameRate=25");
 
@@ -150,6 +162,18 @@ test("steps playhead by frame controls when frameRate is set", async ({ page }) 
 
   await page.getByRole("button", { name: "More" }).click();
   await page.getByRole("menuitem", { name: /Previous frame/ }).click();
+  await expect.poll(async () => (await getHarnessState(page)).document.currentTimeMs).toBe(1_000);
+});
+
+test("steps playhead by frame slot in continuous mode with frameRate set", async ({ page }) => {
+  await page.goto("/?frameRate=25&timeMode=continuous");
+
+  await page.getByRole("button", { name: "More" }).click();
+  await page.getByRole("menuitem", { name: /Next step/ }).click();
+  await expect.poll(async () => (await getHarnessState(page)).document.currentTimeMs).toBe(1_040);
+
+  await page.getByRole("button", { name: "More" }).click();
+  await page.getByRole("menuitem", { name: /Previous step/ }).click();
   await expect.poll(async () => (await getHarnessState(page)).document.currentTimeMs).toBe(1_000);
 });
 
