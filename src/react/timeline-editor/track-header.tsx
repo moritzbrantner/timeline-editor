@@ -41,6 +41,10 @@ export function TimelineEditorTrackHeader<
     <div
       data-slot="timeline-editor-track-header"
       data-selected={selected ? "true" : undefined}
+      data-kind={entry.track.kind}
+      data-locked={locked ? "true" : undefined}
+      data-accepts-item-kinds={entry.track.acceptsItemKinds?.join(" ")}
+      data-item-count={entry.track.items.length}
       role="button"
       tabIndex={0}
       aria-pressed={selected}
@@ -74,7 +78,7 @@ export function TimelineEditorTrackHeader<
           collapsed: false,
         })
       ) : (
-        <span className="truncate">{entry.track.label}</span>
+        <TimelineEditorDefaultTrackHeaderContent locked={locked} track={entry.track} />
       )}
     </div>
   );
@@ -90,5 +94,54 @@ export function TimelineEditorTrackHeader<
     >
       {trackHeader}
     </TimelineEditorContextActionMenu>
+  );
+}
+
+function TimelineEditorDefaultTrackHeaderContent<
+  TTrackData extends Record<string, unknown>,
+  TItemData,
+>({
+  locked,
+  track,
+}: {
+  locked: boolean;
+  track: TimelineEditorTrackHeaderProps<TTrackData, TItemData>["entry"]["track"];
+}) {
+  const itemCountLabel =
+    track.items.length > 0
+      ? `${track.items.length} ${track.items.length === 1 ? "item" : "items"}`
+      : undefined;
+  const acceptedKindsLabel = track.acceptsItemKinds?.length
+    ? track.acceptsItemKinds.join(", ")
+    : undefined;
+
+  return (
+    <span className="grid min-w-0 gap-0.5">
+      <span data-slot="timeline-editor-track-header-label" className="truncate">
+        {track.label}
+      </span>
+      {itemCountLabel || acceptedKindsLabel || locked ? (
+        <span className="flex min-w-0 items-center gap-1.5 text-xs font-normal text-muted-foreground">
+          {itemCountLabel ? (
+            <span data-slot="timeline-editor-track-header-meta" className="shrink-0">
+              {itemCountLabel}
+            </span>
+          ) : null}
+          {acceptedKindsLabel ? (
+            <span data-slot="timeline-editor-track-header-kinds" className="truncate">
+              {acceptedKindsLabel}
+            </span>
+          ) : null}
+          {locked ? (
+            <span
+              data-slot="timeline-editor-track-header-lock"
+              className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] leading-none"
+            >
+              Locked
+            </span>
+          ) : null}
+        </span>
+      ) : null}
+    </span>
   );
 }

@@ -108,13 +108,13 @@ describe("timeline editor component parts", () => {
     expect(container.querySelector("[data-slot='timeline-editor-track-group']")?.textContent).toBe(
       "Program",
     );
-    expect(container.querySelector("[data-slot='timeline-editor-track-header']")?.textContent).toBe(
-      "Planning",
-    );
+    expect(
+      container.querySelector("[data-slot='timeline-editor-track-header-label']")?.textContent,
+    ).toBe("Planning");
     expect(container.querySelector("[data-slot='timeline-editor-track-lane']")).toBeTruthy();
     expect(container.querySelector("[data-slot='timeline-editor-track-tick']")).toBeTruthy();
     expect(container.querySelector("[data-slot='timeline-editor-range-overlay']")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Brief" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: /Brief/ }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByTestId("selection-live-region").textContent).toBe(
       "1 timeline items selected",
     );
@@ -137,11 +137,17 @@ describe("timeline editor component parts", () => {
       />,
     );
 
-    const clip = screen.getByRole("button", { name: "Brief" });
+    const clip = screen.getByRole("button", { name: /Brief/ });
     fireEvent.contextMenu(clip);
     fireEvent.pointerDown(clip);
 
     expect(clip.getAttribute("aria-pressed")).toBe("true");
+    expect(clip.getAttribute("data-selected")).toBe("true");
+    expect(clip.getAttribute("data-kind")).toBe("task");
+    expect(clip.getAttribute("data-density")).toBe("full");
+    expect(clip.querySelector("[data-slot='timeline-editor-clip-meta']")?.textContent).toContain(
+      "task",
+    );
     expect(handleContextMenu).toHaveBeenCalledOnce();
     expect(handleMovePointerDown).toHaveBeenCalledOnce();
 
@@ -149,6 +155,98 @@ describe("timeline editor component parts", () => {
     fireEvent.pointerDown(clip.querySelector("[data-slot='timeline-editor-resize-end']")!);
 
     expect(handleResizePointerDown).toHaveBeenCalledWith("end", expect.any(Object));
+  });
+
+  test("renders default clip content by density", () => {
+    const item = document.tracks[0]!.items[0]!;
+    const { container } = render(
+      <div>
+        <TimelineEditorClip item={item} durationMs={6_000} timelineWidthPx={120} />
+        <TimelineEditorClip
+          item={{ ...item, id: "compact", startMs: 0, durationMs: 1_000 }}
+          durationMs={6_000}
+          timelineWidthPx={600}
+        />
+        <TimelineEditorClip
+          item={{ ...item, id: "full" }}
+          durationMs={6_000}
+          timelineWidthPx={600}
+        />
+      </div>,
+    );
+    const clips = container.querySelectorAll("[data-slot='timeline-editor-clip']");
+
+    expect(clips[0]?.getAttribute("data-density")).toBe("minimal");
+    expect(clips[0]?.querySelector("[data-slot='timeline-editor-clip-identity']")).toBeTruthy();
+    expect(clips[0]?.querySelector("[data-slot='timeline-editor-clip-meta']")).toBeFalsy();
+    expect(clips[1]?.getAttribute("data-density")).toBe("compact");
+    expect(clips[1]?.querySelector("[data-slot='timeline-editor-clip-label']")?.textContent).toBe(
+      "Brief",
+    );
+    expect(clips[2]?.getAttribute("data-density")).toBe("full");
+    expect(clips[2]?.querySelector("[data-slot='timeline-editor-clip-meta']")).toBeTruthy();
+  });
+
+  test("surfaces generic clip state badges and data hooks", () => {
+    const item = {
+      ...document.tracks[0]!.items[0]!,
+      itemGroupId: "group-a",
+      locked: true,
+      transform: {
+        points: [
+          { offsetMs: 0, values: { opacity: 1 } },
+          { offsetMs: 2_000, values: { opacity: 0.5 } },
+        ],
+      },
+    };
+
+    const { container } = render(
+      <TimelineEditorClip item={item} durationMs={6_000} timelineWidthPx={600} />,
+    );
+    const clip = container.querySelector("[data-slot='timeline-editor-clip']")!;
+
+    expect(clip.getAttribute("data-locked")).toBe("true");
+    expect(clip.getAttribute("data-grouped")).toBe("true");
+    expect(clip.getAttribute("data-has-transform")).toBe("true");
+    expect(clip.getAttribute("data-transform-point-count")).toBe("2");
+    expect(clip.textContent).toContain("2 keyframes");
+    expect(clip.textContent).toContain("Grouped");
+    expect(clip.textContent).toContain("Locked");
+  });
+
+  test("renders default track header metadata and locked state", () => {
+    const lockedDocument: TimelineEditorDocument = {
+      ...document,
+      tracks: [
+        {
+          ...document.tracks[0]!,
+          locked: true,
+        },
+      ],
+      groups: undefined,
+    };
+    const { container } = render(
+      <TimelineEditorProvider document={lockedDocument}>
+        <TimelineEditorTracks />
+      </TimelineEditorProvider>,
+    );
+    const header = container.querySelector("[data-slot='timeline-editor-track-header']")!;
+
+    expect(header.getAttribute("data-locked")).toBe("true");
+    expect(header.getAttribute("data-item-count")).toBe("1");
+    expect(header.getAttribute("data-accepts-item-kinds")).toBe("task review");
+    expect(
+      header.querySelector("[data-slot='timeline-editor-track-header-label']")?.textContent,
+    ).toBe("Planning");
+    expect(
+      header.querySelector("[data-slot='timeline-editor-track-header-meta']")?.textContent,
+    ).toBe("1 item");
+    expect(
+      header.querySelector("[data-slot='timeline-editor-track-header-kinds']")?.textContent,
+    ).toBe("task, review");
+    expect(
+      header.querySelector("[data-slot='timeline-editor-track-header-lock']")?.textContent,
+    ).toBe("Locked");
   });
 
   test("renders snap guide and feedback after a scheduled preview update", async () => {

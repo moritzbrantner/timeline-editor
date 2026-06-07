@@ -70,6 +70,50 @@ function TimelineEditorComponentPartsStory() {
 }
 
 function StandaloneClipStory() {
+  const item = componentDocument.tracks[0]!.items[0]!;
+
+  return (
+    <div style={{ display: "grid", gap: 12, padding: 16 }}>
+      <div style={{ height: 48, position: "relative" }}>
+        <TimelineEditorClip
+          item={{ ...item, id: "minimal", startMs: 0, durationMs: 500 }}
+          durationMs={6_000}
+          timelineWidthPx={600}
+        />
+      </div>
+      <div style={{ height: 48, position: "relative" }}>
+        <TimelineEditorClip
+          item={{ ...item, id: "compact", startMs: 0, durationMs: 1_000 }}
+          durationMs={6_000}
+          timelineWidthPx={600}
+        />
+      </div>
+      <div style={{ height: 48, position: "relative" }}>
+        <TimelineEditorClip item={item} selected durationMs={6_000} timelineWidthPx={600} />
+      </div>
+      <div style={{ height: 48, position: "relative" }}>
+        <TimelineEditorClip
+          item={{
+            ...item,
+            id: "stateful",
+            itemGroupId: "group-a",
+            locked: true,
+            transform: {
+              points: [
+                { offsetMs: 0, values: { opacity: 1 } },
+                { offsetMs: 2_000, values: { opacity: 0.5 } },
+              ],
+            },
+          }}
+          durationMs={6_000}
+          timelineWidthPx={600}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SelectedStandaloneClipStory() {
   return (
     <div style={{ height: 72, padding: 16, position: "relative" }}>
       <TimelineEditorClip
@@ -105,8 +149,24 @@ export const ProviderRootContentRulerAndTracks: Story = {
 
 export const Clip: Story = {
   render: () => <StandaloneClipStory />,
+  play: async ({ canvas, canvasElement }) => {
+    await expect(canvas.getAllByRole("button", { name: /Brief/ })[0]).toBeVisible();
+    await expect(
+      canvasElement.querySelector("[data-slot='timeline-editor-clip'][data-density='minimal']"),
+    ).not.toBeNull();
+    await expect(
+      canvasElement.querySelector("[data-slot='timeline-editor-clip'][data-density='compact']"),
+    ).not.toBeNull();
+    await expect(
+      canvasElement.querySelector("[data-slot='timeline-editor-clip'][data-density='full']"),
+    ).not.toBeNull();
+  },
+};
+
+export const SelectedClip: Story = {
+  render: () => <SelectedStandaloneClipStory />,
   play: async ({ canvas }) => {
-    await expect(canvas.getByRole("button", { name: "Brief" })).toHaveAttribute(
+    await expect(canvas.getByRole("button", { name: /Brief/ })).toHaveAttribute(
       "aria-pressed",
       "true",
     );

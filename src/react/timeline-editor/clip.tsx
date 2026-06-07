@@ -26,6 +26,8 @@ export type TimelineEditorClipProps<TItemData> = TimelineEditorClipPublicProps<T
   onResizePointerDown: (edge: "start" | "end", event: React.PointerEvent<HTMLSpanElement>) => void;
 };
 
+type TimelineEditorClipDensity = "minimal" | "compact" | "full";
+
 function TimelineEditorClipComponent<TItemData>({
   contextMenuItems: contextMenuItemsProp,
   durationMs: durationMsProp,
@@ -50,6 +52,8 @@ function TimelineEditorClipComponent<TItemData>({
   const itemWidthPx = Math.max(32, (item.durationMs / Math.max(1, durationMs)) * timelineWidthPx);
   const pixelsPerSecond =
     editor?.viewport.pixelsPerSecond ?? (timelineWidthPx / Math.max(1, durationMs)) * 1_000;
+  const density = getTimelineEditorClipDensity(itemWidthPx);
+  const transformPointCount = item.transform?.points.length ?? 0;
   const renderItem = renderItemProp ?? editor?.renderItem;
   const contextMenuItems =
     contextMenuItemsProp ??
@@ -87,18 +91,30 @@ function TimelineEditorClipComponent<TItemData>({
         editor.beginClipResize(edge, item, locked, event);
       }
     });
+  const ariaLabel = getTimelineEditorClipAccessibleLabel(item, locked, transformPointCount);
+  const title = getTimelineEditorClipTitle(item, locked, transformPointCount);
+  const handleClassName = cn(
+    "absolute inset-y-0 z-10 w-4 touch-none bg-white/25 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 group-data-[selected=true]:opacity-100",
+    locked ? "cursor-default bg-transparent" : "cursor-ew-resize",
+  );
   const clip = (
     <div
       data-slot="timeline-editor-clip"
       data-selected={selected ? "true" : undefined}
       data-item-group-id={item.itemGroupId}
+      data-kind={item.kind}
+      data-locked={locked ? "true" : undefined}
+      data-density={density}
+      data-has-transform={transformPointCount > 0 ? "true" : undefined}
+      data-transform-point-count={transformPointCount || undefined}
+      data-grouped={item.itemGroupId ? "true" : undefined}
       role="button"
       tabIndex={0}
       aria-pressed={selected}
-      aria-label={item.label}
-      title={`${item.label} · ${formatTimelineEditorTimeMs(item.startMs)} · ${formatTimelineEditorTimeMs(item.durationMs)}`}
+      aria-label={ariaLabel}
+      title={title}
       className={cn(
-        "absolute flex min-w-8 cursor-grab items-center rounded-md border px-2 text-xs font-medium text-white shadow-sm outline-none data-[selected=true]:ring-2 data-[selected=true]:ring-ring",
+        "group absolute flex min-w-8 cursor-grab items-center rounded-md border px-2 text-xs font-medium text-white shadow-sm outline-none data-[selected=true]:ring-2 data-[selected=true]:ring-ring",
         locked && "cursor-default",
       )}
       style={{
@@ -116,7 +132,7 @@ function TimelineEditorClipComponent<TItemData>({
       <span
         aria-hidden="true"
         data-slot="timeline-editor-resize-start"
-        className="absolute inset-y-0 left-0 z-10 w-4 cursor-ew-resize touch-none rounded-l-md bg-white/25"
+        className={cn(handleClassName, "left-0 rounded-l-md")}
         onPointerDown={(event) => handleResizePointerDown("start", event)}
       />
       {renderItem ? (
@@ -130,12 +146,17 @@ function TimelineEditorClipComponent<TItemData>({
           pixelsPerSecond,
         })
       ) : (
-        <span className="truncate">{item.label}</span>
+        <TimelineEditorDefaultClipContent
+          density={density}
+          item={item}
+          locked={locked}
+          transformPointCount={transformPointCount}
+        />
       )}
       <span
         aria-hidden="true"
         data-slot="timeline-editor-resize-end"
-        className="absolute inset-y-0 right-0 z-10 w-4 cursor-ew-resize touch-none rounded-r-md bg-white/25"
+        className={cn(handleClassName, "right-0 rounded-r-md")}
         onPointerDown={(event) => handleResizePointerDown("end", event)}
       />
     </div>
@@ -158,3 +179,148 @@ function TimelineEditorClipComponent<TItemData>({
 export const TimelineEditorClip = memo(
   TimelineEditorClipComponent,
 ) as typeof TimelineEditorClipComponent;
+
+function TimelineEditorDefaultClipContent<TItemData>({
+  density,
+  item,
+  locked,
+  transformPointCount,
+}: {
+  density: TimelineEditorClipDensity;
+  item: TimelineEditorItem<TItemData>;
+  locked: boolean;
+  transformPointCount: number;
+}) {
+  if (density === "minimal") {
+    return (
+      <span
+        aria-hidden="true"
+        data-slot="timeline-editor-clip-identity"
+        className="mx-auto inline-flex size-4 shrink-0 items-center justify-center rounded-sm bg-black/20 text-[10px] font-semibold uppercase leading-none text-white/90"
+      >
+        {getTimelineEditorClipIdentity(item)}
+      </span>
+    );
+  }
+
+  if (density === "compact") {
+    return (
+      <span className="flex min-w-0 flex-1 items-center gap-1.5">
+        <span data-slot="timeline-editor-clip-label" className="min-w-0 flex-1 truncate">
+          {item.label}
+        </span>
+        {locked ? (
+          <TimelineEditorClipBadge slot="timeline-editor-clip-lock">Locked</TimelineEditorClipBadge>
+        ) : null}
+        {transformPointCount > 0 ? (
+          <TimelineEditorClipBadge slot="timeline-editor-clip-transform">
+            {formatTimelineEditorKeyframeCount(transformPointCount)}
+          </TimelineEditorClipBadge>
+        ) : null}
+      </span>
+    );
+  }
+
+  const metadata = getTimelineEditorClipMetadata(item, locked, transformPointCount);
+
+  return (
+    <span className="grid min-w-0 flex-1 gap-0.5">
+      <span data-slot="timeline-editor-clip-label" className="truncate leading-tight">
+        {item.label}
+      </span>
+      {metadata.length > 0 ? (
+        <span
+          data-slot="timeline-editor-clip-meta"
+          className="flex min-w-0 items-center gap-1.5 truncate text-[10px] leading-tight text-white/75"
+        >
+          {metadata.map((entry) => (
+            <span key={entry} className="truncate">
+              {entry}
+            </span>
+          ))}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function TimelineEditorClipBadge({ children, slot }: { children: ReactNode; slot: string }) {
+  return (
+    <span
+      data-slot={slot}
+      className="shrink-0 rounded bg-black/20 px-1.5 py-0.5 text-[10px] leading-none text-white/85"
+    >
+      {children}
+    </span>
+  );
+}
+
+function getTimelineEditorClipDensity(itemWidthPx: number): TimelineEditorClipDensity {
+  if (itemWidthPx < 64) {
+    return "minimal";
+  }
+
+  if (itemWidthPx < 140) {
+    return "compact";
+  }
+
+  return "full";
+}
+
+function getTimelineEditorClipIdentity<TItemData>(item: TimelineEditorItem<TItemData>) {
+  return (item.kind?.trim().charAt(0) || item.label.trim().charAt(0) || "?").toUpperCase();
+}
+
+function getTimelineEditorClipMetadata<TItemData>(
+  item: TimelineEditorItem<TItemData>,
+  locked: boolean,
+  transformPointCount: number,
+) {
+  return [
+    item.kind,
+    formatTimelineEditorTimeMs(item.durationMs),
+    transformPointCount > 0 ? formatTimelineEditorKeyframeCount(transformPointCount) : undefined,
+    item.itemGroupId ? "Grouped" : undefined,
+    locked ? "Locked" : undefined,
+  ].filter((entry): entry is string => Boolean(entry));
+}
+
+function getTimelineEditorClipAccessibleLabel<TItemData>(
+  item: TimelineEditorItem<TItemData>,
+  locked: boolean,
+  transformPointCount: number,
+) {
+  return [
+    item.label,
+    item.kind,
+    `starts ${formatTimelineEditorTimeMs(item.startMs)}`,
+    `duration ${formatTimelineEditorTimeMs(item.durationMs)}`,
+    locked ? "locked" : undefined,
+    item.itemGroupId ? "grouped" : undefined,
+    transformPointCount > 0 ? formatTimelineEditorKeyframeCount(transformPointCount) : undefined,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function getTimelineEditorClipTitle<TItemData>(
+  item: TimelineEditorItem<TItemData>,
+  locked: boolean,
+  transformPointCount: number,
+) {
+  return [
+    item.label,
+    formatTimelineEditorTimeMs(item.startMs),
+    formatTimelineEditorTimeMs(item.durationMs),
+    item.kind,
+    locked ? "Locked" : undefined,
+    item.itemGroupId ? "Grouped" : undefined,
+    transformPointCount > 0 ? formatTimelineEditorKeyframeCount(transformPointCount) : undefined,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function formatTimelineEditorKeyframeCount(count: number) {
+  return `${count} ${count === 1 ? "keyframe" : "keyframes"}`;
+}
