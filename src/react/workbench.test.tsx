@@ -3604,7 +3604,11 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     };
 
     const { container } = render(
-      <TimelineWorkbench document={document} extensions={[createTimelineAudioExtension()]} />,
+      <TimelineWorkbench
+        document={document}
+        extensions={[createTimelineAudioExtension()]}
+        viewport={{ pixelsPerSecond: 4 }}
+      />,
     );
 
     expect(container.querySelector("[data-slot='timeline-media-audio-state']")?.textContent).toBe(
@@ -3780,6 +3784,267 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     fireEvent.keyDown(volume, { key: "ArrowLeft" });
 
     expect(handleDocumentChange).not.toHaveBeenCalled();
+  });
+
+  test("crops audio waveform to source range", () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineAudioItemData> = {
+      durationMs: 6_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "audio",
+          label: "Audio",
+          acceptsItemKinds: ["audio"],
+          items: [
+            {
+              id: "trimmed",
+              trackId: "audio",
+              label: "Trimmed voice",
+              kind: "audio",
+              startMs: 0,
+              durationMs: 2_000,
+              data: {
+                mediaType: "audio",
+                sourceStartMs: 2_000,
+                sourceEndMs: 4_000,
+                waveform: [0.1, 0.2, 0.8, 1, 0.3, 0.2],
+                source: {
+                  label: "voice.wav",
+                  metadata: { durationMs: 6_000 },
+                },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        extensions={[createTimelineAudioExtension()]}
+        viewport={{ pixelsPerSecond: 4 }}
+      />,
+    );
+    const bars = Array.from(
+      container.querySelectorAll<HTMLElement>("[data-slot='timeline-media-audio-waveform-bar']"),
+    );
+
+    expect(bars).toHaveLength(2);
+    expect(bars.map((bar) => bar.style.height)).toEqual(["13px", "16px"]);
+    expect(container.querySelector("[data-slot='timeline-media-audio-trim-start']")).toBeTruthy();
+    expect(container.querySelector("[data-slot='timeline-media-audio-trim-end']")).toBeTruthy();
+  });
+
+  test("downsamples audio waveform for narrow clips", () => {
+    const waveform = Array.from({ length: 100 }, (_, index) => (index % 10) / 10);
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineAudioItemData> = {
+      durationMs: 100_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "audio",
+          label: "Audio",
+          acceptsItemKinds: ["audio"],
+          items: [
+            {
+              id: "dense",
+              trackId: "audio",
+              label: "Dense waveform",
+              kind: "audio",
+              startMs: 0,
+              durationMs: 10_000,
+              data: {
+                mediaType: "audio",
+                waveform,
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        extensions={[createTimelineAudioExtension()]}
+        viewport={{ pixelsPerSecond: 4 }}
+      />,
+    );
+
+    expect(
+      container.querySelectorAll("[data-slot='timeline-media-audio-waveform-bar']").length,
+    ).toBeLessThan(waveform.length);
+  });
+
+  test("keeps full audio metadata on wide clips", () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineAudioItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "audio",
+          label: "Audio",
+          acceptsItemKinds: ["audio"],
+          items: [
+            {
+              id: "wide",
+              trackId: "audio",
+              label: "Wide voice",
+              kind: "audio",
+              startMs: 0,
+              durationMs: 3_000,
+              data: {
+                mediaType: "audio",
+                waveform: [0.2, 0.8],
+                source: { label: "voice.wav", mimeType: "audio/wav" },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        extensions={[createTimelineAudioExtension()]}
+        viewport={{ pixelsPerSecond: 4 }}
+      />,
+    );
+
+    expect(container.querySelector("[data-slot='timeline-media-audio-metadata']")).toBeTruthy();
+  });
+
+  test("hides metadata on compact audio clips", () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineAudioItemData> = {
+      durationMs: 100_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "audio",
+          label: "Audio",
+          acceptsItemKinds: ["audio"],
+          items: [
+            {
+              id: "compact",
+              trackId: "audio",
+              label: "Compact voice",
+              kind: "audio",
+              startMs: 0,
+              durationMs: 10_000,
+              data: {
+                mediaType: "audio",
+                waveform: [0.2, 0.8],
+                source: { label: "voice.wav", mimeType: "audio/wav" },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench
+        document={document}
+        extensions={[createTimelineAudioExtension()]}
+        viewport={{ pixelsPerSecond: 4 }}
+      />,
+    );
+
+    expect(container.querySelector("[data-slot='timeline-media-audio-metadata']")).toBeNull();
+    expect(container.querySelector("[data-slot='timeline-media-audio-label-row']")).toBeTruthy();
+    expect(container.querySelector("[data-slot='timeline-media-audio-waveform']")).toBeTruthy();
+  });
+
+  test("minimal audio clips preserve state and waveform", () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineAudioItemData> = {
+      durationMs: 100_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "audio",
+          label: "Audio",
+          acceptsItemKinds: ["audio"],
+          items: [
+            {
+              id: "minimal",
+              trackId: "audio",
+              label: "Minimal voice",
+              kind: "audio",
+              startMs: 0,
+              durationMs: 1_000,
+              data: {
+                mediaType: "audio",
+                muted: true,
+                waveform: [0.2, 0.8],
+                source: { label: "voice.wav", mimeType: "audio/wav" },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench document={document} extensions={[createTimelineAudioExtension()]} />,
+    );
+
+    expect(container.querySelector("[data-slot='timeline-media-audio-state']")?.textContent).toBe(
+      "Muted",
+    );
+    expect(container.querySelector("[data-slot='timeline-media-audio-waveform']")).toBeTruthy();
+    expect(container.querySelector("[data-slot='timeline-media-audio-metadata']")).toBeNull();
+  });
+
+  test("extends render item context with clip metrics", () => {
+    const document: TimelineEditorDocument = {
+      durationMs: 6_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "audio",
+          label: "Audio",
+          acceptsItemKinds: ["audio"],
+          items: [
+            {
+              id: "voice",
+              trackId: "audio",
+              label: "Voiceover",
+              kind: "audio",
+              startMs: 0,
+              durationMs: 2_000,
+            },
+          ],
+        },
+      ],
+    };
+    const contexts: Array<{
+      durationMs?: number;
+      itemWidthPx?: number;
+      pixelsPerSecond?: number;
+      timelineWidthPx?: number;
+    }> = [];
+
+    render(
+      <TimelineEditor
+        document={document}
+        viewport={{ pixelsPerSecond: 100 }}
+        renderItem={(context) => {
+          contexts.push(context);
+          return <span>{context.item.label}</span>;
+        }}
+      />,
+    );
+
+    expect(contexts[0]).toEqual(
+      expect.objectContaining({
+        durationMs: 6_000,
+        itemWidthPx: expect.any(Number),
+        pixelsPerSecond: 100,
+        timelineWidthPx: 640,
+      }),
+    );
   });
 
   test("shows a compact audio preview state when the source is not playable", () => {

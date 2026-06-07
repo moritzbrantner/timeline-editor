@@ -43,7 +43,9 @@ matching props.
 `createTimelineAudioExtension()` from `./audio` includes audio source metadata,
 centered waveform item rendering, compact clip mute/volume badges, selected-item
 mute and volume inspector controls, and a selected-item audio metadata
-inspector. Browser `File` and URL imports remain host-owned through
+inspector. Audio waveforms honor `sourceStartMs`/`sourceEndMs`, downsample to the
+visible clip width, and hide metadata before waveform/state on narrow clips.
+Browser `File` and URL imports remain host-owned through
 `onImportAssets`; use `createTimelineAudioFileAsset(file)` to turn an audio file
 into an asset. It best-effort extracts duration, channels, sample rate, and a
 compact waveform with browser Web Audio APIs, can be disabled with

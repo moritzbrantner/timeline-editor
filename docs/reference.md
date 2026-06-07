@@ -168,7 +168,7 @@ Built-in media foundations are available from media-specific subpaths:
 - `@moritzbrantner/timeline-editor/media-types` for media type normalization and media-specific validation helpers.
 - `@moritzbrantner/timeline-editor/text` for subtitle/caption cues, practical
   ASS/SSA, SRT, and WebVTT parsing, and text `File` to asset conversion.
-- `@moritzbrantner/timeline-editor/audio` for source metadata, volume/mute state, centered waveform display, clip state badges, inspector mute/volume controls, synchronized workbench audio preview, and audio `File` to asset conversion.
+- `@moritzbrantner/timeline-editor/audio` for source metadata, volume/mute state, source-range-aware centered waveform display, clip state badges, adaptive narrow-clip rendering, inspector mute/volume controls, synchronized workbench audio preview, and audio `File` to asset conversion.
 - `@moritzbrantner/timeline-editor/video` for source metadata, poster, thumbnail strips, and video `File` to asset conversion.
 - `@moritzbrantner/timeline-editor/image` for still image thumbnails and dimensions.
 - `@moritzbrantner/timeline-editor/data` for numeric data series and compact sparkline display.
@@ -176,9 +176,11 @@ Built-in media foundations are available from media-specific subpaths:
 ## Limitations
 
 `createTimelineAudioExtension()` renders audio item metadata, centered
-waveforms, clip-level mute/volume badges, and selected-item inspector controls
-for mute and volume. It supports synchronized hidden workbench preview playback
-for audio items with `data.source.uri`. Use
+waveforms, clip-level mute/volume badges, adaptive narrow-clip layouts, and
+selected-item inspector controls for mute and volume. Waveform rendering honors
+`sourceStartMs`/`sourceEndMs` when source duration metadata is available and
+downsamples peaks to the visible clip width. It supports synchronized hidden
+workbench preview playback for audio items with `data.source.uri`. Use
 `createTimelineAudioFileAsset(file)` inside a host `onImportAssets` callback to
 create audio assets from browser files with source metadata, optional Web Audio
 duration/channel/sample-rate probing, and best-effort waveform peaks. Pass

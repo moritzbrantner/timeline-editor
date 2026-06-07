@@ -47,6 +47,9 @@ function TimelineEditorClipComponent<TItemData>({
   const durationMs = durationMsProp ?? editor?.durationMs ?? item.startMs + item.durationMs;
   const timelineWidthPx =
     timelineWidthPxProp ?? editor?.timelineWidthPx ?? Math.max(640, item.durationMs);
+  const itemWidthPx = Math.max(32, (item.durationMs / Math.max(1, durationMs)) * timelineWidthPx);
+  const pixelsPerSecond =
+    editor?.viewport.pixelsPerSecond ?? (timelineWidthPx / Math.max(1, durationMs)) * 1_000;
   const renderItem = renderItemProp ?? editor?.renderItem;
   const contextMenuItems =
     contextMenuItemsProp ??
@@ -117,7 +120,15 @@ function TimelineEditorClipComponent<TItemData>({
         onPointerDown={(event) => handleResizePointerDown("start", event)}
       />
       {renderItem ? (
-        renderItem({ item, selected, readOnly })
+        renderItem({
+          item,
+          selected,
+          readOnly,
+          durationMs,
+          timelineWidthPx,
+          itemWidthPx,
+          pixelsPerSecond,
+        })
       ) : (
         <span className="truncate">{item.label}</span>
       )}

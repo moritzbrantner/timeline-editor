@@ -82,6 +82,8 @@ export type TimelineAudioFileAssetResult = {
   revoke?: () => void;
 };
 
+type TimelineAudioClipDensity = "full" | "compact" | "minimal";
+
 export function createTimelineAudioExtension(
   options: TimelineAudioExtensionOptions = {},
 ): TimelineEditorExtension<TimelineAudioItemData> {
@@ -91,31 +93,46 @@ export function createTimelineAudioExtension(
     id: "timeline-audio",
     itemKinds: ["audio"],
     mediaTypes: ["audio"],
-    renderItem: ({ item }) => {
+    renderItem: ({ item, itemWidthPx }) => {
       const metadataLabel = getTimelineAudioClipMetadataLabel(item);
       const stateLabel = getTimelineAudioVisualStateLabel(item.data);
+      const density = getTimelineAudioClipDensity(itemWidthPx);
+      const showLabel = density !== "minimal" || !item.data?.waveform?.length;
+      const showMetadata = density === "full" && Boolean(metadataLabel);
+      const showState = Boolean(stateLabel);
 
       return createElement(
         "span",
         { className: "grid min-w-0 flex-1 gap-1" },
-        createElement(
-          "span",
-          { className: "flex min-w-0 items-center gap-1.5" },
-          createElement("span", { className: "min-w-0 flex-1 truncate leading-tight" }, item.label),
-          stateLabel
-            ? createElement(
-                "span",
-                {
-                  "aria-hidden": true,
-                  "data-slot": "timeline-media-audio-state",
-                  className:
-                    "shrink-0 rounded bg-black/20 px-1.5 py-0.5 text-[10px] leading-none text-white/85",
-                },
-                stateLabel,
-              )
-            : null,
-        ),
-        metadataLabel
+        showLabel || showState
+          ? createElement(
+              "span",
+              {
+                "data-slot": "timeline-media-audio-label-row",
+                className: "flex min-w-0 items-center gap-1.5",
+              },
+              showLabel
+                ? createElement(
+                    "span",
+                    { className: "min-w-0 flex-1 truncate leading-tight" },
+                    item.label,
+                  )
+                : null,
+              stateLabel
+                ? createElement(
+                    "span",
+                    {
+                      "aria-hidden": true,
+                      "data-slot": "timeline-media-audio-state",
+                      className:
+                        "shrink-0 rounded bg-black/20 px-1.5 py-0.5 text-[10px] leading-none text-white/85",
+                    },
+                    stateLabel,
+                  )
+                : null,
+            )
+          : null,
+        showMetadata
           ? createElement(
               "span",
               {
@@ -126,7 +143,12 @@ export function createTimelineAudioExtension(
             )
           : null,
         item.data?.waveform?.length
-          ? createTimelineAudioWaveform(item.data.waveform, item.data.color ?? item.color)
+          ? createTimelineAudioWaveform({
+              color: item.data.color ?? item.color,
+              item,
+              itemWidthPx,
+              waveform: item.data.waveform,
+            })
           : null,
       );
     },
@@ -477,6 +499,10 @@ function clampTimelineAudioWaveformValue(value: number) {
   return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
 }
 
+function clampTimelineAudioTime(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, Number.isFinite(value) ? value : min));
+}
+
 function clampTimelineAudioVolume(value: unknown): number {
   return Math.max(0, Math.min(1, typeof value === "number" && Number.isFinite(value) ? value : 1));
 }
@@ -725,7 +751,24 @@ function getTimelineAudioStateLabel(data: TimelineAudioItemData | undefined) {
   return data.volume === undefined ? undefined : formatTimelineAudioVolume(data.volume);
 }
 
-function createTimelineAudioWaveform(waveform: number[], color?: string) {
+function createTimelineAudioWaveform({
+  color,
+  item,
+  itemWidthPx,
+  waveform,
+}: {
+  color?: string;
+  item: TimelineEditorItem<TimelineAudioItemData>;
+  itemWidthPx?: number;
+  waveform: number[];
+}) {
+  const sourceRange = getTimelineAudioVisibleSourceRange(item);
+  const croppedWaveform = cropTimelineAudioWaveformToSourceRange(waveform, sourceRange);
+  const sampleLimit = getTimelineAudioWaveformSampleLimit(itemWidthPx);
+  const renderedWaveform = downsampleTimelineAudioWaveformPeaks(croppedWaveform, sampleLimit);
+  const isTrimmedStart = sourceRange.sourceStartMs > 0;
+  const isTrimmedEnd = sourceRange.sourceEndMs < sourceRange.sourceDurationMs;
+
   return createElement(
     "span",
     {
@@ -738,7 +781,21 @@ function createTimelineAudioWaveform(waveform: number[], color?: string) {
       "data-slot": "timeline-media-audio-waveform-midline",
       className: "pointer-events-none absolute inset-x-0 top-1/2 h-px bg-white/25",
     }),
-    waveform.map((value, index) =>
+    isTrimmedStart
+      ? createElement("span", {
+          "aria-hidden": true,
+          "data-slot": "timeline-media-audio-trim-start",
+          className: "pointer-events-none absolute inset-y-0 left-0 z-10 w-px bg-white/60",
+        })
+      : null,
+    isTrimmedEnd
+      ? createElement("span", {
+          "aria-hidden": true,
+          "data-slot": "timeline-media-audio-trim-end",
+          className: "pointer-events-none absolute inset-y-0 right-0 z-10 w-px bg-white/60",
+        })
+      : null,
+    renderedWaveform.map((value, index) =>
       createElement(
         "span",
         {
@@ -756,6 +813,93 @@ function createTimelineAudioWaveform(waveform: number[], color?: string) {
       ),
     ),
   );
+}
+
+function getTimelineAudioClipDensity(itemWidthPx?: number): TimelineAudioClipDensity {
+  if (!itemWidthPx || !Number.isFinite(itemWidthPx) || itemWidthPx >= 96) {
+    return "full";
+  }
+
+  return itemWidthPx >= 56 ? "compact" : "minimal";
+}
+
+function getTimelineAudioSourceDurationMs(item: TimelineEditorItem<TimelineAudioItemData>) {
+  return Math.max(
+    1,
+    toTimelineAudioNumber(item.data?.source?.metadata?.durationMs) ??
+      toTimelineAudioNumber(item.data?.sourceEndMs) ??
+      item.durationMs,
+  );
+}
+
+function getTimelineAudioVisibleSourceRange(item: TimelineEditorItem<TimelineAudioItemData>) {
+  const sourceDurationMs = getTimelineAudioSourceDurationMs(item);
+  const sourceStartMs = clampTimelineAudioTime(
+    toTimelineAudioNumber(item.data?.sourceStartMs) ?? 0,
+    0,
+    sourceDurationMs,
+  );
+  const defaultEndMs = sourceStartMs + item.durationMs;
+  const sourceEndMs = clampTimelineAudioTime(
+    toTimelineAudioNumber(item.data?.sourceEndMs) ?? defaultEndMs,
+    sourceStartMs,
+    sourceDurationMs,
+  );
+
+  return { sourceDurationMs, sourceStartMs, sourceEndMs };
+}
+
+function cropTimelineAudioWaveformToSourceRange(
+  waveform: number[],
+  sourceRange: { sourceDurationMs: number; sourceStartMs: number; sourceEndMs: number },
+) {
+  if (
+    waveform.length <= 1 ||
+    sourceRange.sourceDurationMs <= 0 ||
+    (sourceRange.sourceStartMs <= 0 && sourceRange.sourceEndMs >= sourceRange.sourceDurationMs)
+  ) {
+    return waveform.map(clampTimelineAudioWaveformValue);
+  }
+
+  const startIndex = Math.floor(
+    (sourceRange.sourceStartMs / sourceRange.sourceDurationMs) * waveform.length,
+  );
+  const endIndex = Math.ceil(
+    (sourceRange.sourceEndMs / sourceRange.sourceDurationMs) * waveform.length,
+  );
+  const safeStartIndex = Math.max(0, Math.min(waveform.length - 1, startIndex));
+  const safeEndIndex = Math.max(safeStartIndex + 1, Math.min(waveform.length, endIndex));
+  const cropped = waveform.slice(safeStartIndex, safeEndIndex);
+
+  return (cropped.length ? cropped : [waveform[safeStartIndex] ?? 0]).map(
+    clampTimelineAudioWaveformValue,
+  );
+}
+
+function getTimelineAudioWaveformSampleLimit(itemWidthPx?: number) {
+  if (!itemWidthPx || !Number.isFinite(itemWidthPx)) {
+    return 96;
+  }
+
+  return Math.max(4, Math.min(96, Math.floor(itemWidthPx / 2)));
+}
+
+function downsampleTimelineAudioWaveformPeaks(values: number[], sampleLimit: number): number[] {
+  if (values.length <= sampleLimit) {
+    return values;
+  }
+
+  return Array.from({ length: sampleLimit }, (_, index) => {
+    const start = Math.floor((index / sampleLimit) * values.length);
+    const end = Math.max(start + 1, Math.floor(((index + 1) / sampleLimit) * values.length));
+    let peak = 0;
+
+    for (let valueIndex = start; valueIndex < end && valueIndex < values.length; valueIndex += 1) {
+      peak = Math.max(peak, clampTimelineAudioWaveformValue(values[valueIndex] ?? 0));
+    }
+
+    return peak;
+  });
 }
 
 function createTimelineAudioMediaStateMessage(

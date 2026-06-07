@@ -40,9 +40,11 @@ for root-package and split-package import recipes.
 `createTimelineAudioExtension()` includes source metadata rendering, centered
 waveform clip rendering, compact clip-level mute/volume state badges, editable
 mute and volume inspector controls, a selected-item audio metadata inspector,
-and synchronized workbench audio preview for items with a playable
-`data.source.uri`. If an audio item has no playable source, the preview shows
-the available source metadata and a compact `No audio source` state.
+source-range-aware waveform display for `sourceStartMs`/`sourceEndMs`,
+width-based waveform downsampling, adaptive narrow-clip rendering, and
+synchronized workbench audio preview for items with a playable `data.source.uri`.
+If an audio item has no playable source, the preview shows the available source
+metadata and a compact `No audio source` state.
 
 Browser file import is still owned by the host workbench integration. Use
 `createTimelineAudioFileAsset(file)` from `@moritzbrantner/timeline-editor/audio`

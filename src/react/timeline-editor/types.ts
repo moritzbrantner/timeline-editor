@@ -64,6 +64,10 @@ export type TimelineEditorItemRenderContext<TItemData = Record<string, unknown>>
   item: TimelineEditorItem<TItemData>;
   selected: boolean;
   readOnly: boolean;
+  durationMs?: number;
+  timelineWidthPx?: number;
+  itemWidthPx?: number;
+  pixelsPerSecond?: number;
 };
 
 export type TimelineEditorTrackRenderContext<TTrackData = Record<string, unknown>> = {
