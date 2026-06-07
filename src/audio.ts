@@ -1,4 +1,5 @@
 import { createElement, useEffect, useRef } from "react";
+import { Slider } from "@moritzbrantner/ui";
 
 import { formatTimelineEditorTimeMs, type TimelineEditorItem } from "./core";
 import type {
@@ -92,11 +93,28 @@ export function createTimelineAudioExtension(
     mediaTypes: ["audio"],
     renderItem: ({ item }) => {
       const metadataLabel = getTimelineAudioClipMetadataLabel(item);
+      const stateLabel = getTimelineAudioVisualStateLabel(item.data);
 
       return createElement(
         "span",
         { className: "grid min-w-0 flex-1 gap-1" },
-        createElement("span", { className: "truncate leading-tight" }, item.label),
+        createElement(
+          "span",
+          { className: "flex min-w-0 items-center gap-1.5" },
+          createElement("span", { className: "min-w-0 flex-1 truncate leading-tight" }, item.label),
+          stateLabel
+            ? createElement(
+                "span",
+                {
+                  "aria-hidden": true,
+                  "data-slot": "timeline-media-audio-state",
+                  className:
+                    "shrink-0 rounded bg-black/20 px-1.5 py-0.5 text-[10px] leading-none text-white/85",
+                },
+                stateLabel,
+              )
+            : null,
+        ),
         metadataLabel
           ? createElement(
               "span",
@@ -298,10 +316,6 @@ function renderTimelineAudioInspectorSection(context: TimelineAudioInspectorCont
 
   const rows = getTimelineAudioInspectorRows(item);
 
-  if (rows.length === 0) {
-    return null;
-  }
-
   return createElement(
     "section",
     {
@@ -319,18 +333,21 @@ function renderTimelineAudioInspectorSection(context: TimelineAudioInspectorCont
         item.data?.source?.label ?? item.label,
       ),
     ),
-    createElement(
-      "dl",
-      { className: "grid gap-1 text-xs" },
-      rows.map(([label, value]) =>
-        createElement(
-          "div",
-          { key: label, className: "grid grid-cols-[minmax(5rem,0.42fr)_1fr] gap-3" },
-          createElement("dt", { className: "text-muted-foreground" }, label),
-          createElement("dd", { className: "min-w-0 truncate text-right" }, value),
-        ),
-      ),
-    ),
+    rows.length
+      ? createElement(
+          "dl",
+          { className: "grid gap-1 text-xs" },
+          rows.map(([label, value]) =>
+            createElement(
+              "div",
+              { key: label, className: "grid grid-cols-[minmax(5rem,0.42fr)_1fr] gap-3" },
+              createElement("dt", { className: "text-muted-foreground" }, label),
+              createElement("dd", { className: "min-w-0 truncate text-right" }, value),
+            ),
+          ),
+        )
+      : null,
+    renderTimelineAudioControls(context, item),
   );
 }
 
@@ -433,7 +450,7 @@ function formatTimelineAudioSampleRate(sampleRate: number | undefined) {
 }
 
 function formatTimelineAudioVolume(volume: number) {
-  return `${Math.round(Math.max(0, Math.min(1, volume)) * 100)}%`;
+  return `${Math.round(clampTimelineAudioVolume(volume) * 100)}%`;
 }
 
 function formatTimelineAudioFileSize(size: number) {
@@ -458,6 +475,99 @@ function toTimelineAudioNumber(value: unknown) {
 
 function clampTimelineAudioWaveformValue(value: number) {
   return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+}
+
+function clampTimelineAudioVolume(value: unknown): number {
+  return Math.max(0, Math.min(1, typeof value === "number" && Number.isFinite(value) ? value : 1));
+}
+
+function getTimelineAudioVolumeValue(data: TimelineAudioItemData | undefined): number {
+  return clampTimelineAudioVolume(data?.volume ?? 1);
+}
+
+function getTimelineAudioVisualStateLabel(data: TimelineAudioItemData | undefined) {
+  if (!data) {
+    return undefined;
+  }
+
+  if (data.muted === true) {
+    return "Muted";
+  }
+
+  const volume = toTimelineAudioNumber(data.volume);
+
+  return volume !== undefined && volume < 1 ? formatTimelineAudioVolume(volume) : undefined;
+}
+
+function renderTimelineAudioControls(
+  context: TimelineAudioInspectorContext,
+  item: TimelineEditorItem<TimelineAudioItemData>,
+) {
+  const muted = Boolean(item.data?.muted);
+  const volume = getTimelineAudioVolumeValue(item.data);
+
+  return createElement(
+    "div",
+    {
+      "data-slot": "timeline-media-audio-controls",
+      className: "grid gap-3 border-t border-border pt-3",
+    },
+    createElement(
+      "label",
+      { className: "flex items-center justify-between gap-3 text-xs text-muted-foreground" },
+      createElement("span", null, "Muted"),
+      createElement("input", {
+        "aria-label": "Muted",
+        checked: muted,
+        disabled: context.readOnly,
+        type: "checkbox",
+        onChange: (event) => {
+          const nextMuted = event.currentTarget.checked;
+
+          context.updateSelectedItems((selected) =>
+            isTimelineAudioItem(selected as TimelineEditorItem<TimelineAudioItemData>)
+              ? { data: { mediaType: "audio", ...selected.data, muted: nextMuted } }
+              : {},
+          );
+        },
+      }),
+    ),
+    createElement(
+      "label",
+      { className: "grid gap-1 text-xs text-muted-foreground" },
+      createElement(
+        "span",
+        { className: "flex items-center justify-between gap-3" },
+        createElement("span", null, "Volume"),
+        createElement(
+          "span",
+          {
+            "data-slot": "timeline-media-audio-volume-value",
+            className: "tabular-nums",
+          },
+          formatTimelineAudioVolume(volume),
+        ),
+      ),
+      createElement(Slider, {
+        className: "w-full",
+        thumbAriaLabel: "Volume",
+        value: [volume],
+        min: 0,
+        max: 1,
+        step: 0.01,
+        disabled: context.readOnly || muted,
+        onValueChange: (value: number[]) => {
+          const nextVolume = clampTimelineAudioVolume(value[0] ?? 1);
+
+          context.updateSelectedItems((selected) =>
+            isTimelineAudioItem(selected as TimelineEditorItem<TimelineAudioItemData>)
+              ? { data: { mediaType: "audio", ...selected.data, volume: nextVolume } }
+              : {},
+          );
+        },
+      }),
+    ),
+  );
 }
 
 function TimelineAudioPreview({
@@ -621,17 +731,29 @@ function createTimelineAudioWaveform(waveform: number[], color?: string) {
     {
       "aria-hidden": true,
       "data-slot": "timeline-media-audio-waveform",
-      className: "flex h-3.5 w-full items-end gap-px overflow-hidden",
+      className: "relative flex h-4 w-full items-center gap-px overflow-hidden",
     },
+    createElement("span", {
+      "aria-hidden": true,
+      "data-slot": "timeline-media-audio-waveform-midline",
+      className: "pointer-events-none absolute inset-x-0 top-1/2 h-px bg-white/25",
+    }),
     waveform.map((value, index) =>
-      createElement("span", {
-        key: index,
-        className: "min-w-px flex-1 rounded bg-white/70",
-        style: {
-          backgroundColor: color,
-          height: `${Math.max(2, Math.round(clampTimelineAudioWaveformValue(value) * 14))}px`,
+      createElement(
+        "span",
+        {
+          key: index,
+          className: "relative flex min-w-px flex-1 items-center justify-center",
         },
-      }),
+        createElement("span", {
+          "data-slot": "timeline-media-audio-waveform-bar",
+          className: "w-full rounded-full bg-white/70",
+          style: {
+            backgroundColor: color,
+            height: `${Math.max(2, Math.round(clampTimelineAudioWaveformValue(value) * 16))}px`,
+          },
+        }),
+      ),
     ),
   );
 }

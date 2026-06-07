@@ -41,12 +41,14 @@ selection, viewport, clipboard, hotkey, and history state when they pass the
 matching props.
 
 `createTimelineAudioExtension()` from `./audio` includes audio source metadata,
-waveform item rendering, and a selected-item audio metadata inspector. Browser
-`File` and URL imports remain host-owned through `onImportAssets`; use
-`createTimelineAudioFileAsset(file)` to turn an audio file into an asset. It
-best-effort extracts duration, channels, sample rate, and a compact waveform
-with browser Web Audio APIs, can be disabled with `generateWaveform: false`,
-and gracefully falls back when decoding is unavailable. Use
+centered waveform item rendering, compact clip mute/volume badges, selected-item
+mute and volume inspector controls, and a selected-item audio metadata
+inspector. Browser `File` and URL imports remain host-owned through
+`onImportAssets`; use `createTimelineAudioFileAsset(file)` to turn an audio file
+into an asset. It best-effort extracts duration, channels, sample rate, and a
+compact waveform with browser Web Audio APIs, can be disabled with
+`generateWaveform: false`, and gracefully falls back when decoding is
+unavailable. Use
 `createTimelineVideoFileAsset(file)` from `./video` to probe video duration,
 dimensions, poster, optional thumbnails, and source metadata, and
 `createTimelineImageFileAsset(file)` from `./image` for image object URL assets.

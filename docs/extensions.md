@@ -37,11 +37,12 @@ These packages are optional wrappers. The root package remains lightweight and
 does not import them. See [Media Import Adoption](./media-import-adoption.md)
 for root-package and split-package import recipes.
 
-`createTimelineAudioExtension()` includes source metadata rendering, waveform
-clip rendering, a selected-item audio metadata inspector, and synchronized
-workbench audio preview for items with a playable `data.source.uri`. If an
-audio item has no playable source, the preview shows the available source
-metadata and a compact `No audio source` state.
+`createTimelineAudioExtension()` includes source metadata rendering, centered
+waveform clip rendering, compact clip-level mute/volume state badges, editable
+mute and volume inspector controls, a selected-item audio metadata inspector,
+and synchronized workbench audio preview for items with a playable
+`data.source.uri`. If an audio item has no playable source, the preview shows
+the available source metadata and a compact `No audio source` state.
 
 Browser file import is still owned by the host workbench integration. Use
 `createTimelineAudioFileAsset(file)` from `@moritzbrantner/timeline-editor/audio`

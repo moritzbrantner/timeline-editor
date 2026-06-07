@@ -68,6 +68,7 @@ const editingDocument: TimelineEditorDocument = {
           data: {
             mediaType: "audio",
             source: { label: "Me at the zoo", uri: zooAudioUrl, mimeType: "audio/mpeg" },
+            muted: true,
             volume: 0.85,
             channels: 2,
             sampleRate: 44_100,
@@ -82,6 +83,13 @@ const editingDocument: TimelineEditorDocument = {
           startMs: 0,
           durationMs: 16_000,
           color: "#3f6212",
+          data: {
+            mediaType: "audio",
+            volume: 0.35,
+            channels: 2,
+            sampleRate: 44_100,
+            waveform: [0.18, 0.24, 0.32, 0.28, 0.36, 0.3, 0.22, 0.26, 0.34, 0.29],
+          },
         },
       ],
     },

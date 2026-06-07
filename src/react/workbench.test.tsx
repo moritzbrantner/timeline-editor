@@ -3504,7 +3504,7 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     expect(container.querySelector("[data-slot='custom-preview']")?.textContent).toBe("Custom");
   });
 
-  test("renders hidden synchronized audio instead of a native preview player", () => {
+  test("renders centered waveform bars and audio state badge", () => {
     const document: TimelineEditorDocument<Record<string, unknown>, TimelineAudioItemData> = {
       durationMs: 4_000,
       currentTimeMs: 1_000,
@@ -3555,6 +3555,13 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     expect(container.querySelector("[data-slot='timeline-media-audio-preview-player']")).toBeNull();
     expect(container.querySelector("[data-slot='timeline-media-audio-waveform']")).toBeTruthy();
     expect(
+      container.querySelector("[data-slot='timeline-media-audio-waveform-midline']"),
+    ).toBeTruthy();
+    expect(container.querySelector("[data-slot='timeline-media-audio-waveform-bar']")).toBeTruthy();
+    expect(container.querySelector("[data-slot='timeline-media-audio-state']")?.textContent).toBe(
+      "Muted",
+    );
+    expect(
       container.querySelector("[data-slot='timeline-media-audio-metadata']")?.textContent,
     ).toBe("voice.wav · audio/wav · 0:03.0 · 2 ch · 48 kHz · Muted");
     expect(container.querySelector("[data-slot='timeline-media-audio-inspector']")).toBeTruthy();
@@ -3565,6 +3572,214 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     expect(player?.src).toContain("blob:voice");
     expect(player?.muted).toBe(true);
     expect(player?.volume).toBe(0.35);
+  });
+
+  test("shows volume state when unmuted below full volume", () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineAudioItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "audio",
+          label: "Audio",
+          acceptsItemKinds: ["audio"],
+          items: [
+            {
+              id: "music",
+              trackId: "audio",
+              label: "Music bed",
+              kind: "audio",
+              startMs: 0,
+              durationMs: 3_000,
+              data: {
+                mediaType: "audio",
+                muted: false,
+                volume: 0.35,
+                waveform: [0.25, 0.75],
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench document={document} extensions={[createTimelineAudioExtension()]} />,
+    );
+
+    expect(container.querySelector("[data-slot='timeline-media-audio-state']")?.textContent).toBe(
+      "35%",
+    );
+  });
+
+  test("updates selected audio mute from inspector", () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineAudioItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "audio",
+          label: "Audio",
+          acceptsItemKinds: ["audio"],
+          items: [
+            {
+              id: "voice",
+              trackId: "audio",
+              label: "Voiceover",
+              kind: "audio",
+              startMs: 0,
+              durationMs: 3_000,
+              data: {
+                mediaType: "audio",
+                volume: 0.35,
+                source: { label: "voice.wav" },
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const handleDocumentChange = vi.fn();
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        selection={{ itemIds: ["voice"], anchorItemId: "voice" }}
+        extensions={[createTimelineAudioExtension()]}
+        onDocumentChange={handleDocumentChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("Muted"));
+
+    expect(handleDocumentChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tracks: [
+          expect.objectContaining({
+            items: [
+              expect.objectContaining({
+                data: expect.objectContaining({
+                  mediaType: "audio",
+                  muted: true,
+                  source: { label: "voice.wav" },
+                  volume: 0.35,
+                }),
+              }),
+            ],
+          }),
+        ],
+      }),
+    );
+  });
+
+  test("updates selected audio volume from inspector", () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineAudioItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "audio",
+          label: "Audio",
+          acceptsItemKinds: ["audio"],
+          items: [
+            {
+              id: "music",
+              trackId: "audio",
+              label: "Music bed",
+              kind: "audio",
+              startMs: 0,
+              durationMs: 3_000,
+              data: {
+                mediaType: "audio",
+                volume: 1,
+                source: { label: "music.wav" },
+              },
+            },
+          ],
+        },
+      ],
+    };
+    let currentDocument = document;
+
+    function ControlledAudioWorkbench() {
+      const [stateDocument, setStateDocument] = useState(document);
+      currentDocument = stateDocument;
+
+      return (
+        <TimelineWorkbench
+          document={stateDocument}
+          selection={{ itemIds: ["music"], anchorItemId: "music" }}
+          extensions={[createTimelineAudioExtension()]}
+          onDocumentChange={(nextDocument) => {
+            currentDocument = nextDocument;
+            setStateDocument(nextDocument);
+          }}
+        />
+      );
+    }
+
+    render(<ControlledAudioWorkbench />);
+
+    fireEvent.keyDown(screen.getByRole("slider", { name: "Volume" }), { key: "ArrowLeft" });
+
+    expect(currentDocument.tracks[0]?.items[0]?.data).toEqual(
+      expect.objectContaining({
+        mediaType: "audio",
+        source: { label: "music.wav" },
+        volume: 0.99,
+      }),
+    );
+  });
+
+  test("does not update audio controls in read-only mode", () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineAudioItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "audio",
+          label: "Audio",
+          acceptsItemKinds: ["audio"],
+          items: [
+            {
+              id: "voice",
+              trackId: "audio",
+              label: "Voiceover",
+              kind: "audio",
+              startMs: 0,
+              durationMs: 3_000,
+              data: {
+                mediaType: "audio",
+                volume: 0.35,
+                source: { label: "voice.wav" },
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const handleDocumentChange = vi.fn();
+
+    render(
+      <TimelineWorkbench
+        document={document}
+        selection={{ itemIds: ["voice"], anchorItemId: "voice" }}
+        extensions={[createTimelineAudioExtension()]}
+        readOnly
+        onDocumentChange={handleDocumentChange}
+      />,
+    );
+
+    const muted = screen.getByLabelText("Muted") as HTMLInputElement;
+    const volume = screen.getByRole("slider", { name: "Volume" });
+
+    expect(muted.disabled).toBe(true);
+    expect(volume.hasAttribute("aria-disabled") || volume.hasAttribute("data-disabled")).toBe(true);
+
+    fireEvent.click(muted);
+    fireEvent.keyDown(volume, { key: "ArrowLeft" });
+
+    expect(handleDocumentChange).not.toHaveBeenCalled();
   });
 
   test("shows a compact audio preview state when the source is not playable", () => {
