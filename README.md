@@ -12,6 +12,11 @@ The React components expect `react` and `react-dom` as peer dependencies and use
 `@moritzbrantner/ui@^0.10.0` for workbench chrome. Timeline rendering is owned by
 this package.
 
+Experimental split packages such as `@timeline-editor/compute`,
+`@timeline-editor/audio`, and `@timeline-editor/video` expose accelerated or
+domain-specific entrypoints. They are public `0.x` packages and may change while
+they mature.
+
 ## Main APIs
 
 - `TimelineEditor` for a controlled, self-contained React timeline surface.
@@ -266,6 +271,9 @@ bun run test:playwright
 
 Use `bun run verify:quick` for normal changes before opening a PR. Use
 `bun run verify` and `bun run test:playwright` before release-oriented changes.
+
+See [Contributing](./CONTRIBUTING.md) for setup, verification, and release
+workflow details.
 
 ## Deeper Docs
 

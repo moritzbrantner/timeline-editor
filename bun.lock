@@ -44,7 +44,7 @@
     },
     "packages/audio": {
       "name": "@timeline-editor/audio",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "dependencies": {
         "@timeline-editor/compute": "workspace:*",
       },
@@ -60,7 +60,7 @@
     },
     "packages/captions": {
       "name": "@timeline-editor/captions",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "dependencies": {
         "@timeline-editor/compute": "workspace:*",
       },
@@ -76,7 +76,7 @@
     },
     "packages/compute": {
       "name": "@timeline-editor/compute",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "devDependencies": {
         "tsup": "^8.5.1",
         "typescript": "6.0.3",
@@ -85,7 +85,7 @@
     },
     "packages/data": {
       "name": "@timeline-editor/data",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "dependencies": {
         "@timeline-editor/compute": "workspace:*",
       },
@@ -101,7 +101,7 @@
     },
     "packages/geo": {
       "name": "@timeline-editor/geo",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "dependencies": {
         "@timeline-editor/compute": "workspace:*",
       },
@@ -117,7 +117,7 @@
     },
     "packages/image": {
       "name": "@timeline-editor/image",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "dependencies": {
         "@timeline-editor/compute": "workspace:*",
       },
@@ -133,7 +133,7 @@
     },
     "packages/tauri": {
       "name": "@timeline-editor/tauri",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "dependencies": {
         "@timeline-editor/compute": "workspace:*",
       },
@@ -145,7 +145,7 @@
     },
     "packages/video": {
       "name": "@timeline-editor/video",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "dependencies": {
         "@timeline-editor/compute": "workspace:*",
       },

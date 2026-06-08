@@ -1,9 +1,9 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const rootDir = path.resolve(fileURLToPath(new URL("../..", import.meta.url)));
-const packageJson = JSON.parse(readFileSync(path.join(rootDir, "package.json"), "utf8"));
+const packageJson = readJson(path.join(rootDir, "package.json"));
 const distDir = path.join(rootDir, "dist");
 const forbiddenRuntimeImports = [
   '"react"',
@@ -11,333 +11,19 @@ const forbiddenRuntimeImports = [
   '"@moritzbrantner/ui"',
   '"@moritzbrantner/ui/labs"',
 ];
-
-const entryFiles = [
-  "index.js",
-  "core.js",
-  "react.js",
-  "commands.js",
-  "history.js",
-  "serialization.js",
-  "extensions.js",
-  "media-types.js",
-  "media-import.js",
-  "text.js",
-  "audio.js",
-  "video.js",
-  "image.js",
-  "data.js",
-];
-const expectedRuntimeExports = {
-  "audio.js": [
-    "createTimelineAudioExtension",
-    "createTimelineAudioFileAsset",
-    "createTimelineAudioWaveformFromAudioBuffer",
-    "loadTimelineAudioMetadata",
-  ],
-  "commands.js": ["applyTimelineEditorCommand"],
-  "core.js": [
-    "addTimelineEditorMarker",
-    "addTimelineEditorTrack",
-    "addTimelineEditorTrackGroup",
-    "addTimelineEditorTracksToGroup",
-    "applyTimelineEditorTransformEasing",
-    "canPlaceTimelineEditorItemOnTrack",
-    "clampTimelineEditorTime",
-    "closeTimelineEditorGap",
-    "createTimelineEditorClipboard",
-    "createTimelineEditorSnapOptions",
-    "createTimelineEditorSnapResolver",
-    "defaultTimelineEditorEditPolicy",
-    "defaultTimelineEditorMinItemDurationMs",
-    "defaultTimelineEditorSelection",
-    "defaultTimelineEditorSnapMs",
-    "defaultTimelineEditorSnapThresholdPx",
-    "detectTimelineEditorOverlaps",
-    "doesTimelineEditorTrackAcceptItem",
-    "duplicateTimelineEditorItem",
-    "duplicateTimelineEditorItems",
-    "findTimelineEditorItem",
-    "formatTimelineEditorTimeMs",
-    "getTimelineEditorDurationMs",
-    "getTimelineEditorFrameDurationMs",
-    "getTimelineEditorGroupedItemIds",
-    "getTimelineEditorItemEndMs",
-    "getTimelineEditorItemTransformValuesAt",
-    "getTimelineEditorSnapTimes",
-    "getTimelineEditorTickIntervalMs",
-    "getTimelineEditorTicks",
-    "getTimelineEditorTransformValuesAt",
-    "getTimelineEditorValidationErrors",
-    "getTimelineEditorValidationIssueTarget",
-    "groupTimelineEditorItems",
-    "insertTimelineEditorGap",
-    "insertTimelineEditorItem",
-    "isTimelineEditorTransformEasing",
-    "moveTimelineEditorItem",
-    "moveTimelineEditorItems",
-    "moveTimelineEditorTrack",
-    "moveTimelineEditorTrackInGroup",
-    "moveTimelineEditorTransformPoint",
-    "normalizeTimelineEditorDocument",
-    "normalizeTimelineEditorItemGroups",
-    "normalizeTimelineEditorTrack",
-    "normalizeTimelineEditorTrackGroups",
-    "normalizeTimelineEditorTracks",
-    "normalizeTimelineEditorTransform",
-    "pasteTimelineEditorClipboard",
-    "removeTimelineEditorItem",
-    "removeTimelineEditorItems",
-    "removeTimelineEditorMarker",
-    "removeTimelineEditorRange",
-    "removeTimelineEditorTrack",
-    "removeTimelineEditorTrackGroup",
-    "removeTimelineEditorTracksFromGroup",
-    "removeTimelineEditorTransformPoint",
-    "resizeTimelineEditorItem",
-    "resolveTimelineEditorSnap",
-    "rippleDeleteTimelineEditorItems",
-    "rippleMoveTimelineEditorItems",
-    "setTimelineEditorCurrentTime",
-    "setTimelineEditorItemTransform",
-    "setTimelineEditorMarkers",
-    "sliceTimelineEditorTransform",
-    "snapTimelineEditorTime",
-    "splitTimelineEditorItem",
-    "splitTimelineEditorItems",
-    "timelineEditorTransformEasings",
-    "trimTimelineEditorItem",
-    "ungroupTimelineEditorItems",
-    "updateMarker",
-    "updateTimelineEditorMarker",
-    "updateTimelineEditorTrack",
-    "updateTimelineEditorTrackGroup",
-    "updateTimelineEditorTransformPoint",
-    "upsertTimelineEditorTransformPoint",
-    "validateTimelineEditorDocument",
-  ],
-  "data.js": ["createTimelineNumericDataExtension"],
-  "extensions.js": [
-    "doesTimelineEditorExtensionMatchItem",
-    "findTimelineEditorExtensionForItem",
-    "getTimelineEditorDomainForItem",
-    "getTimelineEditorItemDataDomain",
-  ],
-  "history.js": [
-    "applyTimelineEditorCommandWithHistory",
-    "createTimelineEditorHistory",
-    "redoTimelineEditorHistory",
-    "undoTimelineEditorHistory",
-  ],
-  "image.js": ["createTimelineImageExtension", "createTimelineImageFileAsset"],
-  "media-types.js": [
-    "assertTimelineMediaKindMatchesData",
-    "createTimelineMediaFileSource",
-    "createTimelineMediaObjectUrl",
-    "createTimelineMediaSourceLibrary",
-    "createTimelineMediaSourceRegistry",
-    "getTimelineMediaSourceKey",
-    "getTimelineMediaTypeForAsset",
-    "getTimelineMediaTypeForItem",
-    "getTimelineMediaTypeForKind",
-    "getTimelineMediaTypeFromData",
-    "isTimelineMediaType",
-    "timelineMediaTypes",
-    "validateTimelineEditorMediaTypes",
-  ],
-  "media-import.js": ["createTimelineMediaImportResolver"],
-  "react.js": [
-    "TimelineEditor",
-    "TimelineEditorClip",
-    "TimelineEditorContent",
-    "TimelineEditorLiveRegion",
-    "TimelineEditorPlayhead",
-    "TimelineEditorProvider",
-    "TimelineEditorRangeOverlay",
-    "TimelineEditorRoot",
-    "TimelineEditorRuler",
-    "TimelineEditorSnapFeedback",
-    "TimelineEditorSnapGuide",
-    "TimelineEditorTrackGrid",
-    "TimelineEditorTrackGroupRow",
-    "TimelineEditorTrackHeader",
-    "TimelineEditorTrackLane",
-    "TimelineEditorTrackRow",
-    "TimelineEditorTracks",
-    "TimelineWorkbench",
-    "defaultTimelineEditorHotkeys",
-    "defaultTimelineWorkbenchHotkeys",
-    "getTimelineEditorDurationForDocument",
-    "getTimelineEditorItemStyle",
-    "getTimelineEditorTimeFromDelta",
-    "getTimelineEditorTimeFromPointer",
-    "getTimelineEditorWidthPx",
-    "getVisibleTimelineEditorTicks",
-    "getVisibleTimelineEditorTicksForRange",
-    "timelineEditorMaxPixelsPerSecond",
-    "timelineEditorMinPixelsPerSecond",
-    "timelineEditorTrackHeaderWidthPx",
-    "useTimelineEditor",
-  ],
-  "serialization.js": [
-    "TimelineEditorParseError",
-    "currentTimelineEditorSchemaVersion",
-    "parseTimelineEditorDocument",
-    "readTimelineEditorDocument",
-    "serializeTimelineEditorDocument",
-  ],
-  "text.js": [
-    "createTimelineTextExtension",
-    "createTimelineTextFileAsset",
-    "detectTimelineTextFormat",
-    "getTimelineTextCueAt",
-    "getTimelineTextCuesAt",
-    "getTimelineTextDisplayText",
-    "getTimelineTextStyleForCue",
-    "parseTimelineAssText",
-    "parseTimelineSrtText",
-    "parseTimelineText",
-    "parseTimelineWebVttText",
-  ],
-  "video.js": ["createTimelineVideoExtension", "createTimelineVideoFileAsset"],
-};
-const expectedSplitPackageExports = {
-  audio: [
-    "analyzeTimelineAudioSource",
-    "createTimelineAudioBrowserBackend",
-    "createTimelineAudioExtension",
-    "createTimelineAudioFileAsset",
-    "createTimelineAudioWaveformFromAudioBuffer",
-    "loadTimelineAudioMetadata",
-  ],
-  captions: [
-    "createTimelineCaptionExtension",
-    "createTimelineCaptionFileAsset",
-    "createTimelineCaptionSource",
-    "createTimelineCaptionsBrowserBackend",
-    "createTimelineCaptionsExtension",
-    "createTimelineTextExtension",
-    "createTimelineTextFileAsset",
-    "detectTimelineCaptionFormat",
-    "detectTimelineTextFormat",
-    "getTimelineCaptionCueAt",
-    "getTimelineCaptionCuesAt",
-    "getTimelineCaptionDisplayText",
-    "getTimelineCaptionStyleForCue",
-    "getTimelineTextCueAt",
-    "getTimelineTextCuesAt",
-    "getTimelineTextDisplayText",
-    "getTimelineTextStyleForCue",
-    "parseTimelineAssCaptions",
-    "parseTimelineAssText",
-    "parseTimelineCaptions",
-    "parseTimelineCaptionsSync",
-    "parseTimelineSrtCaptions",
-    "parseTimelineSrtText",
-    "parseTimelineText",
-    "parseTimelineWebVttCaptions",
-    "parseTimelineWebVttText",
-  ],
-  compute: [
-    "createTimelineAdaptiveBackend",
-    "createTimelineBrowserWasmBackend",
-    "createTimelineComputeError",
-    "createTimelineJsFallbackBackend",
-    "createTimelineTauriBackend",
-    "createTimelineWorkerHandler",
-    "isTimelineComputeError",
-    "normalizeTimelineComputeError",
-  ],
-  data: [
-    "analyzeTimelineNumericData",
-    "analyzeTimelineNumericDataSync",
-    "createTimelineDataBrowserBackend",
-    "createTimelineNumericDataExtension",
-  ],
-  geo: [
-    "analyzeTimelineGeoJson",
-    "analyzeTimelineGeoJsonSync",
-    "createTimelineGeoBrowserBackend",
-    "createTimelineGeoExtension",
-    "createTimelineGeoJsonAsset",
-    "createTimelineGeoJsonSource",
-  ],
-  image: [
-    "analyzeTimelineImageSource",
-    "createTimelineImageBrowserBackend",
-    "createTimelineImageExtension",
-    "createTimelineImageFileAsset",
-  ],
-  tauri: ["createTimelineTauriBackend"],
-  video: [
-    "analyzeTimelineVideoSource",
-    "createTimelineVideoBrowserBackend",
-    "createTimelineVideoExtension",
-    "createTimelineVideoFileAsset",
-  ],
-};
-const splitPackagesWithWorkerExports = new Set([
-  "audio",
-  "captions",
-  "data",
-  "geo",
-  "image",
-  "video",
+const expectedSplitPackages = new Map([
+  ["@timeline-editor/audio", { directory: "audio", hasWorkerExport: true }],
+  ["@timeline-editor/captions", { directory: "captions", hasWorkerExport: true }],
+  ["@timeline-editor/compute", { directory: "compute", hasWorkerExport: false }],
+  ["@timeline-editor/data", { directory: "data", hasWorkerExport: true }],
+  ["@timeline-editor/geo", { directory: "geo", hasWorkerExport: true }],
+  ["@timeline-editor/image", { directory: "image", hasWorkerExport: true }],
+  ["@timeline-editor/tauri", { directory: "tauri", hasWorkerExport: false }],
+  ["@timeline-editor/video", { directory: "video", hasWorkerExport: true }],
 ]);
 
-for (const entryFile of entryFiles) {
-  const entryPath = path.join(distDir, entryFile);
-
-  assert(existsSync(entryPath), `Missing built entry: ${entryFile}`);
-}
-
-const importedEntries = Object.fromEntries(
-  await Promise.all(
-    entryFiles.map(async (entryFile) => [
-      entryFile,
-      await import(pathToFileURL(path.join(distDir, entryFile)).href),
-    ]),
-  ),
-);
-const expectedIndexExports = [
-  ...new Set([
-    ...Object.values(expectedRuntimeExports).flat(),
-    "createTimelineMediaImportResolver",
-    "TimelineEditorMigrationError",
-    "migrateTimelineEditorDocument",
-  ]),
-];
-
-assertSetEqual(
-  Object.keys(importedEntries["index.js"] ?? {}).sort(),
-  expectedIndexExports,
-  "index.js runtime exports changed",
-);
-
-for (const [entryFile, expectedExports] of Object.entries(expectedRuntimeExports)) {
-  assertSetEqual(
-    Object.keys(importedEntries[entryFile] ?? {}).sort(),
-    expectedExports,
-    `${entryFile} runtime exports changed`,
-  );
-}
-
-for (const exportTarget of Object.values(packageJson.exports)) {
-  for (const relativePath of Object.values(exportTarget)) {
-    assert(
-      existsSync(path.join(rootDir, relativePath)),
-      `Package export target does not exist: ${relativePath}`,
-    );
-  }
-}
-
-for (const [subpath, exportTarget] of Object.entries(packageJson.exports)) {
-  assert("types" in exportTarget, `Package export ${subpath} is missing a types target`);
-  assert(
-    existsSync(path.join(rootDir, exportTarget.types)),
-    `Package export ${subpath} types target does not exist: ${exportTarget.types}`,
-  );
-}
+assertPackageExportTargets(rootDir, packageJson, packageJson.name);
+await importPackageExports(rootDir, packageJson);
 
 assert(
   packageJson.peerDependencies?.react === "^19.0.0" &&
@@ -347,31 +33,20 @@ assert(
 
 assertSetEqual(packageJson.files ?? [], ["dist"], "Published files should stay limited to dist");
 
-for (const privatePackageName of [
-  "@timeline-editor/audio",
-  "@timeline-editor/video",
-  "@timeline-editor/captions",
-  "@timeline-editor/compute",
-  "@timeline-editor/image",
-  "@timeline-editor/geo",
-  "@timeline-editor/data",
-  "@timeline-editor/tauri",
-]) {
+for (const packageName of expectedSplitPackages.keys()) {
   assert(
-    packageJson.name !== privatePackageName,
-    `Private package ${privatePackageName} must not be published from the root package`,
+    packageJson.name !== packageName,
+    `Split package ${packageName} must not be published from the root package`,
   );
 }
 
 await Promise.all(
-  Object.entries(expectedSplitPackageExports).map(async ([packageDirectory, expectedExports]) => {
-    const splitPackageDir = path.join(rootDir, "packages", packageDirectory);
-    const splitPackageJson = JSON.parse(
-      readFileSync(path.join(splitPackageDir, "package.json"), "utf8"),
-    );
-    const packageName = `@timeline-editor/${packageDirectory}`;
+  [...expectedSplitPackages].map(async ([packageName, expectedPackage]) => {
+    const splitPackageDir = path.join(rootDir, "packages", expectedPackage.directory);
+    const splitPackageJson = readJson(path.join(splitPackageDir, "package.json"));
 
     assert(splitPackageJson.name === packageName, `${packageName} package name changed`);
+    assert(splitPackageJson.version === "0.1.0", `${packageName} version changed`);
     assert(splitPackageJson.private === false, `${packageName} should be publishable`);
     assert(splitPackageJson.license === "MIT", `${packageName} license changed`);
     assert(splitPackageJson.sideEffects === false, `${packageName} should stay side-effect free`);
@@ -386,7 +61,8 @@ await Promise.all(
       `${packageName} publishConfig changed`,
     );
     assert(splitPackageJson.exports?.["."], `${packageName} is missing a root export`);
-    if (splitPackagesWithWorkerExports.has(packageDirectory)) {
+
+    if (expectedPackage.hasWorkerExport) {
       assert(splitPackageJson.exports?.["./worker"], `${packageName} is missing a worker export`);
     } else {
       assert(
@@ -395,23 +71,20 @@ await Promise.all(
       );
     }
 
-    for (const exportTarget of Object.values(splitPackageJson.exports)) {
-      for (const relativePath of Object.values(exportTarget)) {
-        assert(
-          existsSync(path.join(splitPackageDir, relativePath)),
-          `${packageName} export target does not exist: ${relativePath}`,
-        );
-      }
-    }
-
-    const runtime = await import(pathToFileURL(path.join(splitPackageDir, "dist/index.js")).href);
-    assertSetEqual(Object.keys(runtime).sort(), expectedExports, `${packageName} exports changed`);
+    assertPackageExportTargets(splitPackageDir, splitPackageJson, packageName);
+    await importPackageExports(splitPackageDir, splitPackageJson);
   }),
 );
 
-for (const [subpath, exportTarget] of Object.entries(packageJson.exports)) {
-  assert("import" in exportTarget, `Package export ${subpath} is missing an import target`);
-}
+const packageDirectories = readdirSync(path.join(rootDir, "packages"), { withFileTypes: true })
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => entry.name)
+  .sort((left, right) => left.localeCompare(right));
+assertSetEqual(
+  packageDirectories,
+  [...expectedSplitPackages.values()].map((entry) => entry.directory),
+  "Workspace split package directories changed",
+);
 
 for (const entryFile of ["core.js", "commands.js", "history.js", "serialization.js"]) {
   const visited = new Set();
@@ -443,6 +116,44 @@ for (const entryFile of ["core.js", "commands.js", "history.js", "serialization.
   }
 }
 
+process.exit(0);
+
+function assertPackageExportTargets(packageDirectory, packageManifest, packageName) {
+  assert(
+    packageManifest.exports &&
+      typeof packageManifest.exports === "object" &&
+      !Array.isArray(packageManifest.exports),
+    `${packageName} must define object package exports`,
+  );
+
+  for (const [subpath, exportTarget] of Object.entries(packageManifest.exports)) {
+    assert(
+      "import" in exportTarget,
+      `${packageName} export ${subpath} is missing an import target`,
+    );
+    assert("types" in exportTarget, `${packageName} export ${subpath} is missing a types target`);
+
+    for (const relativePath of Object.values(exportTarget)) {
+      assert(
+        existsSync(path.join(packageDirectory, relativePath)),
+        `${packageName} export ${subpath} target does not exist: ${relativePath}`,
+      );
+    }
+  }
+}
+
+async function importPackageExports(packageDirectory, packageManifest) {
+  await Promise.all(
+    Object.values(packageManifest.exports).map(async (exportTarget) => {
+      await import(pathToFileURL(path.join(packageDirectory, exportTarget.import)).href);
+    }),
+  );
+}
+
+function readJson(filePath) {
+  return JSON.parse(readFileSync(filePath, "utf8"));
+}
+
 function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
@@ -450,11 +161,12 @@ function assert(condition, message) {
 }
 
 function assertSetEqual(actual, expected, message) {
-  const sortedExpected = [...expected].sort();
+  const sortedExpected = [...expected].sort((left, right) => left.localeCompare(right));
+  const sortedActual = [...actual].sort((left, right) => left.localeCompare(right));
 
   assert(
-    actual.length === sortedExpected.length &&
-      actual.every((value, index) => value === sortedExpected[index]),
-    `${message}.\nExpected: ${sortedExpected.join(", ")}\nActual: ${actual.join(", ")}`,
+    sortedActual.length === sortedExpected.length &&
+      sortedActual.every((value, index) => value === sortedExpected[index]),
+    `${message}.\nExpected: ${sortedExpected.join(", ")}\nActual: ${sortedActual.join(", ")}`,
   );
 }

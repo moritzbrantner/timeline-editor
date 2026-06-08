@@ -88,21 +88,21 @@ dependencies = [
 
 [[package]]
 name = "timeline_audio"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "timeline_captions"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "timeline_compute"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -110,14 +110,14 @@ dependencies = [
 
 [[package]]
 name = "timeline_data"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "timeline_compute",
 ]
 
 [[package]]
 name = "timeline_geo"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -125,14 +125,14 @@ dependencies = [
 
 [[package]]
 name = "timeline_image"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "timeline_tauri_plugin"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -142,7 +142,7 @@ dependencies = [
 
 [[package]]
 name = "timeline_video"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "serde",
 ]
