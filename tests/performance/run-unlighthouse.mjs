@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 const rootDir = resolve(new URL("../..", import.meta.url).pathname);
 const outputDir = resolve(rootDir, "test-results/unlighthouse-site");
 const site = process.env.UNLIGHTHOUSE_SITE ?? "http://127.0.0.1:4173";
-const budget = process.env.UNLIGHTHOUSE_BUDGET ?? "50";
+const budget = process.env.UNLIGHTHOUSE_BUDGET ?? "80";
 const port = new URL(site).port || "4173";
 
 function run(command, args, options = {}) {

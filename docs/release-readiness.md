@@ -6,20 +6,19 @@ Run these before publishing:
 
 ```sh
 bun run verify
-bun run test:playwright
 ```
 
-`bun run verify` covers formatting, linting, typechecking, unit tests, Storybook
-tests, Storybook build, package build, documented examples, and package export
-smoke tests. Playwright stays separate because browser installation and runtime
-cost are meaningful.
+`bun run verify` covers formatting, linting, typechecking, unit tests, package
+tests, Rust tests, Playwright, Lighthouse, Storybook tests, Storybook build,
+root and split package builds, wasm build, documented examples, and package
+export smoke tests.
 
 ## Public API
 
 The release contract is the root export plus `./core`, `./react`, `./commands`,
-`./history`, `./serialization`, `./media-types`, `./media-import`, `./text`,
-`./audio`, `./video`, `./image`, and `./data`. Any added or removed runtime
-export must be reflected in `tests/package/smoke.mjs`.
+`./history`, `./serialization`, `./extensions`, `./media-types`,
+`./media-import`, `./text`, `./audio`, `./video`, `./image`, and `./data`. Any
+added or removed runtime export must be reflected in `tests/package/smoke.mjs`.
 
 Core-only entrypoints must not import React, React JSX runtime, or
 `@moritzbrantner/ui` at runtime.
