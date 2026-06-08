@@ -169,7 +169,7 @@ Built-in media foundations are available from media-specific subpaths:
 - `@moritzbrantner/timeline-editor/text` for subtitle/caption cues, practical
   ASS/SSA, SRT, and WebVTT parsing, and text `File` to asset conversion.
 - `@moritzbrantner/timeline-editor/audio` for source metadata, volume/mute state, source-range-aware centered waveform display, clip state badges, adaptive narrow-clip rendering, inspector mute/volume controls, synchronized workbench audio preview, and audio `File` to asset conversion.
-- `@moritzbrantner/timeline-editor/video` for source metadata, poster, thumbnail strips, and video `File` to asset conversion.
+- `@moritzbrantner/timeline-editor/video` for source metadata, adaptive filmstrip clips, poster fallback, source-range trim indicators, and video `File` to asset conversion.
 - `@moritzbrantner/timeline-editor/image` for still image thumbnails and dimensions.
 - `@moritzbrantner/timeline-editor/data` for numeric data series and compact sparkline display.
 

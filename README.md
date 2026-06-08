@@ -52,7 +52,9 @@ compact waveform with browser Web Audio APIs, can be disabled with
 `generateWaveform: false`, and gracefully falls back when decoding is
 unavailable. Use
 `createTimelineVideoFileAsset(file)` from `./video` to probe video duration,
-dimensions, poster, optional thumbnails, and source metadata, and
+dimensions, poster, optional thumbnails, and source metadata. The video
+extension renders adaptive filmstrip clips from thumbnails or a full poster
+fallback and marks trimmed `sourceStartMs`/`sourceEndMs` source ranges. Use
 `createTimelineImageFileAsset(file)` from `./image` for image object URL assets.
 For common host-owned imports, create one source library and pass the unified
 resolver to the workbench:

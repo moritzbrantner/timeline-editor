@@ -78,20 +78,7 @@ export function createTimelineVideoExtension(): TimelineEditorExtension<Timeline
     id: "timeline-video",
     itemKinds: ["video"],
     mediaTypes: ["video"],
-    renderItem: ({ item }) =>
-      createElement(
-        "span",
-        { className: "grid min-w-0 gap-0.5" },
-        createElement("span", { className: "truncate" }, item.label),
-        item.data?.source?.label
-          ? createElement(
-              "span",
-              { className: "truncate text-[10px] text-white/70" },
-              item.data.source.label,
-            )
-          : null,
-        createTimelineVideoStrip(item.data),
-      ),
+    renderItem: ({ item, itemWidthPx }) => createTimelineVideoClipContent({ item, itemWidthPx }),
     renderPreview: (context) =>
       createElement(TimelineVideoPreview, {
         currentTimeMs: context.currentTimeMs,
@@ -287,39 +274,255 @@ function TimelineVideoPreviewPlayer({
   );
 }
 
-function createTimelineVideoStrip(data: TimelineVideoItemData | undefined) {
-  const thumbnails = data?.thumbnails ?? [];
+type TimelineVideoClipDensity = "full" | "compact" | "minimal";
+
+function createTimelineVideoClipContent({
+  item,
+  itemWidthPx,
+}: {
+  item: TimelineEditorItem<TimelineVideoItemData>;
+  itemWidthPx?: number;
+}) {
+  const density = getTimelineVideoClipDensity(itemWidthPx);
+  const sourceRange = getTimelineVideoVisibleSourceRange(item);
+  const visual = createTimelineVideoVisual({ density, item, itemWidthPx, sourceRange });
+  const hasVisual = Boolean(item.data?.thumbnails?.length || item.data?.poster);
+  const showLabel = density !== "minimal";
+  const showSource = density === "full" && Boolean(item.data?.source?.label);
+  const showIdentity = density === "minimal" && !hasVisual;
+
+  return createElement(
+    "span",
+    {
+      "data-slot": "timeline-media-video-clip",
+      className: "relative flex min-w-0 flex-1 self-stretch overflow-hidden rounded-sm bg-black/20",
+    },
+    visual,
+    hasVisual
+      ? createElement("span", {
+          "aria-hidden": true,
+          "data-slot": "timeline-media-video-scrim",
+          className:
+            "pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 to-black/10",
+        })
+      : null,
+    sourceRange.sourceStartMs > 0
+      ? createElement("span", {
+          "aria-hidden": true,
+          "data-slot": "timeline-media-video-trim-start",
+          className: "pointer-events-none absolute inset-y-0 left-0 z-10 w-px bg-white/70",
+        })
+      : null,
+    sourceRange.sourceEndMs < sourceRange.sourceDurationMs
+      ? createElement("span", {
+          "aria-hidden": true,
+          "data-slot": "timeline-media-video-trim-end",
+          className: "pointer-events-none absolute inset-y-0 right-0 z-10 w-px bg-white/70",
+        })
+      : null,
+    showLabel || showSource || showIdentity
+      ? createElement(
+          "span",
+          {
+            "data-slot": "timeline-media-video-label-row",
+            className:
+              "pointer-events-none absolute inset-x-1 bottom-1 z-10 grid min-w-0 gap-0.5 text-white",
+          },
+          showLabel
+            ? createElement(
+                "span",
+                {
+                  "data-slot": "timeline-media-video-label",
+                  className: "truncate text-xs font-medium leading-tight",
+                },
+                item.label,
+              )
+            : null,
+          showSource
+            ? createElement(
+                "span",
+                {
+                  "data-slot": "timeline-media-video-source",
+                  className: "truncate text-[10px] leading-tight text-white/75",
+                },
+                item.data?.source?.label,
+              )
+            : null,
+          showIdentity
+            ? createElement(
+                "span",
+                {
+                  "aria-hidden": true,
+                  "data-slot": "timeline-media-video-identity",
+                  className:
+                    "mx-auto inline-flex size-4 shrink-0 items-center justify-center rounded-sm bg-black/30 text-[10px] font-semibold uppercase leading-none text-white/90",
+                },
+                getTimelineVideoClipIdentity(item),
+              )
+            : null,
+        )
+      : null,
+  );
+}
+
+function createTimelineVideoVisual({
+  density,
+  item,
+  itemWidthPx,
+  sourceRange,
+}: {
+  density: TimelineVideoClipDensity;
+  item: TimelineEditorItem<TimelineVideoItemData>;
+  itemWidthPx?: number;
+  sourceRange: { sourceDurationMs: number; sourceStartMs: number; sourceEndMs: number };
+}) {
+  const thumbnails = item.data?.thumbnails ?? [];
 
   if (thumbnails.length > 0) {
+    const sampledThumbnails = getTimelineVideoSampledThumbnails({
+      density,
+      itemWidthPx,
+      sourceRange,
+      thumbnails,
+    });
+
     return createElement(
       "span",
       {
         "aria-hidden": true,
-        "data-slot": "timeline-media-video-thumbnails",
-        className: "flex h-4 overflow-hidden rounded-sm",
+        "data-slot": "timeline-media-video-visual",
+        className: "absolute inset-0 flex overflow-hidden",
       },
-      thumbnails.slice(0, 5).map((thumbnail, index) =>
-        createElement("img", {
-          key: index,
-          alt: "",
-          className: "h-full min-w-6 object-cover",
-          src: thumbnail,
-        }),
+      createElement(
+        "span",
+        {
+          "aria-hidden": true,
+          "data-slot": "timeline-media-video-thumbnails",
+          className: "flex h-full w-full overflow-hidden",
+        },
+        sampledThumbnails.map((thumbnail, index) =>
+          createElement("img", {
+            key: `${thumbnail}-${index}`,
+            alt: "",
+            "data-slot": "timeline-media-video-thumbnail",
+            className: "h-full min-w-0 flex-1 object-cover",
+            src: thumbnail,
+          }),
+        ),
       ),
     );
   }
 
-  if (!data?.poster) {
-    return null;
+  if (item.data?.poster) {
+    return createElement(
+      "span",
+      {
+        "aria-hidden": true,
+        "data-slot": "timeline-media-video-visual",
+        className: "absolute inset-0 overflow-hidden",
+      },
+      createElement("img", {
+        alt: "",
+        "aria-hidden": true,
+        "data-slot": "timeline-media-video-poster",
+        className: "h-full w-full object-cover",
+        src: item.data.poster,
+      }),
+    );
   }
 
-  return createElement("img", {
-    alt: "",
+  return createElement("span", {
     "aria-hidden": true,
-    "data-slot": "timeline-media-video-poster",
-    className: "h-4 w-full rounded-sm object-cover",
-    src: data.poster,
+    "data-slot": "timeline-media-video-visual",
+    className: "absolute inset-0 bg-black/20",
   });
+}
+
+function getTimelineVideoClipDensity(itemWidthPx?: number): TimelineVideoClipDensity {
+  if (itemWidthPx !== undefined && Number.isFinite(itemWidthPx) && itemWidthPx < 64) {
+    return "minimal";
+  }
+
+  if (itemWidthPx !== undefined && Number.isFinite(itemWidthPx) && itemWidthPx < 140) {
+    return "compact";
+  }
+
+  return "full";
+}
+
+function getTimelineVideoSampledThumbnails({
+  density,
+  itemWidthPx,
+  sourceRange,
+  thumbnails,
+}: {
+  density: TimelineVideoClipDensity;
+  itemWidthPx?: number;
+  sourceRange: { sourceDurationMs: number; sourceStartMs: number; sourceEndMs: number };
+  thumbnails: string[];
+}) {
+  const tileCount =
+    density === "minimal" ? 1 : Math.max(1, Math.min(12, Math.floor((itemWidthPx ?? 48) / 48)));
+  const startRatio = sourceRange.sourceStartMs / sourceRange.sourceDurationMs;
+  const endRatio = sourceRange.sourceEndMs / sourceRange.sourceDurationMs;
+  const safeStartRatio = clampTimelineVideoRatio(startRatio);
+  const safeEndRatio = Math.max(safeStartRatio, clampTimelineVideoRatio(endRatio));
+  const ratioSpan = safeEndRatio - safeStartRatio;
+
+  return Array.from({ length: tileCount }, (_, tileIndex) => {
+    const tileRatio =
+      tileCount === 1
+        ? safeStartRatio + ratioSpan / 2
+        : safeStartRatio + (ratioSpan * tileIndex) / (tileCount - 1);
+    const thumbnailIndex = Math.max(
+      0,
+      Math.min(thumbnails.length - 1, Math.round(tileRatio * (thumbnails.length - 1))),
+    );
+
+    return thumbnails[thumbnailIndex] ?? thumbnails[0]!;
+  });
+}
+
+function getTimelineVideoVisibleSourceRange(item: TimelineEditorItem<TimelineVideoItemData>) {
+  const sourceDurationMs = getTimelineVideoSourceDurationMs(item);
+  const sourceStartMs = clampTimelineVideoTime(
+    toTimelineVideoNumber(item.data?.sourceStartMs) ?? 0,
+    0,
+    sourceDurationMs,
+  );
+  const defaultEndMs = sourceStartMs + item.durationMs;
+  const sourceEndMs = clampTimelineVideoTime(
+    toTimelineVideoNumber(item.data?.sourceEndMs) ?? defaultEndMs,
+    sourceStartMs,
+    sourceDurationMs,
+  );
+
+  return { sourceDurationMs, sourceStartMs, sourceEndMs };
+}
+
+function getTimelineVideoSourceDurationMs(item: TimelineEditorItem<TimelineVideoItemData>) {
+  return Math.max(
+    1,
+    toTimelineVideoNumber(item.data?.source?.metadata?.durationMs) ??
+      toTimelineVideoNumber(item.data?.sourceEndMs) ??
+      item.durationMs,
+  );
+}
+
+function toTimelineVideoNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function clampTimelineVideoTime(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function clampTimelineVideoRatio(value: number) {
+  return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+}
+
+function getTimelineVideoClipIdentity(item: TimelineEditorItem<TimelineVideoItemData>) {
+  return (item.kind?.trim().charAt(0) || item.label.trim().charAt(0) || "?").toUpperCase();
 }
 
 function createTimelineVideoFileAssetId(label: string) {

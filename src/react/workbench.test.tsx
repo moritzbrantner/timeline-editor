@@ -91,6 +91,12 @@ function mockTimelineEditorScrollSize(options: { clientWidth: number; scrollWidt
   };
 }
 
+function getTimelineWorkbenchClip(container: HTMLElement, label: string) {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>("[data-slot='timeline-editor-clip']"),
+  ).find((clip) => clip.getAttribute("aria-label")?.startsWith(label));
+}
+
 beforeAll(() => {
   vi.stubGlobal(
     "ResizeObserver",
@@ -1978,6 +1984,243 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
         ]),
       }),
     );
+  });
+
+  test("renders video thumbnails as an adaptive filmstrip", () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineVideoItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "video",
+          label: "Video",
+          acceptsItemKinds: ["video"],
+          items: [
+            {
+              id: "scene",
+              trackId: "video",
+              label: "Scene",
+              kind: "video",
+              startMs: 0,
+              durationMs: 4_000,
+              data: {
+                mediaType: "video",
+                source: { label: "scene.mp4" },
+                thumbnails: Array.from({ length: 8 }, (_, index) => `thumb-${index}.png`),
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench document={document} extensions={[createTimelineVideoExtension()]} />,
+    );
+
+    expect(container.querySelector("[data-slot='timeline-media-video-clip']")).toBeTruthy();
+    expect(container.querySelector("[data-slot='timeline-media-video-thumbnails']")).toBeTruthy();
+    const thumbnails = container.querySelectorAll("[data-slot='timeline-media-video-thumbnail']");
+
+    expect(thumbnails).toHaveLength(12);
+    expect(thumbnails.length).toBeGreaterThan(5);
+  });
+
+  test("uses poster as full video visual fallback", () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineVideoItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "video",
+          label: "Video",
+          acceptsItemKinds: ["video"],
+          items: [
+            {
+              id: "poster",
+              trackId: "video",
+              label: "Poster scene",
+              kind: "video",
+              startMs: 0,
+              durationMs: 4_000,
+              data: {
+                mediaType: "video",
+                poster: "poster.png",
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench document={document} extensions={[createTimelineVideoExtension()]} />,
+    );
+
+    expect(container.querySelector("[data-slot='timeline-media-video-poster']")).toBeTruthy();
+    expect(container.querySelector("[data-slot='timeline-media-video-thumbnails']")).toBeNull();
+    expect(container.querySelector("[data-slot='timeline-media-video-identity']")).toBeNull();
+  });
+
+  test("adapts video clip density by width", () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineVideoItemData> = {
+      durationMs: 10_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "video",
+          label: "Video",
+          acceptsItemKinds: ["video"],
+          items: [
+            {
+              id: "wide",
+              trackId: "video",
+              label: "Wide scene",
+              kind: "video",
+              startMs: 0,
+              durationMs: 4_000,
+              data: {
+                mediaType: "video",
+                source: { label: "wide.mp4" },
+                thumbnails: ["wide-0.png", "wide-1.png"],
+              },
+            },
+            {
+              id: "compact",
+              trackId: "video",
+              label: "Compact scene",
+              kind: "video",
+              startMs: 4_500,
+              durationMs: 1_500,
+              data: {
+                mediaType: "video",
+                source: { label: "compact.mp4" },
+                thumbnails: ["compact-0.png", "compact-1.png"],
+              },
+            },
+            {
+              id: "tiny",
+              trackId: "video",
+              label: "Tiny scene",
+              kind: "video",
+              startMs: 6_500,
+              durationMs: 500,
+              data: {
+                mediaType: "video",
+                source: { label: "tiny.mp4" },
+                thumbnails: ["tiny-0.png"],
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench document={document} extensions={[createTimelineVideoExtension()]} />,
+    );
+    const wideClip = getTimelineWorkbenchClip(container, "Wide scene");
+    const compactClip = getTimelineWorkbenchClip(container, "Compact scene");
+    const tinyClip = getTimelineWorkbenchClip(container, "Tiny scene");
+
+    expect(wideClip?.querySelector("[data-slot='timeline-media-video-label']")?.textContent).toBe(
+      "Wide scene",
+    );
+    expect(wideClip?.querySelector("[data-slot='timeline-media-video-source']")?.textContent).toBe(
+      "wide.mp4",
+    );
+    expect(
+      compactClip?.querySelector("[data-slot='timeline-media-video-label']")?.textContent,
+    ).toBe("Compact scene");
+    expect(compactClip?.querySelector("[data-slot='timeline-media-video-source']")).toBeNull();
+    expect(tinyClip?.querySelector("[data-slot='timeline-media-video-thumbnail']")).toBeTruthy();
+    expect(tinyClip?.querySelector("[data-slot='timeline-media-video-label']")).toBeNull();
+    expect(tinyClip?.querySelector("[data-slot='timeline-media-video-source']")).toBeNull();
+  });
+
+  test("shows video trim indicators for source ranges", () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineVideoItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "video",
+          label: "Video",
+          acceptsItemKinds: ["video"],
+          items: [
+            {
+              id: "trimmed",
+              trackId: "video",
+              label: "Trimmed scene",
+              kind: "video",
+              startMs: 0,
+              durationMs: 2_000,
+              data: {
+                mediaType: "video",
+                sourceStartMs: 2_000,
+                sourceEndMs: 4_000,
+                thumbnails: ["thumb-0.png", "thumb-1.png", "thumb-2.png", "thumb-3.png"],
+                source: {
+                  label: "trimmed.mp4",
+                  metadata: { durationMs: 6_000 },
+                },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench document={document} extensions={[createTimelineVideoExtension()]} />,
+    );
+
+    expect(container.querySelector("[data-slot='timeline-media-video-trim-start']")).toBeTruthy();
+    expect(container.querySelector("[data-slot='timeline-media-video-trim-end']")).toBeTruthy();
+    expect(container.querySelector("[data-slot='timeline-media-video-thumbnail']")).toBeTruthy();
+  });
+
+  test("samples trimmed video thumbnails from the visible source range", () => {
+    const document: TimelineEditorDocument<Record<string, unknown>, TimelineVideoItemData> = {
+      durationMs: 4_000,
+      currentTimeMs: 1_000,
+      tracks: [
+        {
+          id: "video",
+          label: "Video",
+          acceptsItemKinds: ["video"],
+          items: [
+            {
+              id: "sampled",
+              trackId: "video",
+              label: "Sampled scene",
+              kind: "video",
+              startMs: 0,
+              durationMs: 2_000,
+              data: {
+                mediaType: "video",
+                sourceStartMs: 2_000,
+                sourceEndMs: 4_000,
+                thumbnails: Array.from({ length: 6 }, (_, index) => `thumb-${index}.png`),
+                source: {
+                  label: "sampled.mp4",
+                  metadata: { durationMs: 6_000 },
+                },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <TimelineWorkbench document={document} extensions={[createTimelineVideoExtension()]} />,
+    );
+    const firstThumbnail = container.querySelector<HTMLImageElement>(
+      "[data-slot='timeline-media-video-thumbnail']",
+    );
+
+    expect(firstThumbnail?.getAttribute("src")).toBe("thumb-2.png");
   });
 
   test("defaults preview mode to active scene items", () => {

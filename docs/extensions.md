@@ -59,6 +59,9 @@ from `@moritzbrantner/timeline-editor/media-types`.
 Use `createTimelineVideoFileAsset(file)` from
 `@moritzbrantner/timeline-editor/video` for matching video imports with
 duration, dimensions, poster, optional thumbnails, and MIME/source metadata.
+`createTimelineVideoExtension()` renders adaptive filmstrip clips from video
+thumbnails, falls back to a full poster visual, and marks trimmed
+`sourceStartMs`/`sourceEndMs` source ranges on video clips.
 
 These foundations do not export renders, apply effects, or implement
 transitions. Audio waveform generation in the root package is lightweight and
