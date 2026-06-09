@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -5,6 +6,24 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 
 const rootDir = fileURLToPath(new URL("../../../../", import.meta.url));
+
+const resolveEditorCoreAlias = (subpath: string, sourceFile: string) => {
+  const sourcePath = path.resolve(rootDir, "../editor-core/src", sourceFile);
+
+  if (existsSync(sourcePath)) {
+    return sourcePath;
+  }
+
+  if (subpath === "react") {
+    return path.resolve(rootDir, "tests/support/editor-core-react.ts");
+  }
+
+  return path.resolve(
+    rootDir,
+    "node_modules/@moritzbrantner/editor-core/dist",
+    `${subpath || "index"}.js`,
+  );
+};
 
 const timelineEditorPlaywrightAlias = [
   {
@@ -21,27 +40,27 @@ const timelineEditorPlaywrightAlias = [
   },
   {
     find: "@moritzbrantner/editor-core/history",
-    replacement: path.resolve(rootDir, "../editor-core/src/history.ts"),
+    replacement: resolveEditorCoreAlias("history", "history.ts"),
   },
   {
     find: "@moritzbrantner/editor-core/hotkeys",
-    replacement: path.resolve(rootDir, "../editor-core/src/hotkeys.ts"),
+    replacement: resolveEditorCoreAlias("hotkeys", "hotkeys.ts"),
   },
   {
     find: "@moritzbrantner/editor-core/json",
-    replacement: path.resolve(rootDir, "../editor-core/src/json.ts"),
+    replacement: resolveEditorCoreAlias("json", "json.ts"),
   },
   {
     find: "@moritzbrantner/editor-core/react",
-    replacement: path.resolve(rootDir, "../editor-core/src/react.tsx"),
+    replacement: resolveEditorCoreAlias("react", "react.tsx"),
   },
   {
     find: "@moritzbrantner/editor-core/serialization",
-    replacement: path.resolve(rootDir, "../editor-core/src/serialization.ts"),
+    replacement: resolveEditorCoreAlias("serialization", "serialization.ts"),
   },
   {
     find: /^@moritzbrantner\/editor-core$/,
-    replacement: path.resolve(rootDir, "../editor-core/src/index.ts"),
+    replacement: resolveEditorCoreAlias("", "index.ts"),
   },
   {
     find: "@moritzbrantner/timeline-editor/core",

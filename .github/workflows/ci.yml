@@ -19,7 +19,7 @@ jobs:
     permissions:
       contents: read
       packages: read
-    uses: moritzbrantner/reusable-workflows/.github/workflows/fast-validation.yml@workflow-standard-v1.2
+    uses: moritzbrantner/reusable-workflows/.github/workflows/fast-validation.yml@main
     with:
       bun_version: 1.3.14
       install_command: bun install --frozen-lockfile
@@ -37,11 +37,13 @@ jobs:
     permissions:
       contents: read
       packages: read
-    uses: moritzbrantner/reusable-workflows/.github/workflows/integration-validation.yml@workflow-standard-v1.2
+    uses: moritzbrantner/reusable-workflows/.github/workflows/integration-validation.yml@main
     with:
       bun_version: 1.3.14
       install_command: bun install --frozen-lockfile
-      pre_command: rustup target add wasm32-unknown-unknown
+      pre_command: |
+        rustup target add wasm32-unknown-unknown
+        bunx playwright install --with-deps chromium
       integration_command: bun run test:integration
       package_check_command: |
         bun run build:packages
@@ -53,40 +55,51 @@ jobs:
       timeout_minutes: 45
 
   storybook-validation:
+    needs:
+      - fast-validation
     permissions:
       contents: read
       packages: read
-    uses: moritzbrantner/reusable-workflows/.github/workflows/storybook-validation.yml@workflow-standard-v1.2
+    uses: moritzbrantner/reusable-workflows/.github/workflows/storybook-validation.yml@main
     with:
       bun_version: 1.3.14
       install_command: bun install --frozen-lockfile
       storybook_build_command: bun run build-storybook
       storybook_test_command: bun run test:storybook
       install_playwright: true
+      install_playwright_browsers: chromium
       timeout_minutes: 35
 
   e2e-validation:
+    needs:
+      - fast-validation
+      - integration-validation
     permissions:
       contents: read
       packages: read
-    uses: moritzbrantner/reusable-workflows/.github/workflows/e2e-validation.yml@workflow-standard-v1.2
+    uses: moritzbrantner/reusable-workflows/.github/workflows/e2e-validation.yml@main
     with:
       bun_version: 1.3.14
       install_command: bun install --frozen-lockfile
       e2e_command: bun run test:playwright
       install_playwright: true
+      install_playwright_browsers: chromium
       artifact_retention_days: 7
       timeout_minutes: 45
 
   performance-validation:
+    needs:
+      - fast-validation
+      - integration-validation
     permissions:
       contents: read
       packages: read
-    uses: moritzbrantner/reusable-workflows/.github/workflows/performance-validation.yml@workflow-standard-v1.2
+    uses: moritzbrantner/reusable-workflows/.github/workflows/performance-validation.yml@main
     with:
       bun_version: 1.3.14
       install_command: bun install --frozen-lockfile
-      pre_command: bunx playwright install --with-deps chromium
+      install_playwright: true
+      install_playwright_browsers: chromium
       unlighthouse_command: bun run test:lighthouse
       artifact_paths: |
         .unlighthouse
