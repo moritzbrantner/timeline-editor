@@ -25,8 +25,11 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Install Rust wasm target
+        run: rustup target add wasm32-unknown-unknown
+
       - name: Install Playwright browsers
-        run: bunx playwright install --with-deps chromium
+        run: bunx playwright install --with-deps
 
       - name: Verify
         run: bun run verify

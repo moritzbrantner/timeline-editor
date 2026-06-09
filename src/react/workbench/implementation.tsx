@@ -1,29 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { useControllableEditorState } from "@moritzbrantner/editor-core/react";
 
-import {
-  Button,
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-  type MenuActionItem,
-  WorkbenchCanvas,
-  WorkbenchPanel,
-  WorkbenchToolbar,
-  cn,
-} from "@moritzbrantner/ui";
+import { Button, type MenuActionItem } from "@moritzbrantner/ui";
 
 import {
   canPlaceTimelineEditorItemOnTrack,
-  createTimelineEditorClipboard,
   detectTimelineEditorOverlaps,
   formatTimelineEditorTimeMs,
   getTimelineEditorDurationMs,
   getTimelineEditorFrameDurationMs,
-  getTimelineEditorFrameDurationMsForMode,
   getTimelineEditorItemEndMs,
   normalizeTimelineEditorDocument,
   resolveTimelineEditorTimeMode,
@@ -44,14 +31,7 @@ import {
   type TimelineEditorTransformValues,
   type TimelineEditorViewport,
 } from "../../core";
-import type { TimelineEditorCommand } from "../../commands";
-import {
-  applyTimelineEditorCommandWithHistory,
-  createTimelineEditorHistory,
-  redoTimelineEditorHistory,
-  undoTimelineEditorHistory,
-  type TimelineEditorHistory,
-} from "../../history";
+import { createTimelineEditorHistory, type TimelineEditorHistory } from "../../history";
 import { isKeyboardEventFromEditableTarget, matchesHotkey } from "../timeline-editor/hotkeys";
 import type {
   TimelineEditorItemContextMenuContext,
@@ -69,12 +49,21 @@ import {
 import { TimelineWorkbenchCanvas } from "./canvas";
 import { getTimelineWorkbenchContextMenuItems } from "./context-menu";
 import {
+  combineTimelineWorkbenchTimelineContextMenuItems,
+  getTimelineWorkbenchExtensionInspectorSections,
+  getTimelineWorkbenchItemExtensions,
+  getTimelineWorkbenchTimelineContextMenuExtensionItems,
+  getTimelineWorkbenchTrackKinds,
+  renderTimelineWorkbenchItem,
+} from "./extensions";
+import {
   createTimelineWorkbenchMarkerId,
   createTimelineWorkbenchTrack,
   createTimelineWorkbenchTrackGroupId,
   formatTimelineWorkbenchTrackKind,
 } from "./ids";
 import { DefaultTimelineInspector } from "./inspector";
+import { shouldShowTimelineWorkbenchAssetsPanel, TimelineWorkbenchShellLayout } from "./panels";
 import {
   createTimelineWorkbenchItemLookup,
   createTimelineWorkbenchTrackLookup,
@@ -84,35 +73,21 @@ import {
 import { TimelineWorkbenchToolbar, defaultTimelineWorkbenchHotkeys } from "./toolbar";
 import { TimelineWorkbenchPreview } from "./preview";
 import { TimelineWorkbenchTransport } from "./transport";
-import {
-  getTimelineWorkbenchTransportLoopRange,
-  resolveTimelineWorkbenchPlaybackTime,
-  resolveTimelineWorkbenchTransportState,
-} from "./transport-state";
 import { getTimelineWorkbenchToolHotkey } from "./use-workbench-hotkeys";
+import { useTimelineWorkbenchImports } from "./use-workbench-imports";
+import { useTimelineWorkbenchTransport } from "./use-workbench-transport";
 import {
-  areTimelineWorkbenchSelectionsEqual,
-  getTimelineWorkbenchImportErrorMessage,
-  getTimelineWorkbenchImportSourceLabel,
-  getTimelineWorkbenchItemRenderExtension,
-  getTimelineWorkbenchTrackKinds,
   isTimelineWorkbenchCurrentTimeOnlyChange,
   isTimelineWorkbenchTrackLocked,
   normalizeTimelineWorkbenchRange,
   selectionForItemIds,
-  uniquifyTimelineWorkbenchImportedAssets,
 } from "./use-workbench-state";
+import { createTimelineWorkbenchCommandDispatcher } from "./workbench-commands";
 import type {
   TimelineWorkbenchAsset,
-  TimelineWorkbenchImportSource,
-  TimelineWorkbenchImportState,
   TimelineWorkbenchInspectorContext,
-  TimelinePreviewTransportContext,
-  TimelineWorkbenchPlaybackRate,
   TimelineWorkbenchPreviewMode,
   TimelineWorkbenchProps,
-  TimelineWorkbenchTransportChangeReason,
-  TimelineWorkbenchTransportState,
   TimelineWorkbenchTimelineContextMenuContext,
 } from "./types";
 
@@ -244,31 +219,20 @@ export function TimelineWorkbench<
       onChange: onPreviewModeChange,
     });
   const [draggedAssetId, setDraggedAssetId] = useState<string | null>(null);
-  const [internalTransportState, setInternalTransportState] =
-    useState<TimelineWorkbenchTransportState>(() =>
-      resolveTimelineWorkbenchTransportState(defaultTransportState),
-    );
-  const previewAnimationFrameRef = useRef<number | null>(null);
-  const previewLastFrameTimestampRef = useRef<number | null>(null);
-  const [importedAssets, setImportedAssets] = useState<Array<TimelineWorkbenchAsset<TAssetData>>>(
-    [],
-  );
-  const [importState, setImportState] = useState<TimelineWorkbenchImportState>({
-    status: "idle",
-  });
-  const importedAssetCleanupsRef = useRef<Array<() => void>>([]);
-  const importAbortControllerRef = useRef<AbortController | null>(null);
-  const retryImportSourcesRef = useRef<TimelineWorkbenchImportSource[]>([]);
   const [announcement, setAnnouncement] = useState("");
-  const resolvedAssets = useMemo(() => assets.concat(importedAssets), [assets, importedAssets]);
+  const { importState, resolvedAssets, importAssets, cancelImport, retryImport, clearImportState } =
+    useTimelineWorkbenchImports({
+      assets,
+      readOnly,
+      onImportAssets,
+      onImportCancel,
+    });
   const durationMs = document.durationMs ?? getTimelineEditorDurationMs(document.tracks, 30_000);
   const resolvedTimeMode = resolveTimelineEditorTimeMode(timeMode, frameRate);
-  const frameDurationMs = getTimelineEditorFrameDurationMsForMode(resolvedTimeMode, frameRate);
   const frameSlotDurationMs = getTimelineEditorFrameDurationMs(frameRate);
   const resolvedSnapMs = frameSlotDurationMs ?? snapMs;
   const currentTimeMs = document.currentTimeMs ?? 0;
   const frameStepMs = frameSlotDurationMs ?? resolvedSnapMs;
-  const resolvedTransportState = transportState ?? internalTransportState;
   const resolvedHotkeys = { ...defaultTimelineWorkbenchHotkeys, ...hotkeys, ...customHotkeys };
   const defaultSnapTargets: TimelineEditorSnapOptions["targets"] = [
     { type: "interval", intervalMs: resolvedSnapMs },
@@ -301,14 +265,7 @@ export function TimelineWorkbench<
   const hasSelectedItemGroup = hasItemGroup(resolvedSelection.itemIds);
   const overlaps = useMemo(() => detectTimelineEditorOverlaps(document.tracks), [document.tracks]);
   const extensionItems = useMemo(
-    () =>
-      extensions.filter(
-        (extension) =>
-          (extension.itemKinds && extension.itemKinds.length > 0) ||
-          (extension.domains && extension.domains.length > 0) ||
-          (extension.mediaTypes && extension.mediaTypes.length > 0) ||
-          Boolean(extension.matchItem),
-      ),
+    () => getTimelineWorkbenchItemExtensions(extensions),
     [extensions],
   );
   const trackKinds = useMemo(
@@ -348,323 +305,45 @@ export function TimelineWorkbench<
     onDocumentChange?.(nextDocument);
   };
 
-  const documentRef = useRef(document);
-  const durationMsRef = useRef(durationMs);
-  const onCurrentTimeChangeRef = useRef(onCurrentTimeChange);
-  const commitDocumentRef = useRef(commitDocument);
-  const resolvedSelectionRef = useRef(resolvedSelection);
-  const transportStateRef = useRef(resolvedTransportState);
-  const onTransportStateChangeRef = useRef(onTransportStateChange);
-
-  useEffect(() => {
-    documentRef.current = document;
-    durationMsRef.current = durationMs;
-    onCurrentTimeChangeRef.current = onCurrentTimeChange;
-    commitDocumentRef.current = commitDocument;
-    resolvedSelectionRef.current = resolvedSelection;
-    transportStateRef.current = resolvedTransportState;
-    onTransportStateChangeRef.current = onTransportStateChange;
+  const {
+    resolvedTransportState,
+    transportLoopRange,
+    previewTransportContext,
+    pauseTransport,
+    toggleTransport,
+    stopTransport,
+    shuttleForward,
+    shuttleBackward,
+    toggleLoop,
+  } = useTimelineWorkbenchTransport({
+    document,
+    durationMs,
+    currentTimeMs,
+    readOnly,
+    selection: resolvedSelection,
+    transportState,
+    defaultTransportState,
+    onTransportStateChange,
+    onCurrentTimeChange,
+    commitDocument,
   });
 
-  const cancelPreviewAnimationFrame = useCallback(() => {
-    if (previewAnimationFrameRef.current !== null) {
-      cancelAnimationFrame(previewAnimationFrameRef.current);
-      previewAnimationFrameRef.current = null;
-    }
-
-    previewLastFrameTimestampRef.current = null;
-  }, []);
-
-  const commitPreviewCurrentTime = useCallback((timeMs: number) => {
-    const currentDocument = documentRef.current;
-    const nextDocument = setTimelineEditorCurrentTime(currentDocument, timeMs, {
-      durationMs: durationMsRef.current,
-      snapMs: 0,
-    });
-
-    onCurrentTimeChangeRef.current?.(nextDocument.currentTimeMs ?? 0);
-    commitDocumentRef.current(nextDocument);
-  }, []);
-
-  const commitTransportState = useCallback(
-    (
-      nextState: TimelineWorkbenchTransportState,
-      reason: TimelineWorkbenchTransportChangeReason,
-    ) => {
-      const resolvedNextState = resolveTimelineWorkbenchTransportState(nextState);
-
-      transportStateRef.current = resolvedNextState;
-      if (transportState === undefined) {
-        setInternalTransportState(resolvedNextState);
-      }
-
-      onTransportStateChangeRef.current?.(resolvedNextState, {
-        reason,
-        currentTimeMs: documentRef.current.currentTimeMs ?? 0,
-        durationMs: durationMsRef.current,
-      });
-    },
-    [transportState],
-  );
-
-  const pauseTransport = useCallback(
-    (reason: TimelineWorkbenchTransportChangeReason = "pause") => {
-      commitTransportState({ ...transportStateRef.current, status: "paused" }, reason);
-      cancelPreviewAnimationFrame();
-    },
-    [cancelPreviewAnimationFrame, commitTransportState],
-  );
-
-  const playTransport = useCallback(
-    (
-      rate: TimelineWorkbenchPlaybackRate = 1,
-      reason: TimelineWorkbenchTransportChangeReason = "play",
-    ) => {
-      if (readOnly || durationMsRef.current <= 0) {
-        return;
-      }
-
-      const duration = durationMsRef.current;
-      const currentTime = documentRef.current.currentTimeMs ?? 0;
-      const loopRange = getTimelineWorkbenchTransportLoopRange(
-        transportStateRef.current.loop,
-        resolvedSelectionRef.current.range,
-        duration,
-      );
-
-      if (loopRange) {
-        if (rate > 0 && currentTime >= loopRange.endMs) {
-          commitPreviewCurrentTime(loopRange.startMs);
-        } else if (rate < 0 && currentTime <= loopRange.startMs) {
-          commitPreviewCurrentTime(loopRange.endMs);
-        }
-      } else if (rate > 0 && currentTime >= duration) {
-        commitPreviewCurrentTime(0);
-      } else if (rate < 0 && currentTime <= 0) {
-        commitPreviewCurrentTime(duration);
-      }
-
-      previewLastFrameTimestampRef.current = null;
-      commitTransportState(
-        {
-          ...transportStateRef.current,
-          status: "playing",
-          playbackRate: rate,
-        },
-        reason,
-      );
-    },
-    [commitPreviewCurrentTime, commitTransportState, readOnly],
-  );
-
-  const toggleTransport = useCallback(() => {
-    if (transportStateRef.current.status === "playing") {
-      pauseTransport("toggle-play");
-    } else {
-      playTransport(1, "toggle-play");
-    }
-  }, [pauseTransport, playTransport]);
-
-  const stopTransport = useCallback(() => {
-    commitTransportState(
-      { ...transportStateRef.current, status: "paused", playbackRate: 1 },
-      "stop",
-    );
-    cancelPreviewAnimationFrame();
-  }, [cancelPreviewAnimationFrame, commitTransportState]);
-
-  const shuttleForward = useCallback(() => {
-    const currentState = transportStateRef.current;
-    const nextRate: TimelineWorkbenchPlaybackRate =
-      currentState.status === "paused" || currentState.playbackRate < 0
-        ? 1
-        : currentState.playbackRate === 1
-          ? 2
-          : 4;
-
-    playTransport(nextRate, "shuttle-forward");
-  }, [playTransport]);
-
-  const shuttleBackward = useCallback(() => {
-    const currentState = transportStateRef.current;
-    const nextRate: TimelineWorkbenchPlaybackRate =
-      currentState.status === "paused" || currentState.playbackRate > 0
-        ? -1
-        : currentState.playbackRate === -1
-          ? -2
-          : -4;
-
-    playTransport(nextRate, "shuttle-backward");
-  }, [playTransport]);
-
-  const toggleLoop = useCallback(() => {
-    if (readOnly || durationMsRef.current <= 0) {
-      return;
-    }
-
-    commitTransportState(
-      { ...transportStateRef.current, loop: !transportStateRef.current.loop },
-      "loop-toggle",
-    );
-  }, [commitTransportState, readOnly]);
-
-  useEffect(() => {
-    if (resolvedTransportState.status !== "playing") {
-      cancelPreviewAnimationFrame();
-      return;
-    }
-
-    if (durationMs <= 0) {
-      pauseTransport("ended");
-      return;
-    }
-
-    const tick = (timestamp: number) => {
-      const lastTimestamp = previewLastFrameTimestampRef.current;
-      previewLastFrameTimestampRef.current = timestamp;
-
-      if (lastTimestamp !== null) {
-        const duration = durationMsRef.current;
-        const state = transportStateRef.current;
-
-        if (duration <= 0) {
-          pauseTransport("ended");
-          return;
-        }
-
-        const currentTime = documentRef.current.currentTimeMs ?? 0;
-        const elapsedMs = timestamp - lastTimestamp;
-        const nextTime = currentTime + elapsedMs * state.playbackRate;
-        const loopRange = getTimelineWorkbenchTransportLoopRange(
-          state.loop,
-          resolvedSelectionRef.current.range,
-          duration,
-        );
-        const resolvedTime = resolveTimelineWorkbenchPlaybackTime(
-          nextTime,
-          duration,
-          state.playbackRate,
-          loopRange,
-        );
-
-        commitPreviewCurrentTime(resolvedTime.timeMs);
-
-        if (resolvedTime.ended) {
-          commitTransportState({ ...state, status: "paused" }, "ended");
-          previewAnimationFrameRef.current = null;
-          previewLastFrameTimestampRef.current = null;
-          return;
-        }
-      }
-
-      previewAnimationFrameRef.current = requestAnimationFrame(tick);
-    };
-
-    previewAnimationFrameRef.current = requestAnimationFrame(tick);
-
-    return cancelPreviewAnimationFrame;
-  }, [
-    cancelPreviewAnimationFrame,
-    commitPreviewCurrentTime,
-    commitTransportState,
+  const commandDispatcher = createTimelineWorkbenchCommandDispatcher({
+    document,
+    selection: resolvedSelection,
+    history: resolvedHistory,
+    clipboard: resolvedClipboard,
     durationMs,
-    pauseTransport,
-    resolvedTransportState.status,
-  ]);
-
-  useEffect(() => {
-    if (resolvedTransportState.status === "playing" && readOnly) {
-      pauseTransport("read-only");
-    }
-  }, [pauseTransport, readOnly, resolvedTransportState.status]);
-
-  useEffect(() => {
-    if (resolvedTransportState.status === "playing" && durationMs <= 0) {
-      pauseTransport("ended");
-    }
-  }, [durationMs, pauseTransport, resolvedTransportState.status]);
-
-  useEffect(
-    () => () => {
-      importAbortControllerRef.current?.abort();
-      importAbortControllerRef.current = null;
-      const cleanups = importedAssetCleanupsRef.current;
-      importedAssetCleanupsRef.current = [];
-
-      for (const cleanup of cleanups) {
-        cleanup();
-      }
-    },
-    [],
-  );
-
-  const previousDocumentRef = useRef(document);
-
-  useEffect(() => {
-    const previousDocument = previousDocumentRef.current;
-    previousDocumentRef.current = document;
-
-    if (
-      resolvedTransportState.status === "playing" &&
-      previousDocument !== document &&
-      !isTimelineWorkbenchCurrentTimeOnlyChange(previousDocument, document)
-    ) {
-      pauseTransport("document-change");
-    }
-  }, [document, pauseTransport, resolvedTransportState.status]);
-
-  const runCommand = (
-    command: TimelineEditorCommand<TTrackData, TItemData>,
-    commandSelection = resolvedSelection,
-  ) => {
-    const result = applyTimelineEditorCommandWithHistory(
-      document,
-      commandSelection,
-      resolvedHistory,
-      command,
-      { durationMs, editPolicy, snapMs: resolvedSnapMs, minItemDurationMs },
-    );
-
-    commitHistory(result.history);
-
-    if ("clipboard" in result) {
-      commitClipboard(result.clipboard);
-    }
-
-    if (result.changed) {
-      onDocumentChange?.(result.document);
-    }
-
-    if (!areTimelineWorkbenchSelectionsEqual(result.selection, resolvedSelection)) {
-      commitSelection(result.selection);
-    }
-  };
-
-  const runTransientCommand = (
-    command: TimelineEditorCommand<TTrackData, TItemData>,
-    commandSelection = resolvedSelection,
-  ) => {
-    const result = applyTimelineEditorCommandWithHistory(
-      document,
-      commandSelection,
-      resolvedHistory,
-      command,
-      { durationMs, editPolicy, snapMs: resolvedSnapMs, minItemDurationMs },
-    );
-
-    if ("clipboard" in result) {
-      commitClipboard(result.clipboard);
-    }
-
-    if (result.changed) {
-      commitHistory(result.history);
-      onDocumentChange?.(result.document);
-    }
-
-    if (!areTimelineWorkbenchSelectionsEqual(result.selection, resolvedSelection)) {
-      commitSelection(result.selection);
-    }
-  };
+    editPolicy,
+    snapMs: resolvedSnapMs,
+    minItemDurationMs,
+    commitHistory,
+    commitClipboard,
+    commitSelection,
+    onDocumentChange,
+  });
+  const { runCommand, runTransientCommand, undoHistory, redoHistory, copyItems } =
+    commandDispatcher;
 
   const updateItem = (itemId: string, patch: Partial<TimelineEditorItem<TItemData>>) => {
     if (readOnly) {
@@ -762,15 +441,6 @@ export function TimelineWorkbench<
     }
 
     runCommand({ type: "delete-selection" }, selectionForItemIds(itemIds));
-  };
-
-  const copyItems = (itemIds = resolvedSelection.itemIds) => {
-    if (itemIds.length === 0) {
-      return;
-    }
-
-    const nextClipboard = createTimelineEditorClipboard(document.tracks, itemIds);
-    commitClipboard(nextClipboard);
   };
 
   const cutItems = (itemIds = resolvedSelection.itemIds) => {
@@ -1044,163 +714,6 @@ export function TimelineWorkbench<
     runCommand({ type: "close-gap", trackId, startMs, endMs });
   };
 
-  const importAssets = async (sources: TimelineWorkbenchImportSource[]) => {
-    if (readOnly || sources.length === 0) {
-      return;
-    }
-
-    retryImportSourcesRef.current = sources;
-    const sourceLabel = getTimelineWorkbenchImportSourceLabel(sources);
-    const sourceStates = sources.map((source, index) => ({
-      id: getTimelineWorkbenchImportSourceStateId(source, index),
-      label: source.label ?? source.file?.name ?? source.url ?? `Source ${index + 1}`,
-      status: "pending" as const,
-      metadata: isTimelineWorkbenchImportSourceMetadata(source.metadata)
-        ? source.metadata
-        : undefined,
-    }));
-
-    if (!onImportAssets) {
-      setImportState({
-        status: "failed",
-        sourceLabel,
-        error: "Import is not configured for this workbench.",
-        sources: sourceStates.map((source) => ({
-          ...source,
-          status: "failed",
-          error: "Import is not configured for this workbench.",
-        })),
-      });
-      return;
-    }
-
-    importAbortControllerRef.current?.abort();
-    const abortController = new AbortController();
-    importAbortControllerRef.current = abortController;
-
-    setImportState({ status: "importing", sourceLabel, sources: sourceStates, canCancel: true });
-
-    try {
-      const results = await onImportAssets(sources, {
-        signal: abortController.signal,
-        onProgress(sourceId, progress) {
-          setImportState((currentState) =>
-            updateTimelineWorkbenchImportSourceState(currentState, sourceId, {
-              progress,
-              status: "importing",
-            }),
-          );
-        },
-        onWarning(sourceId, warning) {
-          setImportState((currentState) =>
-            updateTimelineWorkbenchImportSourceWarning(currentState, sourceId, warning),
-          );
-        },
-      });
-
-      if (abortController.signal.aborted) {
-        setImportState({
-          status: "cancelled",
-          sourceLabel,
-          sources: sourceStates.map((source) => ({ ...source, status: "cancelled" })),
-          canCancel: false,
-        });
-        return;
-      }
-
-      const resultAssets = results
-        .map((result) => result.asset)
-        .filter((asset): asset is TimelineWorkbenchAsset<TAssetData> => Boolean(asset));
-      const resultCleanups = results
-        .map((result) => result.cleanup ?? result.revoke)
-        .filter((cleanup): cleanup is () => void => Boolean(cleanup));
-      const warnings = results.flatMap((result) => result.warnings ?? []);
-      const errors = results.flatMap((result) => result.errors ?? []);
-
-      if (resultAssets.length > 0) {
-        importedAssetCleanupsRef.current.push(...resultCleanups);
-        setImportedAssets((currentAssets) =>
-          currentAssets.concat(
-            uniquifyTimelineWorkbenchImportedAssets(assets.concat(currentAssets), resultAssets),
-          ),
-        );
-      }
-
-      setImportState({
-        status: resultAssets.length > 0 ? "ready" : "failed",
-        sourceLabel,
-        warnings: warnings.length > 0 ? warnings : undefined,
-        error:
-          resultAssets.length === 0
-            ? (errors[0] ?? warnings[0] ?? "Import did not return any assets.")
-            : undefined,
-        sources: sourceStates.map((source, index) => {
-          const result = results[index];
-          const sourceWarnings = result?.warnings;
-          const sourceError = result?.errors?.[0];
-
-          return {
-            ...source,
-            status: result?.asset ? ("ready" as const) : ("failed" as const),
-            warnings: sourceWarnings?.length ? sourceWarnings : undefined,
-            error: sourceError,
-            metadata: result?.metadata ?? source.metadata,
-          };
-        }),
-        canCancel: false,
-      });
-    } catch (error) {
-      if (abortController.signal.aborted) {
-        setImportState({
-          status: "cancelled",
-          sourceLabel,
-          sources: sourceStates.map((source) => ({ ...source, status: "cancelled" })),
-          canCancel: false,
-        });
-        return;
-      }
-
-      const errorMessage = getTimelineWorkbenchImportErrorMessage(error);
-
-      setImportState({
-        status: "failed",
-        sourceLabel,
-        error: errorMessage,
-        sources: sourceStates.map((source) => ({
-          id: source.id,
-          label: source.label,
-          status: "failed",
-          error: errorMessage,
-          metadata: source.metadata,
-        })),
-        canCancel: false,
-      });
-    } finally {
-      if (importAbortControllerRef.current === abortController) {
-        importAbortControllerRef.current = null;
-      }
-    }
-  };
-
-  const cancelImport = () => {
-    importAbortControllerRef.current?.abort();
-    onImportCancel?.();
-    setImportState((currentState) =>
-      currentState.status === "importing"
-        ? {
-            ...currentState,
-            status: "cancelled",
-            canCancel: false,
-            sources: currentState.sources?.map((source) =>
-              source.status === "ready" || source.status === "failed"
-                ? source
-                : { ...source, status: "cancelled" },
-            ),
-          }
-        : currentState,
-    );
-  };
-
   const getRangeTargetTrackId = () =>
     resolvedSelection.trackIds?.[0] ??
     selectedTrack?.id ??
@@ -1255,20 +768,13 @@ export function TimelineWorkbench<
     removeSelectedTransformPoint,
   } satisfies TimelineWorkbenchInspectorContext<TItemData, TTrackData>;
 
-  const extensionInspectorSections = extensions.flatMap(
-    (extension) =>
-      extension.inspectorSections?.map((factory) =>
-        factory({
-          ...inspectorContext,
-          selectedTrack: selectedTrack as TimelineEditorTrack<TTrackData, TItemData> | undefined,
-        }),
-      ) ?? [],
+  const extensionInspectorSections = getTimelineWorkbenchExtensionInspectorSections(
+    extensions,
+    inspectorContext,
   );
 
   const renderResolvedTimelineItem = (context: TimelineEditorItemRenderContext<TItemData>) => {
-    const extension = getTimelineWorkbenchItemRenderExtension(context.item, extensionItems);
-
-    return extension?.renderItem?.(context) ?? renderTimelineItem?.(context);
+    return renderTimelineWorkbenchItem(context, extensionItems, renderTimelineItem);
   };
 
   const insertAssetAt = (
@@ -1528,7 +1034,7 @@ export function TimelineWorkbench<
       return;
     }
 
-    if (transportStateRef.current.status === "playing") {
+    if (resolvedTransportState.status === "playing") {
       pauseTransport("pause");
     }
 
@@ -1586,8 +1092,9 @@ export function TimelineWorkbench<
         }),
     } satisfies TimelineWorkbenchTimelineContextMenuContext<TTrackData, TItemData, TAssetData>;
     const consumerItems = getTimelineContextMenuItems?.(workbenchContext) ?? [];
-    const extensionItems = extensions.flatMap(
-      (extension) => extension.timelineContextMenuItems?.(workbenchContext) ?? [],
+    const extensionItems = getTimelineWorkbenchTimelineContextMenuExtensionItems(
+      extensions,
+      workbenchContext,
     );
     const range = normalizeTimelineWorkbenchRange(resolvedSelection.range);
     const rangeTrackId = getRangeTargetTrackId();
@@ -1644,18 +1151,11 @@ export function TimelineWorkbench<
           ]
         : []),
     ];
-    const extraItems =
-      consumerItems.length > 0 && extensionItems.length > 0
-        ? [
-            ...consumerItems,
-            { id: "timeline-actions-separator", type: "separator" as const },
-            ...extensionItems,
-          ]
-        : [...consumerItems, ...extensionItems];
-
-    return extraItems.length > 0
-      ? [...builtInItems, { id: "timeline-extra-separator", type: "separator" }, ...extraItems]
-      : builtInItems;
+    return combineTimelineWorkbenchTimelineContextMenuItems(
+      builtInItems,
+      consumerItems,
+      extensionItems,
+    );
   };
 
   const handleWorkbenchKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -1719,14 +1219,7 @@ export function TimelineWorkbench<
 
     if (resolvedHotkeys.undo && matchesHotkey(event, resolvedHotkeys.undo)) {
       event.preventDefault();
-      const undo = undoTimelineEditorHistory(resolvedHistory);
-      commitHistory(undo.history);
-      if (undo.document) {
-        onDocumentChange?.(undo.document);
-        if (undo.selection) {
-          commitSelection(undo.selection);
-        }
-      }
+      undoHistory();
       return;
     }
 
@@ -1735,14 +1228,7 @@ export function TimelineWorkbench<
       (resolvedHotkeys.redoAlternate && matchesHotkey(event, resolvedHotkeys.redoAlternate))
     ) {
       event.preventDefault();
-      const redo = redoTimelineEditorHistory(resolvedHistory);
-      commitHistory(redo.history);
-      if (redo.document) {
-        onDocumentChange?.(redo.document);
-        if (redo.selection) {
-          commitSelection(redo.selection);
-        }
-      }
+      redoHistory();
       return;
     }
 
@@ -1931,22 +1417,11 @@ export function TimelineWorkbench<
   const announce = (message: string) => {
     setAnnouncement(message);
   };
-  const shouldShowAssetsPanel =
-    showAssetsPanel && (resolvedAssets.length > 0 || Boolean(onImportAssets));
-  const transportLoopRange = getTimelineWorkbenchTransportLoopRange(
-    resolvedTransportState.loop,
-    resolvedSelection.range,
-    durationMs,
-  );
-  const previewTransportContext = {
-    ...resolvedTransportState,
-    currentTimeMs,
-    durationMs,
-    isPlaying: resolvedTransportState.status === "playing",
-    getItemLocalTimeMs: (item: TimelineEditorItem<unknown>) => currentTimeMs - item.startMs,
-    isItemActive: (item: TimelineEditorItem<unknown>) =>
-      item.startMs <= currentTimeMs && getTimelineEditorItemEndMs(item) >= currentTimeMs,
-  } satisfies TimelinePreviewTransportContext;
+  const shouldShowAssetsPanel = shouldShowTimelineWorkbenchAssetsPanel({
+    showAssetsPanel,
+    assetCount: resolvedAssets.length,
+    hasImporter: Boolean(onImportAssets),
+  });
   const toolbarContent = (
     <TimelineWorkbenchToolbar
       announcement={announcement}
@@ -2009,13 +1484,7 @@ export function TimelineWorkbench<
         announce("Clipboard pasted");
       }}
       onRedo={() => {
-        const redo = redoTimelineEditorHistory(resolvedHistory);
-        commitHistory(redo.history);
-        if (redo.document) {
-          onDocumentChange?.(redo.document);
-          if (redo.selection) {
-            commitSelection(redo.selection);
-          }
+        if (redoHistory()) {
           announce("Redo applied");
         }
       }}
@@ -2029,13 +1498,7 @@ export function TimelineWorkbench<
         announce(direction < 0 ? `Moved to previous ${stepLabel}` : `Moved to next ${stepLabel}`);
       }}
       onUndo={() => {
-        const undo = undoTimelineEditorHistory(resolvedHistory);
-        commitHistory(undo.history);
-        if (undo.document) {
-          onDocumentChange?.(undo.document);
-          if (undo.selection) {
-            commitSelection(undo.selection);
-          }
+        if (undoHistory()) {
           announce("Undo applied");
         }
       }}
@@ -2063,10 +1526,8 @@ export function TimelineWorkbench<
       renderAsset={renderAsset}
       onImportAssets={onImportAssets ? importAssets : undefined}
       onImportCancel={cancelImport}
-      onImportRetry={() => {
-        void importAssets(retryImportSourcesRef.current);
-      }}
-      onImportStateClear={() => setImportState({ status: "idle" })}
+      onImportRetry={retryImport}
+      onImportStateClear={clearImportState}
       onAssetDragEnd={() => setDraggedAssetId(null)}
       onAssetDragStart={(asset) => setDraggedAssetId(asset.id)}
       onInsertAsset={insertAsset}
@@ -2104,10 +1565,7 @@ export function TimelineWorkbench<
     />
   ) : null;
   const canvasPanel = (
-    <WorkbenchCanvas
-      className="grid h-full min-h-0 p-0"
-      style={{ gridTemplateRows: "auto minmax(0, 1fr)" }}
-    >
+    <>
       <TimelineWorkbenchTransport
         currentTimeMs={currentTimeMs}
         durationMs={durationMs}
@@ -2163,123 +1621,19 @@ export function TimelineWorkbench<
       <span className="sr-only" aria-live="polite">
         {announcement}
       </span>
-    </WorkbenchCanvas>
+    </>
   );
-  const sidePanelsVisible = Boolean(assetsPanel || inspectorPanel);
-  const mainPanelDefaultSize = 100 - (assetsPanel ? 20 : 0) - (inspectorPanel ? 24 : 0);
-  const renderMainArea = (centerPanel: ReactNode) =>
-    sidePanelsVisible ? (
-      <ResizablePanelGroup orientation="horizontal" className="h-full min-h-0">
-        {assetsPanel ? (
-          <>
-            <ResizablePanel defaultSize={20} minSize={16} collapsible>
-              <WorkbenchPanel side="left" className="h-full min-h-0 border-r-0">
-                {assetsPanel}
-              </WorkbenchPanel>
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-          </>
-        ) : null}
-        <ResizablePanel defaultSize={mainPanelDefaultSize} minSize={36}>
-          {centerPanel}
-        </ResizablePanel>
-        {inspectorPanel ? (
-          <>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={24} minSize={18} collapsible>
-              <WorkbenchPanel side="right" className="h-full min-h-0 border-l-0">
-                {inspectorPanel}
-              </WorkbenchPanel>
-            </ResizablePanel>
-          </>
-        ) : null}
-      </ResizablePanelGroup>
-    ) : (
-      centerPanel
-    );
-  const previewMainPanel = previewPanel ? (
-    <WorkbenchCanvas className="h-full min-h-0 p-0">{previewPanel}</WorkbenchCanvas>
-  ) : null;
 
   return (
-    <div
-      data-slot="timeline-workbench"
-      className={cn(
-        "grid min-h-0 w-full overflow-hidden rounded-md border border-border/60 bg-background text-foreground",
-        className,
-      )}
-      style={{
-        gridTemplateRows: "auto minmax(0, 1fr)",
-        height: "100%",
-        minHeight: "34rem",
-        ...style,
-      }}
+    <TimelineWorkbenchShellLayout
+      className={className}
+      style={style}
+      toolbar={toolbarContent}
+      assetsPanel={assetsPanel}
+      inspectorPanel={inspectorPanel}
+      previewPanel={previewPanel}
+      canvasPanel={canvasPanel}
       onKeyDown={handleWorkbenchKeyDown}
-    >
-      <WorkbenchToolbar>{toolbarContent}</WorkbenchToolbar>
-      <ResizablePanelGroup orientation="vertical" className="min-h-0">
-        <ResizablePanel
-          defaultSize={previewMainPanel ? 28 : 100}
-          minSize={previewMainPanel ? 18 : 42}
-        >
-          {previewMainPanel ? renderMainArea(previewMainPanel) : renderMainArea(canvasPanel)}
-        </ResizablePanel>
-        {previewMainPanel ? (
-          <>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={72} minSize={42}>
-              {canvasPanel}
-            </ResizablePanel>
-          </>
-        ) : null}
-      </ResizablePanelGroup>
-    </div>
+    />
   );
-}
-
-function getTimelineWorkbenchImportSourceStateId(
-  source: TimelineWorkbenchImportSource,
-  index: number,
-) {
-  return source.label ?? source.file?.name ?? source.url ?? `source-${index + 1}`;
-}
-
-function updateTimelineWorkbenchImportSourceState(
-  state: TimelineWorkbenchImportState,
-  sourceId: string,
-  patch: Partial<NonNullable<TimelineWorkbenchImportState["sources"]>[number]>,
-): TimelineWorkbenchImportState {
-  const sources = state.sources?.map((source) =>
-    source.id === sourceId ? { ...source, ...patch } : source,
-  );
-
-  return {
-    ...state,
-    progress: patch.progress ?? state.progress,
-    sources,
-  };
-}
-
-function updateTimelineWorkbenchImportSourceWarning(
-  state: TimelineWorkbenchImportState,
-  sourceId: string,
-  warning: string,
-): TimelineWorkbenchImportState {
-  const sources = state.sources?.map((source) =>
-    source.id === sourceId
-      ? { ...source, warnings: [...(source.warnings ?? []), warning] }
-      : source,
-  );
-
-  return {
-    ...state,
-    warnings: [...(state.warnings ?? []), warning],
-    sources,
-  };
-}
-
-function isTimelineWorkbenchImportSourceMetadata(
-  metadata: unknown,
-): metadata is Record<string, unknown> {
-  return Boolean(metadata && typeof metadata === "object" && !Array.isArray(metadata));
 }

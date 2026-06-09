@@ -85,7 +85,7 @@
     "react-dom": "^19.0.0"
   },
   "dependencies": {
-    "@moritzbrantner/editor-core": "^0.2.0",
+    "@moritzbrantner/editor-core": "^0.2.1",
     "@moritzbrantner/ui": "^0.10.0"
   },
   "devDependencies": {
@@ -140,7 +140,7 @@
     "test:unit": "vitest run --config vitest.config.ts",
     "test:rust": "cargo test --workspace",
     "test:integration": "vitest run --config vitest.storybook.config.ts",
-    "test:package": "bun run build:packages && node ./tests/package/export-contract.mjs && node ./tests/package/smoke.mjs",
+    "test:package": "node ./tests/package/boundary.mjs && bun run build:packages && node ./tests/package/export-contract.mjs && node ./tests/package/smoke.mjs",
     "update:export-contract": "UPDATE_EXPORT_CONTRACT=1 node ./tests/package/export-contract.mjs",
     "test:a11y": "playwright test src/react/workbench/workbench-a11y.playwright.spec.ts",
     "test:lighthouse": "node ./tests/performance/run-unlighthouse.mjs",

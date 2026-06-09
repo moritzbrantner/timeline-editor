@@ -48,6 +48,7 @@ export function TimelineEditorTrackHeader<
       role="button"
       tabIndex={0}
       aria-pressed={selected}
+      aria-label={entry.track.label}
       className="flex items-center border-r bg-muted/20 px-3 text-sm font-medium data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground"
       onPointerDown={(event) => {
         if (event.button !== 0) {

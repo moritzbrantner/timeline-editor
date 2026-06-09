@@ -7,16 +7,19 @@ pub enum TimelineComputeSource {
     Bytes {
         bytes: Vec<u8>,
         label: Option<String>,
+        #[serde(rename = "mimeType")]
         mime_type: Option<String>,
     },
     Url {
         url: String,
         label: Option<String>,
+        #[serde(rename = "mimeType")]
         mime_type: Option<String>,
     },
     Path {
         path: String,
         label: Option<String>,
+        #[serde(rename = "mimeType")]
         mime_type: Option<String>,
     },
 }
@@ -83,6 +86,7 @@ pub struct TimelineComputeTask {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TimelineDataPoint {
+    #[serde(rename = "timeMs")]
     pub time_ms: f64,
     pub value: f64,
 }
@@ -135,5 +139,25 @@ mod tests {
         let serialized = serde_json::to_string(&error).unwrap();
 
         assert!(serialized.contains("unsupported_source"));
+    }
+
+    #[test]
+    fn deserializes_shared_task_envelope_fixtures() {
+        let fixtures: Vec<Value> = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/compute-task-envelopes.json"
+        ))
+        .unwrap();
+        let mut domains = Vec::new();
+
+        for fixture in fixtures {
+            let task: TimelineComputeTask =
+                serde_json::from_value(fixture.get("task").unwrap().clone()).unwrap();
+            domains.push(task.domain);
+        }
+
+        assert_eq!(
+            domains,
+            vec!["audio", "video", "image", "captions", "geo", "data"]
+        );
     }
 }

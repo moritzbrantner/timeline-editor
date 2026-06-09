@@ -251,4 +251,164 @@ describe("timeline editor domain extension boundaries", () => {
       })?.id,
     ).toBe("map-domain");
   });
+
+  describe("timeline editor extension matching contract", () => {
+    const conflictingItem = {
+      id: "route",
+      trackId: "track",
+      label: "Predicate item",
+      kind: "map-layer",
+      startMs: 0,
+      durationMs: 1_000,
+      data: { domain: "map", mediaType: "text" },
+    };
+
+    test("resolves by priority before registration order", () => {
+      const extensions: Array<TimelineEditorExtension> = [
+        {
+          id: "media",
+          mediaTypes: ["text"],
+        },
+        {
+          id: "domain",
+          domains: ["map"],
+        },
+        {
+          id: "predicate",
+          matchItem: () => true,
+        },
+        {
+          id: "kind",
+          itemKinds: ["map-layer"],
+        },
+      ];
+
+      expect(findTimelineEditorExtensionForItem(conflictingItem, extensions)?.id).toBe("kind");
+    });
+
+    test("resolves matchItem before domains and mediaTypes when no itemKinds match", () => {
+      const extensions: Array<TimelineEditorExtension> = [
+        {
+          id: "media",
+          mediaTypes: ["text"],
+        },
+        {
+          id: "domain",
+          domains: ["map"],
+        },
+        {
+          id: "predicate",
+          matchItem: (item) => item.label === "Predicate item",
+        },
+      ];
+
+      expect(
+        findTimelineEditorExtensionForItem(
+          {
+            ...conflictingItem,
+            kind: "unclaimed-kind",
+          },
+          extensions,
+        )?.id,
+      ).toBe("predicate");
+    });
+
+    test("resolves domains before mediaTypes when no itemKinds or matchItem match", () => {
+      const extensions: Array<TimelineEditorExtension> = [
+        {
+          id: "media",
+          mediaTypes: ["text"],
+        },
+        {
+          id: "domain",
+          domains: ["map"],
+        },
+      ];
+
+      expect(
+        findTimelineEditorExtensionForItem(
+          {
+            ...conflictingItem,
+            kind: "unclaimed-kind",
+          },
+          extensions,
+        )?.id,
+      ).toBe("domain");
+    });
+
+    const samePriorityCases: Array<{
+      name: string;
+      extensions: Array<TimelineEditorExtension>;
+      item?: typeof conflictingItem;
+    }> = [
+      {
+        name: "itemKinds",
+        extensions: [
+          { id: "first", itemKinds: ["map-layer"] },
+          { id: "second", itemKinds: ["map-layer"] },
+        ],
+      },
+      {
+        name: "matchItem",
+        extensions: [
+          { id: "first", matchItem: () => true },
+          { id: "second", matchItem: () => true },
+        ],
+        item: {
+          ...conflictingItem,
+          kind: "unclaimed-kind",
+          data: { domain: "unclaimed-domain", mediaType: "text" },
+        },
+      },
+      {
+        name: "domains",
+        extensions: [
+          { id: "first", domains: ["map"] },
+          { id: "second", domains: ["map"] },
+        ],
+      },
+      {
+        name: "mediaTypes",
+        extensions: [
+          { id: "first", mediaTypes: ["text"] },
+          { id: "second", mediaTypes: ["text"] },
+        ],
+        item: {
+          ...conflictingItem,
+          kind: "unclaimed-kind",
+          data: { domain: "unclaimed-domain", mediaType: "text" },
+        },
+      },
+    ];
+
+    test.each(samePriorityCases)(
+      "resolves same-priority $name matches by registration order",
+      ({ extensions, item = conflictingItem }) => {
+        expect(findTimelineEditorExtensionForItem(item, extensions)?.id).toBe("first");
+      },
+    );
+
+    test("filters candidates before resolving priority", () => {
+      const extensions: Array<TimelineEditorExtension> = [
+        {
+          id: "kind",
+          itemKinds: ["map-layer"],
+        },
+        {
+          id: "domain",
+          domains: ["map"],
+        },
+        {
+          id: "media",
+          mediaTypes: ["text"],
+        },
+      ];
+
+      expect(
+        findTimelineEditorExtensionForItem(conflictingItem, extensions, {
+          predicate: (extension) => extension.id !== "kind",
+        })?.id,
+      ).toBe("domain");
+    });
+  });
 });
