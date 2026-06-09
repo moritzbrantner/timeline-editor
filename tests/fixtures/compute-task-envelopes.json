@@ -1,0 +1,64 @@
+[
+  {
+    "name": "audio-analyze",
+    "task": {
+      "domain": "audio",
+      "operation": "analyze",
+      "source": { "type": "url", "url": "file:///audio.wav", "mimeType": "audio/wav" },
+      "options": { "sampleCount": 128, "normalize": true }
+    }
+  },
+  {
+    "name": "video-analyze",
+    "task": {
+      "domain": "video",
+      "operation": "analyze",
+      "source": { "type": "url", "url": "file:///video.mp4", "mimeType": "video/mp4" },
+      "options": { "generatePoster": true, "thumbnailTimesMs": [0, 1000] }
+    }
+  },
+  {
+    "name": "image-analyze",
+    "task": {
+      "domain": "image",
+      "operation": "analyze",
+      "source": { "type": "url", "url": "file:///image.png", "mimeType": "image/png" },
+      "options": { "generateThumbnail": true, "thumbnailWidth": 320 }
+    }
+  },
+  {
+    "name": "captions-parse",
+    "task": {
+      "domain": "captions",
+      "operation": "parse",
+      "input": "1\n00:00:00,000 --> 00:00:01,000\nHello",
+      "options": { "format": "srt", "sourceLabel": "captions.srt" }
+    }
+  },
+  {
+    "name": "geo-analyze",
+    "task": {
+      "domain": "geo",
+      "operation": "analyze",
+      "geojson": { "type": "FeatureCollection", "features": [] },
+      "options": { "simplifyTolerance": 0.5 }
+    }
+  },
+  {
+    "name": "data-downsample",
+    "task": {
+      "domain": "data",
+      "operation": "downsample",
+      "series": [
+        {
+          "id": "speed",
+          "points": [
+            { "timeMs": 0, "value": 1 },
+            { "timeMs": 1000, "value": 2 }
+          ]
+        }
+      ],
+      "options": { "maxPoints": 10 }
+    }
+  }
+]

@@ -161,6 +161,8 @@ backend selection, and Tauri invoke adapter. Domain packages such as
 `@timeline-editor/data` wrap the lightweight root helpers and accept an
 optional backend for expensive import or analysis work. They must fall back to
 root helpers or typed warnings when a backend is unavailable.
+The shared task envelope, wire field names, and unsupported-task behavior are
+defined in [Compute Contract](./compute-contract.md).
 
 Phase 4:
 
