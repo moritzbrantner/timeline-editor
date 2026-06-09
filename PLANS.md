@@ -108,9 +108,13 @@ Current matching order in `src/extensions.ts`:
 3. `domains`
 4. Normalized `mediaTypes`
 
+The extension matching contract is covered by focused tests in
+`src/extensions.test.ts`, and user-facing reference docs mirror the same
+priority order.
+
 Tasks:
 
-- Add focused tests for conflicting extension matches, especially when multiple
+- Maintain focused tests for conflicting extension matches, especially when multiple
   extensions match the same item through different mechanisms.
 - Keep `TimelineEditorExtension` backward-compatible unless a changeset records
   a public API change.

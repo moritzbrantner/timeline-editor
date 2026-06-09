@@ -139,8 +139,9 @@ Media-specific behavior belongs in extensions rather than the generic core.
 An extension can contribute item rendering, preview rendering, inspector
 sections, toolbar actions, context menu items, and pure operations.
 `TimelineWorkbench` resolves item renderers by exact `extension.itemKinds` first,
-then by normalized `extension.mediaTypes`, then by the consumer
-`renderTimelineItem` fallback.
+then by explicit `extension.matchItem`, then by `extension.domains`, then by
+normalized `extension.mediaTypes`, then by the consumer `renderTimelineItem`
+fallback.
 
 ```tsx
 import {
