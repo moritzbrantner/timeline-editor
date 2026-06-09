@@ -20,6 +20,24 @@ easier to evolve without destabilizing public APIs.
 - 2026-06-09: Workbench extension composition was extracted into
   `src/react/workbench/extensions.tsx`; focused workbench unit tests and the
   basic Playwright regression suite passed after the extraction.
+- 2026-06-09: Workbench import orchestration was extracted into
+  `src/react/workbench/use-workbench-imports.ts`; focused import and rendering
+  Playwright specs plus `bun run verify:quick` passed.
+- 2026-06-09: Workbench transport orchestration was extracted into
+  `src/react/workbench/use-workbench-transport.ts`; focused transport and
+  rendering Playwright specs plus `bun run verify:quick` passed.
+- 2026-06-09: Workbench command dispatch was extracted into
+  `src/react/workbench/workbench-commands.ts`; focused command, editing, and
+  regression checks plus `bun run verify:quick` passed.
+- 2026-06-09: Workbench panel shell composition was extracted into
+  `src/react/workbench/panels.tsx`; focused rendering and accessibility
+  Playwright specs plus `bun run verify:quick` passed.
+- 2026-06-09: Shared compute task-envelope fixtures now cover audio, video,
+  image, captions, geo, and data across TypeScript, Rust compute, and the Tauri
+  plugin contract.
+- 2026-06-10: The shared compute task envelope is documented and split package
+  contract tests now prove package helpers emit fixture-compatible backend task
+  shapes.
 - The Playwright harness is architecture-critical because it validates real
   workbench behavior. Its Vite aliases must continue to resolve React,
   `editor-core`, and timeline-editor entrypoints consistently with the Vitest
@@ -143,6 +161,18 @@ Tasks:
 - Completed 2026-06-09: extracted extension filtering, item render fallback,
   extension inspector sections, track-kind aggregation, and timeline context-menu
   contribution merging into `src/react/workbench/extensions.tsx`.
+- Completed 2026-06-09: extracted workbench import state, retry/cancel flow,
+  source diagnostics, imported asset accumulation, and cleanup management into
+  `src/react/workbench/use-workbench-imports.ts`.
+- Completed 2026-06-09: extracted transport state orchestration, playback
+  frame-loop handling, loop range resolution, and preview transport context into
+  `src/react/workbench/use-workbench-transport.ts`.
+- Completed 2026-06-09: extracted command dispatch, command-result
+  coordination, clipboard copy, and shared undo/redo helpers into
+  `src/react/workbench/workbench-commands.ts`.
+- Completed 2026-06-09: extracted panel visibility, main-area sizing, preview
+  stacking, and workbench resize shell composition into
+  `src/react/workbench/panels.tsx`.
 - Extract only behaviorally coherent modules: import state, transport
   orchestration, command dispatch, extension resolution, and panel composition.
 - Keep public `TimelineWorkbenchProps` stable during decomposition.
@@ -160,6 +190,11 @@ Goal: make browser worker, JS fallback, and Tauri compute behavior consistent.
 
 Tasks:
 
+- Completed 2026-06-09: added shared task-envelope fixtures and TypeScript,
+  Rust compute, and Tauri plugin tests for advertised compute domains.
+- Completed 2026-06-10: documented the shared compute task envelope and added
+  split package contract tests for audio, video, image, captions, geo, and data
+  task emission.
 - Document and test the shared task envelope from `packages/compute/src/index.ts`
   and `crates/timeline_compute/src/lib.rs`.
 - Add contract coverage for TypeScript-to-Rust task serialization.
