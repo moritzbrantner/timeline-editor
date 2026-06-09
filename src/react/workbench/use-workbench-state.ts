@@ -1,18 +1,10 @@
 import {
   type TimelineEditorDocument,
-  type TimelineEditorItem,
-  type TimelineEditorItemKind,
   type TimelineEditorSelection,
   type TimelineEditorTimeRange,
   type TimelineEditorTrack,
 } from "../../core";
-import { findTimelineEditorExtensionForItem } from "../../extensions";
-import type {
-  TimelineEditorExtension,
-  TimelineWorkbenchAsset,
-  TimelineWorkbenchImportSource,
-} from "./types";
-import { formatTimelineWorkbenchTrackKind } from "./ids";
+import type { TimelineWorkbenchAsset, TimelineWorkbenchImportSource } from "./types";
 
 export function isTimelineWorkbenchCurrentTimeOnlyChange<TTrackData, TItemData>(
   document: TimelineEditorDocument<TTrackData, TItemData>,
@@ -63,57 +55,6 @@ export function normalizeTimelineWorkbenchRange(range: TimelineEditorTimeRange |
   const endMs = Math.max(startMs, Math.max(range.startMs, range.endMs));
 
   return startMs === endMs ? undefined : { startMs, endMs };
-}
-
-export function getTimelineWorkbenchItemRenderExtension<
-  TTrackData extends Record<string, unknown>,
-  TItemData,
-  TAssetData,
->(
-  item: TimelineEditorItem<TItemData>,
-  extensions: Array<TimelineEditorExtension<TItemData, TTrackData, TAssetData>>,
-) {
-  return findTimelineEditorExtensionForItem(item, extensions, {
-    predicate: (extension) => Boolean(extension.renderItem),
-  });
-}
-
-export function getTimelineWorkbenchTrackKinds<
-  TTrackData extends Record<string, unknown>,
-  TItemData,
-  TAssetData,
->(
-  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
-  assets: Array<TimelineWorkbenchAsset<TAssetData>>,
-  extensions: Array<TimelineEditorExtension<TItemData, TTrackData, TAssetData>>,
-) {
-  const kinds = new Set<TimelineEditorItemKind>();
-
-  for (const track of tracks) {
-    if (track.kind) {
-      kinds.add(track.kind);
-    }
-
-    for (const kind of track.acceptsItemKinds ?? []) {
-      kinds.add(kind);
-    }
-  }
-
-  for (const asset of assets) {
-    if (asset.kind) {
-      kinds.add(asset.kind);
-    }
-  }
-
-  for (const extension of extensions) {
-    for (const kind of extension.trackKinds ?? extension.itemKinds ?? []) {
-      kinds.add(kind);
-    }
-  }
-
-  return [...kinds].sort((left, right) =>
-    formatTimelineWorkbenchTrackKind(left).localeCompare(formatTimelineWorkbenchTrackKind(right)),
-  );
 }
 
 export function isTimelineWorkbenchTrackLocked<TTrackData, TItemData>(

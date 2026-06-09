@@ -23,7 +23,6 @@ import {
   formatTimelineEditorTimeMs,
   getTimelineEditorDurationMs,
   getTimelineEditorFrameDurationMs,
-  getTimelineEditorFrameDurationMsForMode,
   getTimelineEditorItemEndMs,
   normalizeTimelineEditorDocument,
   resolveTimelineEditorTimeMode,
@@ -69,6 +68,14 @@ import {
 import { TimelineWorkbenchCanvas } from "./canvas";
 import { getTimelineWorkbenchContextMenuItems } from "./context-menu";
 import {
+  combineTimelineWorkbenchTimelineContextMenuItems,
+  getTimelineWorkbenchExtensionInspectorSections,
+  getTimelineWorkbenchItemExtensions,
+  getTimelineWorkbenchTimelineContextMenuExtensionItems,
+  getTimelineWorkbenchTrackKinds,
+  renderTimelineWorkbenchItem,
+} from "./extensions";
+import {
   createTimelineWorkbenchMarkerId,
   createTimelineWorkbenchTrack,
   createTimelineWorkbenchTrackGroupId,
@@ -94,8 +101,6 @@ import {
   areTimelineWorkbenchSelectionsEqual,
   getTimelineWorkbenchImportErrorMessage,
   getTimelineWorkbenchImportSourceLabel,
-  getTimelineWorkbenchItemRenderExtension,
-  getTimelineWorkbenchTrackKinds,
   isTimelineWorkbenchCurrentTimeOnlyChange,
   isTimelineWorkbenchTrackLocked,
   normalizeTimelineWorkbenchRange,
@@ -263,7 +268,6 @@ export function TimelineWorkbench<
   const resolvedAssets = useMemo(() => assets.concat(importedAssets), [assets, importedAssets]);
   const durationMs = document.durationMs ?? getTimelineEditorDurationMs(document.tracks, 30_000);
   const resolvedTimeMode = resolveTimelineEditorTimeMode(timeMode, frameRate);
-  const frameDurationMs = getTimelineEditorFrameDurationMsForMode(resolvedTimeMode, frameRate);
   const frameSlotDurationMs = getTimelineEditorFrameDurationMs(frameRate);
   const resolvedSnapMs = frameSlotDurationMs ?? snapMs;
   const currentTimeMs = document.currentTimeMs ?? 0;
@@ -301,14 +305,7 @@ export function TimelineWorkbench<
   const hasSelectedItemGroup = hasItemGroup(resolvedSelection.itemIds);
   const overlaps = useMemo(() => detectTimelineEditorOverlaps(document.tracks), [document.tracks]);
   const extensionItems = useMemo(
-    () =>
-      extensions.filter(
-        (extension) =>
-          (extension.itemKinds && extension.itemKinds.length > 0) ||
-          (extension.domains && extension.domains.length > 0) ||
-          (extension.mediaTypes && extension.mediaTypes.length > 0) ||
-          Boolean(extension.matchItem),
-      ),
+    () => getTimelineWorkbenchItemExtensions(extensions),
     [extensions],
   );
   const trackKinds = useMemo(
@@ -1255,20 +1252,13 @@ export function TimelineWorkbench<
     removeSelectedTransformPoint,
   } satisfies TimelineWorkbenchInspectorContext<TItemData, TTrackData>;
 
-  const extensionInspectorSections = extensions.flatMap(
-    (extension) =>
-      extension.inspectorSections?.map((factory) =>
-        factory({
-          ...inspectorContext,
-          selectedTrack: selectedTrack as TimelineEditorTrack<TTrackData, TItemData> | undefined,
-        }),
-      ) ?? [],
+  const extensionInspectorSections = getTimelineWorkbenchExtensionInspectorSections(
+    extensions,
+    inspectorContext,
   );
 
   const renderResolvedTimelineItem = (context: TimelineEditorItemRenderContext<TItemData>) => {
-    const extension = getTimelineWorkbenchItemRenderExtension(context.item, extensionItems);
-
-    return extension?.renderItem?.(context) ?? renderTimelineItem?.(context);
+    return renderTimelineWorkbenchItem(context, extensionItems, renderTimelineItem);
   };
 
   const insertAssetAt = (
@@ -1586,8 +1576,9 @@ export function TimelineWorkbench<
         }),
     } satisfies TimelineWorkbenchTimelineContextMenuContext<TTrackData, TItemData, TAssetData>;
     const consumerItems = getTimelineContextMenuItems?.(workbenchContext) ?? [];
-    const extensionItems = extensions.flatMap(
-      (extension) => extension.timelineContextMenuItems?.(workbenchContext) ?? [],
+    const extensionItems = getTimelineWorkbenchTimelineContextMenuExtensionItems(
+      extensions,
+      workbenchContext,
     );
     const range = normalizeTimelineWorkbenchRange(resolvedSelection.range);
     const rangeTrackId = getRangeTargetTrackId();
@@ -1644,18 +1635,11 @@ export function TimelineWorkbench<
           ]
         : []),
     ];
-    const extraItems =
-      consumerItems.length > 0 && extensionItems.length > 0
-        ? [
-            ...consumerItems,
-            { id: "timeline-actions-separator", type: "separator" as const },
-            ...extensionItems,
-          ]
-        : [...consumerItems, ...extensionItems];
-
-    return extraItems.length > 0
-      ? [...builtInItems, { id: "timeline-extra-separator", type: "separator" }, ...extraItems]
-      : builtInItems;
+    return combineTimelineWorkbenchTimelineContextMenuItems(
+      builtInItems,
+      consumerItems,
+      extensionItems,
+    );
   };
 
   const handleWorkbenchKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {

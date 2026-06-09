@@ -12,14 +12,18 @@ easier to evolve without destabilizing public APIs.
 
 ## Current Findings
 
-- `bun run verify:quick` previously reached the Playwright regression stage after
-  unit, package, and Rust tests passed.
-- The regression harness failed with an invalid React hook call from
-  `@moritzbrantner/editor-core/dist/react.js`, which indicates duplicate React or
-  mismatched source/package resolution in the Playwright Vite app.
+- 2026-06-09: The basic Playwright regression spec passed directly.
+- 2026-06-09: `bun run verify:quick` passed, including type checks, unit tests,
+  package tests, Rust tests, and the basic Playwright regression suite.
+- 2026-06-09: `bun run test:package` passed, including the root package boundary
+  check, split package builds, export-contract check, and package smoke tests.
+- 2026-06-09: Workbench extension composition was extracted into
+  `src/react/workbench/extensions.tsx`; focused workbench unit tests and the
+  basic Playwright regression suite passed after the extraction.
 - The Playwright harness is architecture-critical because it validates real
-  workbench behavior. Its Vite aliases must resolve React, `editor-core`, and
-  timeline-editor entrypoints consistently with the Vitest config.
+  workbench behavior. Its Vite aliases must continue to resolve React,
+  `editor-core`, and timeline-editor entrypoints consistently with the Vitest
+  config.
 - The intended layering is already documented in `docs/architecture.md`,
   `docs/extensions.md`, and `docs/release-readiness.md`; this file is the
   execution plan.
@@ -136,6 +140,9 @@ Tasks:
 
 - Treat `src/react/workbench/implementation.tsx` as the main decomposition
   target.
+- Completed 2026-06-09: extracted extension filtering, item render fallback,
+  extension inspector sections, track-kind aggregation, and timeline context-menu
+  contribution merging into `src/react/workbench/extensions.tsx`.
 - Extract only behaviorally coherent modules: import state, transport
   orchestration, command dispatch, extension resolution, and panel composition.
 - Keep public `TimelineWorkbenchProps` stable during decomposition.
