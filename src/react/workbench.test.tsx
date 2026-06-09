@@ -1308,11 +1308,14 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
       );
     }
 
-    render(<StatefulWorkbench />);
+    const { container } = render(<StatefulWorkbench />);
 
     fireEvent.click(screen.getByRole("button", { name: "Planning" }));
-    expect(screen.getByText("Track fields")).toBeTruthy();
-    expect(screen.getByText("task, review")).toBeTruthy();
+    const inspector = within(
+      container.querySelector("[data-slot='timeline-workbench-inspector']")!,
+    );
+    expect(inspector.getByText("Track fields")).toBeTruthy();
+    expect(inspector.getByText("task, review")).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText("Label"), { target: { value: "Scenes" } });
     fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "task" } });

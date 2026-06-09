@@ -91,7 +91,6 @@ function TimelineEditorClipComponent<TItemData>({
         editor.beginClipResize(edge, item, locked, event);
       }
     });
-  const ariaLabel = getTimelineEditorClipAccessibleLabel(item, locked, transformPointCount);
   const title = getTimelineEditorClipTitle(item, locked, transformPointCount);
   const handleClassName = cn(
     "absolute inset-y-0 z-10 w-4 touch-none bg-white/25 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 group-data-[selected=true]:opacity-100",
@@ -111,7 +110,7 @@ function TimelineEditorClipComponent<TItemData>({
       role="button"
       tabIndex={0}
       aria-pressed={selected}
-      aria-label={ariaLabel}
+      aria-label={item.label}
       title={title}
       className={cn(
         "group absolute flex min-w-8 cursor-grab items-center rounded-md border px-2 text-xs font-medium text-white shadow-sm outline-none data-[selected=true]:ring-2 data-[selected=true]:ring-ring",
@@ -231,7 +230,7 @@ function TimelineEditorDefaultClipContent<TItemData>({
       {metadata.length > 0 ? (
         <span
           data-slot="timeline-editor-clip-meta"
-          className="flex min-w-0 items-center gap-1.5 truncate text-[10px] leading-tight text-white/75"
+          className="flex min-w-0 items-center gap-1.5 truncate text-[10px] leading-tight text-white"
         >
           {metadata.map((entry) => (
             <span key={entry} className="truncate">
@@ -283,24 +282,6 @@ function getTimelineEditorClipMetadata<TItemData>(
     item.itemGroupId ? "Grouped" : undefined,
     locked ? "Locked" : undefined,
   ].filter((entry): entry is string => Boolean(entry));
-}
-
-function getTimelineEditorClipAccessibleLabel<TItemData>(
-  item: TimelineEditorItem<TItemData>,
-  locked: boolean,
-  transformPointCount: number,
-) {
-  return [
-    item.label,
-    item.kind,
-    `starts ${formatTimelineEditorTimeMs(item.startMs)}`,
-    `duration ${formatTimelineEditorTimeMs(item.durationMs)}`,
-    locked ? "locked" : undefined,
-    item.itemGroupId ? "grouped" : undefined,
-    transformPointCount > 0 ? formatTimelineEditorKeyframeCount(transformPointCount) : undefined,
-  ]
-    .filter(Boolean)
-    .join(", ");
 }
 
 function getTimelineEditorClipTitle<TItemData>(
