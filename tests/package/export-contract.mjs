@@ -91,7 +91,11 @@ async function collectExports(packageDirectory, packageJson) {
 }
 
 function validateSourceTarget(packageDirectory, packageJson, subpath, exportTarget) {
-  if (!exportTarget || typeof exportTarget !== "object" || typeof exportTarget.source !== "string") {
+  if (
+    !exportTarget ||
+    typeof exportTarget !== "object" ||
+    typeof exportTarget.source !== "string"
+  ) {
     return;
   }
 
