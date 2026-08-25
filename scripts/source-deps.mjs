@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { access, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -23,10 +23,10 @@ if (command === "prepare") {
   await restore();
 } else if (command === "status") {
   await status();
-} else if (command === "watch") {
-  await watch();
+} else if (command === "smoke") {
+  await smoke();
 } else {
-  fail(`unknown command ${JSON.stringify(command)}; use prepare, restore, status, or watch`);
+  fail(`unknown command ${JSON.stringify(command)}; use prepare, restore, status, or smoke`);
 }
 
 async function prepare() {
@@ -78,11 +78,7 @@ async function writeSourceFacade(sourceManifest) {
     path.join(targetDir, "package.json"),
     `${JSON.stringify({ ...sourceManifest, name: dependency.packageName }, null, 2)}\n`,
   );
-  await symlink(
-    sourceDistDir,
-    path.join(targetDir, "dist"),
-    process.platform === "win32" ? "junction" : "dir",
-  );
+  await cp(sourceDistDir, path.join(targetDir, "dist"), { force: true, recursive: true });
 }
 
 async function restore() {
@@ -93,13 +89,7 @@ async function restore() {
 }
 
 async function status() {
-  let state;
-  try {
-    state = JSON.parse(await readFile(stateFile, "utf8"));
-    await access(path.join(targetDir, "package.json"));
-  } catch {
-    state = undefined;
-  }
+  const state = await readState();
   if (!state) {
     process.stdout.write(`registry dependency active: ${dependency.packageName}\n`);
     return;
@@ -111,18 +101,32 @@ async function status() {
   );
 }
 
-async function watch() {
-  const sourceManifest = await readSourceManifest();
-  if (!sourceManifest.scripts?.build) {
-    fail(`${dependency.packageName} source checkout has no build script: ${sourceDir}`);
+async function smoke() {
+  const state = await readState();
+  if (!state) {
+    fail(`source mode is not active for ${dependency.packageName}`);
   }
-  process.stdout.write(`watching source dependency: ${dependency.packageName} -> ${sourceDir}\n`);
-  const result = spawnSync("bun", ["run", "build", "--", "--watch"], {
-    cwd: sourceDir,
-    env: process.env,
-    stdio: "inherit",
-  });
-  process.exit(result.status ?? 1);
+
+  const manifest = JSON.parse(await readFile(path.join(targetDir, "package.json"), "utf8"));
+  if (manifest.name !== dependency.packageName) {
+    fail(`source facade has package name ${manifest.name ?? "unknown"}, expected ${dependency.packageName}`);
+  }
+
+  await import(dependency.packageName);
+  process.stdout.write(
+    `source dependency smoke passed: ${dependency.packageName} @ ${state.revision.slice(0, 12)}\n`,
+  );
+}
+
+async function readState() {
+  try {
+    const state = JSON.parse(await readFile(stateFile, "utf8"));
+    await access(path.join(targetDir, "package.json"));
+    await access(path.join(targetDir, "dist"));
+    return state;
+  } catch {
+    return undefined;
+  }
 }
 
 async function readSourceManifest() {
