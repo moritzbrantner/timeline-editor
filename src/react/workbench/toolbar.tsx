@@ -36,11 +36,7 @@ import { formatShortcutLabel } from "../../shortcut-label";
 import { getHotkeyFromKeyboardEvent } from "../timeline-editor/hotkeys";
 import { type TimelineWorkbenchHotkeyId, timelineWorkbenchHotkeyGroups } from "./hotkeys";
 
-import {
-  timelineEditorMaxPixelsPerSecond,
-  timelineEditorMinPixelsPerSecond,
-  type TimelineEditorHotkeys,
-} from "../timeline-editor";
+import { timelineEditorMaxPixelsPerSecond, type TimelineEditorHotkeys } from "../timeline-editor";
 import type { TimelineWorkbenchInspectorContext } from "./types";
 
 type TimelineWorkbenchToolbarProps<TTrackData extends Record<string, unknown>, TItemData> = {
@@ -54,6 +50,7 @@ type TimelineWorkbenchToolbarProps<TTrackData extends Record<string, unknown>, T
   inspectorContext: TimelineWorkbenchInspectorContext<TItemData, TTrackData>;
   overlaps: TimelineEditorOverlap[];
   pixelsPerSecond: number;
+  minPixelsPerSecond: number;
   readOnly: boolean;
   resolvedHotkeys: TimelineEditorHotkeys;
   resolvedSelection: TimelineEditorSelection;
@@ -100,6 +97,7 @@ export function TimelineWorkbenchToolbar<TTrackData extends Record<string, unkno
   inspectorContext,
   overlaps,
   pixelsPerSecond,
+  minPixelsPerSecond,
   readOnly,
   resolvedHotkeys,
   resolvedSelection,
@@ -358,7 +356,7 @@ export function TimelineWorkbenchToolbar<TTrackData extends Record<string, unkno
         <Slider
           className="w-32"
           value={[resolvedViewport.pixelsPerSecond]}
-          min={timelineEditorMinPixelsPerSecond}
+          min={minPixelsPerSecond}
           max={timelineEditorMaxPixelsPerSecond}
           step={4}
           onValueChange={(value) => {

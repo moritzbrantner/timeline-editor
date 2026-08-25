@@ -33,6 +33,7 @@ import {
 } from "../../core";
 import { createTimelineEditorHistory, type TimelineEditorHistory } from "../../history";
 import { isKeyboardEventFromEditableTarget, matchesHotkey } from "../timeline-editor/hotkeys";
+import { timelineEditorMinPixelsPerSecond } from "../timeline-editor/constants";
 import type {
   TimelineEditorItemContextMenuContext,
   TimelineEditorItemRenderContext,
@@ -130,6 +131,7 @@ export function TimelineWorkbench<
   selection,
   readOnly = false,
   pixelsPerSecond = 80,
+  minPixelsPerSecond = timelineEditorMinPixelsPerSecond,
   viewport,
   frameRate,
   timeMode,
@@ -1435,6 +1437,7 @@ export function TimelineWorkbench<
       inspectorContext={inspectorContext}
       overlaps={overlaps}
       pixelsPerSecond={pixelsPerSecond}
+      minPixelsPerSecond={minPixelsPerSecond}
       readOnly={readOnly}
       resolvedHotkeys={resolvedHotkeys}
       resolvedSnap={resolvedSnap}
@@ -1599,6 +1602,7 @@ export function TimelineWorkbench<
         getTrackContextMenuItems={getWorkbenchTrackContextMenuItems}
         readOnly={readOnly}
         tool={resolvedTool}
+        minPixelsPerSecond={minPixelsPerSecond}
         minItemDurationMs={minItemDurationMs}
         renderTimelineItem={renderResolvedTimelineItem}
         renderTrackGroupHeader={renderTrackGroupHeader}

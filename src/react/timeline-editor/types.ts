@@ -183,6 +183,7 @@ export type TimelineEditorProps<
   frameRate?: number;
   timeMode?: TimelineEditorTimeMode;
   tool?: TimelineEditorTool;
+  minPixelsPerSecond?: number;
   minItemDurationMs?: number;
   editPolicy?: Partial<TimelineEditorEditPolicy>;
   snap?: Partial<TimelineEditorSnapOptions>;
@@ -217,6 +218,7 @@ export type TimelineEditorProviderProps<
   | "getTimelineContextMenuItems"
   | "getTrackContextMenuItems"
   | "hotkeys"
+  | "minPixelsPerSecond"
   | "minItemDurationMs"
   | "onCurrentTimeChange"
   | "onDocumentChange"

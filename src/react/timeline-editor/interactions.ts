@@ -295,7 +295,7 @@ export function getTimelineEditorTimeAtClientX(
   const timelineOffsetPx =
     clientX - scrollerRect.left + scroller.scrollLeft - timelineEditorTrackHeaderWidthPx;
   return clampTimelineEditorTime(
-    (timelineOffsetPx / Math.max(1, pixelsPerSecond)) * 1_000,
+    (timelineOffsetPx / Math.max(Number.EPSILON, pixelsPerSecond)) * 1_000,
     0,
     durationMs,
   );
