@@ -18,64 +18,79 @@
     "url": "git+https://github.com/moritzbrantner/timeline-editor.git"
   },
   "files": [
-    "dist"
+    "dist",
+    "src"
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
     "./core": {
+      "source": "./src/core.ts",
       "types": "./dist/core.d.ts",
       "import": "./dist/core.js"
     },
     "./react": {
+      "source": "./src/react.tsx",
       "types": "./dist/react.d.ts",
       "import": "./dist/react.js"
     },
     "./commands": {
+      "source": "./src/commands.ts",
       "types": "./dist/commands.d.ts",
       "import": "./dist/commands.js"
     },
     "./history": {
+      "source": "./src/history.ts",
       "types": "./dist/history.d.ts",
       "import": "./dist/history.js"
     },
     "./serialization": {
+      "source": "./src/serialization.ts",
       "types": "./dist/serialization.d.ts",
       "import": "./dist/serialization.js"
     },
     "./extensions": {
+      "source": "./src/extensions.ts",
       "types": "./dist/extensions.d.ts",
       "import": "./dist/extensions.js"
     },
     "./media-types": {
+      "source": "./src/media-types.ts",
       "types": "./dist/media-types.d.ts",
       "import": "./dist/media-types.js"
     },
     "./media-import": {
+      "source": "./src/media-import.ts",
       "types": "./dist/media-import.d.ts",
       "import": "./dist/media-import.js"
     },
     "./text": {
+      "source": "./src/text.ts",
       "types": "./dist/text.d.ts",
       "import": "./dist/text.js"
     },
     "./audio": {
+      "source": "./src/audio.ts",
       "types": "./dist/audio.d.ts",
       "import": "./dist/audio.js"
     },
     "./video": {
+      "source": "./src/video.ts",
       "types": "./dist/video.d.ts",
       "import": "./dist/video.js"
     },
     "./image": {
+      "source": "./src/image.ts",
       "types": "./dist/image.d.ts",
       "import": "./dist/image.js"
     },
     "./data": {
+      "source": "./src/data.ts",
       "types": "./dist/data.d.ts",
       "import": "./dist/data.js"
     }
@@ -95,7 +110,7 @@
     "@playwright/test": "^1.60.0",
     "@storybook/addon-a11y": "10.4.1",
     "@storybook/addon-docs": "^10.4.1",
-    "@storybook/addon-vitest": "^10.4.1",
+    "@storybook/addon-vitest": "10.4.1",
     "@storybook/builder-vite": "^10.4.1",
     "@storybook/react-vite": "^10.4.1",
     "@tailwindcss/vite": "^4.3.0",
@@ -140,7 +155,8 @@
     "test:unit": "vitest run --config vitest.config.ts",
     "test:rust": "cargo test --workspace",
     "test:integration": "vitest run --config vitest.storybook.config.ts",
-    "test:package": "node ./tests/package/boundary.mjs && bun run build:packages && node ./tests/package/export-contract.mjs && node ./tests/package/smoke.mjs",
+    "test:source-exports": "node ./tests/package/source-exports.mjs",
+    "test:package": "node ./tests/package/boundary.mjs && bun run test:source-exports && bun run build:packages && node ./tests/package/export-contract.mjs && node ./tests/package/smoke.mjs",
     "update:export-contract": "UPDATE_EXPORT_CONTRACT=1 node ./tests/package/export-contract.mjs",
     "test:a11y": "playwright test src/react/workbench/workbench-a11y.playwright.spec.ts",
     "test:lighthouse": "node ./tests/performance/run-unlighthouse.mjs",
