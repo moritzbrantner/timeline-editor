@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { access, lstat, mkdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -41,10 +41,7 @@ async function prepare() {
     fail(`${dependency.packageName} source checkout has no build script: ${sourceDir}`);
   }
   run("bun", ["run", "build"], sourceDir);
-
-  await mkdir(path.dirname(targetDir), { recursive: true });
-  await rm(targetDir, { force: true, recursive: true });
-  await symlink(sourceDir, targetDir, process.platform === "win32" ? "junction" : "dir");
+  await writeSourceFacade(sourceManifest);
 
   const revision = run("git", ["rev-parse", "HEAD"], sourceDir, true).trim();
   await mkdir(stateDir, { recursive: true });
@@ -67,6 +64,27 @@ async function prepare() {
   );
 }
 
+async function writeSourceFacade(sourceManifest) {
+  const sourceDistDir = path.join(sourceDir, "dist");
+  try {
+    await access(sourceDistDir);
+  } catch {
+    fail(`${dependency.packageName} source build did not create ${sourceDistDir}`);
+  }
+
+  await rm(targetDir, { force: true, recursive: true });
+  await mkdir(targetDir, { recursive: true });
+  await writeFile(
+    path.join(targetDir, "package.json"),
+    `${JSON.stringify({ ...sourceManifest, name: dependency.packageName }, null, 2)}\n`,
+  );
+  await symlink(
+    sourceDistDir,
+    path.join(targetDir, "dist"),
+    process.platform === "win32" ? "junction" : "dir",
+  );
+}
+
 async function restore() {
   await rm(targetDir, { force: true, recursive: true });
   await rm(stateFile, { force: true });
@@ -75,22 +93,21 @@ async function restore() {
 }
 
 async function status() {
-  const linked = await isSymlink(targetDir);
-  if (!linked) {
+  let state;
+  try {
+    state = JSON.parse(await readFile(stateFile, "utf8"));
+    await access(path.join(targetDir, "package.json"));
+  } catch {
+    state = undefined;
+  }
+  if (!state) {
     process.stdout.write(`registry dependency active: ${dependency.packageName}\n`);
     return;
   }
 
-  const resolved = await realpath(targetDir);
-  let state;
-  try {
-    state = JSON.parse(await readFile(stateFile, "utf8"));
-  } catch {
-    state = undefined;
-  }
-  const suffix = state?.revision ? ` @ ${state.revision.slice(0, 12)}` : "";
+  const suffix = state.revision ? ` @ ${state.revision.slice(0, 12)}` : "";
   process.stdout.write(
-    `source dependency active: ${dependency.packageName} -> ${resolved}${suffix}\n`,
+    `source dependency active: ${dependency.packageName} -> ${state.sourceDir}${suffix}\n`,
   );
 }
 
@@ -124,14 +141,6 @@ async function readSourceManifest() {
     );
   }
   return manifest;
-}
-
-async function isSymlink(filePath) {
-  try {
-    return (await lstat(filePath)).isSymbolicLink();
-  } catch {
-    return false;
-  }
 }
 
 function run(executable, args, cwd, capture = false) {
