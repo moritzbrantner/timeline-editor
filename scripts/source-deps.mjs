@@ -78,7 +78,10 @@ async function writeSourceFacade(sourceManifest) {
     path.join(targetDir, "package.json"),
     `${JSON.stringify({ ...sourceManifest, name: dependency.packageName }, null, 2)}\n`,
   );
-  await cp(sourceDistDir, path.join(targetDir, "dist"), { force: true, recursive: true });
+  await cp(sourceDistDir, path.join(targetDir, "dist"), {
+    force: true,
+    recursive: true,
+  });
 }
 
 async function restore() {
@@ -109,7 +112,9 @@ async function smoke() {
 
   const manifest = JSON.parse(await readFile(path.join(targetDir, "package.json"), "utf8"));
   if (manifest.name !== dependency.packageName) {
-    fail(`source facade has package name ${manifest.name ?? "unknown"}, expected ${dependency.packageName}`);
+    fail(
+      `source facade has package name ${manifest.name ?? "unknown"}, expected ${dependency.packageName}`,
+    );
   }
 
   await import(dependency.packageName);
