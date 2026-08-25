@@ -131,8 +131,8 @@
     "dev:source": "bun run source:prepare && bun run dev",
     "source:prepare": "node scripts/source-deps.mjs prepare",
     "source:status": "node scripts/source-deps.mjs status",
+    "source:smoke": "node scripts/source-deps.mjs smoke",
     "source:restore": "node scripts/source-deps.mjs restore",
-    "source:watch": "node scripts/source-deps.mjs watch",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "lint": "oxlint --format=github",
@@ -153,7 +153,7 @@
     "test:regression": "playwright test src/react/workbench/workbench-basic-regressions.playwright.spec.ts",
     "test:storybook": "vitest run --config vitest.storybook.config.ts",
     "verify:checks": "bun run format:check && bun run lint && bun run check-types && bun run test && bun run test:packages && bun run test:rust && bun run test:playwright && bun run test:lighthouse && bun run build-storybook && bun run build && bun run build:packages && bun run build:wasm && bun run check-examples && bun run test:package",
-    "verify:source": "bun run source:prepare && bun run verify:quick && bun run build && bun run build:packages && bun run check-examples",
+    "verify:source": "bun run source:prepare && bun run source:smoke && bun run verify:quick && bun run build && bun run build:packages && bun run check-examples",
     "verify:registry": "bun run source:restore && bun run verify:checks",
     "verify": "bun run verify:registry",
     "verify:quick": "bun run check-types && bun run test:unit && bun run test:packages && bun run test:rust && bun run test:regression"
