@@ -31,7 +31,11 @@ assert(
   "React peer dependency contract changed",
 );
 
-assertSetEqual(packageJson.files ?? [], ["dist"], "Published files should stay limited to dist");
+assertSetEqual(
+  packageJson.files ?? [],
+  ["dist", "src"],
+  "Published root files should stay limited to dist and source exports",
+);
 
 for (const packageName of expectedSplitPackages.keys()) {
   assert(
