@@ -10,6 +10,8 @@ permissions:
 jobs:
   editor-core-source:
     runs-on: ubuntu-latest
+    env:
+      EDITOR_CORE_SOURCE: ${{ github.workspace }}/.source/editor-core
     steps:
       - name: Check out timeline-editor
         uses: actions/checkout@v6
@@ -25,10 +27,11 @@ jobs:
         with:
           bun-version: 1.3.14
 
-      - name: Verify against editor-core source
-        run: bun run verify:source
-        env:
-          EDITOR_CORE_SOURCE: ${{ github.workspace }}/.source/editor-core
+      - name: Prepare editor-core source
+        run: bun run source:prepare
+
+      - name: Smoke-test source package resolution
+        run: bun run source:smoke
 
       - name: Report active source
         if: always()
