@@ -89,7 +89,9 @@ async function status() {
     state = undefined;
   }
   const suffix = state?.revision ? ` @ ${state.revision.slice(0, 12)}` : "";
-  process.stdout.write(`source dependency active: ${dependency.packageName} -> ${resolved}${suffix}\n`);
+  process.stdout.write(
+    `source dependency active: ${dependency.packageName} -> ${resolved}${suffix}\n`,
+  );
 }
 
 async function watch() {
