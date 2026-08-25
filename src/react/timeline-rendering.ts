@@ -19,7 +19,7 @@ export function getTimelineEditorDurationForDocument<TTrackData, TItemData>(
 }
 
 export function getTimelineEditorWidthPx(durationMs: number, pixelsPerSecond: number) {
-  return Math.max((durationMs / 1_000) * pixelsPerSecond, 640);
+  return Math.max((durationMs / 1_000) * pixelsPerSecond, 1);
 }
 
 export function getTimelineEditorItemStyle(
@@ -45,7 +45,7 @@ export function getTimelineEditorTimeFromPointer(
 }
 
 export function getTimelineEditorTimeFromDelta(deltaX: number, pixelsPerSecond: number) {
-  return (deltaX / Math.max(1, pixelsPerSecond)) * 1_000;
+  return (deltaX / Math.max(Number.EPSILON, pixelsPerSecond)) * 1_000;
 }
 
 export function getVisibleTimelineEditorTicks(

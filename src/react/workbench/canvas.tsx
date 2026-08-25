@@ -55,6 +55,7 @@ type TimelineWorkbenchCanvasProps<
   hotkeys?: Partial<TimelineEditorHotkeys>;
   readOnly: boolean;
   tool?: TimelineEditorTool;
+  minPixelsPerSecond: number;
   minItemDurationMs?: number;
   resolvedSelection: TimelineEditorSelection;
   snap?: Partial<TimelineEditorSnapOptions>;
@@ -96,6 +97,7 @@ export function TimelineWorkbenchCanvas<
   hotkeys,
   readOnly,
   tool,
+  minPixelsPerSecond,
   minItemDurationMs,
   resolvedSelection,
   snap,
@@ -149,7 +151,7 @@ export function TimelineWorkbenchCanvas<
       0,
       Math.min(
         document.durationMs ?? Number.POSITIVE_INFINITY,
-        (timelineOffsetPx / Math.max(1, resolvedViewport.pixelsPerSecond)) * 1_000,
+        (timelineOffsetPx / Math.max(Number.EPSILON, resolvedViewport.pixelsPerSecond)) * 1_000,
       ),
     );
     const timeMs = Math.max(
@@ -255,6 +257,7 @@ export function TimelineWorkbenchCanvas<
           frameRate={frameRate}
           timeMode={timeMode}
           tool={tool}
+          minPixelsPerSecond={minPixelsPerSecond}
           minItemDurationMs={minItemDurationMs}
           editPolicy={editPolicy}
           readOnly={readOnly}

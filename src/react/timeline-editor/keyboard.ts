@@ -18,6 +18,7 @@ type TimelineEditorKeyboardOptions<TTrackData extends Record<string, unknown>, T
   durationMs: number;
   editPolicy?: Partial<TimelineEditorEditPolicy>;
   hotkeys: TimelineEditorHotkeys;
+  minPixelsPerSecond: number;
   nudgeMs: number;
   readOnly: boolean;
   selection: TimelineEditorSelection;
@@ -33,6 +34,7 @@ export function useTimelineEditorKeyboard<TTrackData extends Record<string, unkn
   durationMs,
   editPolicy,
   hotkeys,
+  minPixelsPerSecond,
   nudgeMs,
   readOnly,
   selection,
@@ -108,7 +110,11 @@ export function useTimelineEditorKeyboard<TTrackData extends Record<string, unkn
       const direction = matchesHotkey(event, hotkeys.zoomIn) ? 1 : -1;
       onViewportChange?.({
         ...viewport,
-        pixelsPerSecond: getNextTimelineEditorPixelsPerSecond(viewport.pixelsPerSecond, direction),
+        pixelsPerSecond: getNextTimelineEditorPixelsPerSecond(
+          viewport.pixelsPerSecond,
+          direction,
+          minPixelsPerSecond,
+        ),
       });
     }
   };
