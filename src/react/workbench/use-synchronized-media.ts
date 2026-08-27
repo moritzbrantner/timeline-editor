@@ -103,12 +103,7 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
   useEffect(() => {
     const element = elementRef.current;
 
-    if (
-      !element ||
-      !mediaClock ||
-      !activeForForwardPlayback ||
-      transport.status !== "playing"
-    ) {
+    if (!element || !mediaClock || !activeForForwardPlayback || transport.status !== "playing") {
       return;
     }
 
@@ -116,13 +111,7 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
     mediaClock.register(mediaClockId, priority);
 
     return () => mediaClock.unregister(mediaClockId);
-  }, [
-    activeForForwardPlayback,
-    elementRef,
-    mediaClock,
-    mediaClockId,
-    transport.status,
-  ]);
+  }, [activeForForwardPlayback, elementRef, mediaClock, mediaClockId, transport.status]);
 
   useEffect(() => {
     const element = elementRef.current;
@@ -268,12 +257,7 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
   useEffect(() => {
     const element = elementRef.current;
 
-    if (
-      !element ||
-      !mediaClock ||
-      !activeForForwardPlayback ||
-      transport.status !== "playing"
-    ) {
+    if (!element || !mediaClock || !activeForForwardPlayback || transport.status !== "playing") {
       return;
     }
 
@@ -293,8 +277,7 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
         }),
       );
     };
-    const video =
-      element.tagName === "VIDEO" ? (element as TimelineVideoFrameElement) : undefined;
+    const video = element.tagName === "VIDEO" ? (element as TimelineVideoFrameElement) : undefined;
 
     if (video?.requestVideoFrameCallback) {
       const requestVideoFrameCallback = video.requestVideoFrameCallback.bind(video);
