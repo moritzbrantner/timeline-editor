@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type RefObject } from "react";
 
 import { getTimelineEditorItemEndMs, type TimelineEditorItem } from "../../core";
 import type {
@@ -20,7 +20,30 @@ export type TimelineWorkbenchSynchronizedMediaElementOptions = {
   volume?: number;
 };
 
-const forwardPlaybackSeekThresholdMs = 500;
+type TimelineWorkbenchMediaClock = {
+  seekGeneration: number;
+  register: (clockId: string, priority?: number) => void;
+  unregister: (clockId: string) => void;
+  isOwner: (clockId: string) => boolean;
+  reportTime: (clockId: string, timelineTimeMs: number) => void;
+};
+
+type TimelinePreviewTransportContextWithMediaClock = TimelinePreviewTransportContext & {
+  mediaClock?: TimelineWorkbenchMediaClock;
+};
+
+type TimelineVideoFrameMetadata = {
+  mediaTime: number;
+};
+
+type TimelineVideoFrameElement = HTMLVideoElement & {
+  requestVideoFrameCallback?: (
+    callback: (now: number, metadata: TimelineVideoFrameMetadata) => void,
+  ) => number;
+  cancelVideoFrameCallback?: (handle: number) => void;
+};
+
+const followerPlaybackSeekThresholdMs = 500;
 const pausedSeekThresholdMs = 40;
 const startupSeekThresholdMs = 80;
 
@@ -39,17 +62,23 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
   const playbackStartedRef = useRef(false);
   const lastPlayAttemptSignatureRef = useRef<string | null>(null);
   const lastSourceTimingKeyRef = useRef<string | null>(null);
+  const lastMediaSeekGenerationRef = useRef<number | null>(null);
   const lastSyncSnapshotRef = useRef<{
-    currentTimeMs: number;
     playbackRate: number;
     sourceTimingKey: string;
     status: TimelinePreviewTransportContext["status"];
   } | null>(null);
+  const mediaClockInstanceId = useId();
+  const mediaClockId = `${item.id}:${mediaClockInstanceId}`;
+  const mediaClock = (transport as TimelinePreviewTransportContextWithMediaClock).mediaClock;
   const localTimeMs = getTimelineWorkbenchMediaLocalTimeMs(item, currentTimeMs, {
     sourceStartMs,
     sourceEndMs,
   });
-  const active = currentTimeMs >= item.startMs && currentTimeMs <= getTimelineEditorItemEndMs(item);
+  const itemEndMs = getTimelineEditorItemEndMs(item);
+  const active = currentTimeMs >= item.startMs && currentTimeMs <= itemEndMs;
+  const activeForForwardPlayback =
+    currentTimeMs >= item.startMs && currentTimeMs < itemEndMs && transport.playbackRate > 0;
   const setBlockedState = (nextBlocked: boolean) => {
     blockedRef.current = nextBlocked;
     setBlocked(nextBlocked);
@@ -74,6 +103,19 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
   useEffect(() => {
     const element = elementRef.current;
 
+    if (!element || !mediaClock || !activeForForwardPlayback || transport.status !== "playing") {
+      return;
+    }
+
+    const priority = element.tagName === "VIDEO" ? 100 : 50;
+    mediaClock.register(mediaClockId, priority);
+
+    return () => mediaClock.unregister(mediaClockId);
+  }, [activeForForwardPlayback, elementRef, mediaClock, mediaClockId, transport.status]);
+
+  useEffect(() => {
+    const element = elementRef.current;
+
     if (!element) {
       return;
     }
@@ -85,13 +127,15 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
     }`;
     const previousSnapshot = lastSyncSnapshotRef.current;
     const sourceTimingChanged = lastSourceTimingKeyRef.current !== sourceTimingKey;
+    const mediaSeekGeneration = mediaClock?.seekGeneration ?? 0;
+    const explicitSeekRequested = lastMediaSeekGenerationRef.current !== mediaSeekGeneration;
     const rememberSyncSnapshot = () => {
       lastSyncSnapshotRef.current = {
-        currentTimeMs,
         playbackRate: transport.playbackRate,
         sourceTimingKey,
         status: transport.status,
       };
+      lastMediaSeekGenerationRef.current = mediaSeekGeneration;
     };
     const seek = () => {
       if (Number.isFinite(localTimeSeconds)) {
@@ -142,27 +186,24 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
     }
 
     element.playbackRate = transport.playbackRate;
-    const previousTimelineDeltaMs = previousSnapshot
-      ? currentTimeMs - previousSnapshot.currentTimeMs
-      : 0;
-    const shouldSeekForwardPlayback =
+    const mediaOwnsPlayback = mediaClock?.isOwner(mediaClockId) ?? false;
+    const shouldSeekForPlaybackTransition =
       sourceTimingChanged ||
       !playbackStartedRef.current ||
       previousSnapshot?.status !== "playing" ||
       previousSnapshot?.playbackRate !== transport.playbackRate ||
       previousSnapshot?.sourceTimingKey !== sourceTimingKey ||
-      previousTimelineDeltaMs < -pausedSeekThresholdMs ||
-      Math.abs(previousTimelineDeltaMs) > forwardPlaybackSeekThresholdMs;
+      explicitSeekRequested;
 
     if (
-      driftMs > startupSeekThresholdMs &&
-      (shouldSeekForwardPlayback || driftMs > forwardPlaybackSeekThresholdMs)
+      (shouldSeekForPlaybackTransition && driftMs > startupSeekThresholdMs) ||
+      (!mediaOwnsPlayback && driftMs > followerPlaybackSeekThresholdMs)
     ) {
       seek();
       setBlockedState(false);
     }
 
-    const playAttemptSignature = `${sourceTimingKey}:${transport.playbackRate}:${Math.floor(
+    const playAttemptSignature = `${sourceTimingKey}:${transport.playbackRate}:${mediaSeekGeneration}:${Math.floor(
       localTimeMs / 250,
     )}`;
     const shouldStartPlayback = element.paused || blockedRef.current || !playbackStartedRef.current;
@@ -205,9 +246,103 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
     currentTimeMs,
     elementRef,
     localTimeMs,
+    mediaClock,
+    mediaClockId,
     sourceEndMs,
     sourceStartMs,
     transport.playbackRate,
+    transport.status,
+  ]);
+
+  useEffect(() => {
+    const element = elementRef.current;
+
+    if (!element || !mediaClock || !activeForForwardPlayback || transport.status !== "playing") {
+      return;
+    }
+
+    let animationFrame: number | null = null;
+    let videoFrameCallback: number | null = null;
+    let cancelled = false;
+    const reportMediaTime = (mediaTimeSeconds: number) => {
+      if (cancelled || element.paused || !mediaClock.isOwner(mediaClockId)) {
+        return;
+      }
+
+      mediaClock.reportTime(
+        mediaClockId,
+        getTimelineWorkbenchTimelineTimeMsFromMedia(item, mediaTimeSeconds, {
+          sourceStartMs,
+          sourceEndMs,
+        }),
+      );
+    };
+    const video = element.tagName === "VIDEO" ? (element as TimelineVideoFrameElement) : undefined;
+
+    if (video?.requestVideoFrameCallback) {
+      const requestVideoFrameCallback = video.requestVideoFrameCallback.bind(video);
+      const scheduleVideoFrame = () => {
+        videoFrameCallback = requestVideoFrameCallback((_now, metadata) => {
+          if (cancelled) {
+            return;
+          }
+
+          reportMediaTime(metadata.mediaTime);
+          scheduleVideoFrame();
+        });
+      };
+
+      scheduleVideoFrame();
+    } else {
+      const stopAnimationFrame = () => {
+        if (animationFrame !== null) {
+          cancelAnimationFrame(animationFrame);
+          animationFrame = null;
+        }
+      };
+      const tick = () => {
+        if (cancelled || element.paused) {
+          animationFrame = null;
+          return;
+        }
+
+        reportMediaTime(element.currentTime);
+        animationFrame = requestAnimationFrame(tick);
+      };
+      const startAnimationFrame = () => {
+        if (animationFrame === null) {
+          animationFrame = requestAnimationFrame(tick);
+        }
+      };
+      const reportTimeUpdate = () => reportMediaTime(element.currentTime);
+
+      element.addEventListener("playing", startAnimationFrame);
+      element.addEventListener("pause", stopAnimationFrame);
+      element.addEventListener("timeupdate", reportTimeUpdate);
+
+      return () => {
+        cancelled = true;
+        stopAnimationFrame();
+        element.removeEventListener("playing", startAnimationFrame);
+        element.removeEventListener("pause", stopAnimationFrame);
+        element.removeEventListener("timeupdate", reportTimeUpdate);
+      };
+    }
+
+    return () => {
+      cancelled = true;
+      if (videoFrameCallback !== null) {
+        video?.cancelVideoFrameCallback?.(videoFrameCallback);
+      }
+    };
+  }, [
+    activeForForwardPlayback,
+    elementRef,
+    item,
+    mediaClock,
+    mediaClockId,
+    sourceEndMs,
+    sourceStartMs,
     transport.status,
   ]);
 
@@ -360,4 +495,21 @@ function getTimelineWorkbenchMediaLocalTimeMs(
   const upperBoundMs = Math.max(lowerBoundMs, resolvedUpperBoundMs);
 
   return Math.max(lowerBoundMs, Math.min(upperBoundMs, unclampedLocalTimeMs));
+}
+
+function getTimelineWorkbenchTimelineTimeMsFromMedia(
+  item: TimelineEditorItem<unknown>,
+  mediaTimeSeconds: number,
+  options: { sourceStartMs: number; sourceEndMs?: number },
+) {
+  const lowerBoundMs = Math.max(0, options.sourceStartMs);
+  const resolvedUpperBoundMs = options.sourceEndMs ?? lowerBoundMs + item.durationMs;
+  const upperBoundMs = Math.max(lowerBoundMs, resolvedUpperBoundMs);
+  const finiteMediaTimeMs = Number.isFinite(mediaTimeSeconds)
+    ? mediaTimeSeconds * 1_000
+    : lowerBoundMs;
+  const mediaTimeMs = Math.max(lowerBoundMs, Math.min(upperBoundMs, finiteMediaTimeMs));
+  const timelineTimeMs = item.startMs + mediaTimeMs - lowerBoundMs;
+
+  return Math.max(item.startMs, Math.min(getTimelineEditorItemEndMs(item), timelineTimeMs));
 }
