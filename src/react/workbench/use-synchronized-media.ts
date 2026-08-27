@@ -293,18 +293,20 @@ export function useTimelineWorkbenchSynchronizedMediaElement({
         }),
       );
     };
-    const video = element.tagName === "VIDEO" ? (element as TimelineVideoFrameElement) : undefined;
+    const video =
+      element.tagName === "VIDEO" ? (element as TimelineVideoFrameElement) : undefined;
 
     if (video?.requestVideoFrameCallback) {
+      const requestVideoFrameCallback = video.requestVideoFrameCallback.bind(video);
       const scheduleVideoFrame = () => {
-        videoFrameCallback = video.requestVideoFrameCallback?.((_now, metadata) => {
+        videoFrameCallback = requestVideoFrameCallback((_now, metadata) => {
           if (cancelled) {
             return;
           }
 
           reportMediaTime(metadata.mediaTime);
           scheduleVideoFrame();
-        }) ?? null;
+        });
       };
 
       scheduleVideoFrame();
@@ -520,10 +522,10 @@ function getTimelineWorkbenchTimelineTimeMsFromMedia(
   const lowerBoundMs = Math.max(0, options.sourceStartMs);
   const resolvedUpperBoundMs = options.sourceEndMs ?? lowerBoundMs + item.durationMs;
   const upperBoundMs = Math.max(lowerBoundMs, resolvedUpperBoundMs);
-  const mediaTimeMs = Math.max(
-    lowerBoundMs,
-    Math.min(upperBoundMs, Number.isFinite(mediaTimeSeconds) ? mediaTimeSeconds * 1_000 : lowerBoundMs),
-  );
+  const finiteMediaTimeMs = Number.isFinite(mediaTimeSeconds)
+    ? mediaTimeSeconds * 1_000
+    : lowerBoundMs;
+  const mediaTimeMs = Math.max(lowerBoundMs, Math.min(upperBoundMs, finiteMediaTimeMs));
   const timelineTimeMs = item.startMs + mediaTimeMs - lowerBoundMs;
 
   return Math.max(item.startMs, Math.min(getTimelineEditorItemEndMs(item), timelineTimeMs));
