@@ -1,9 +1,7 @@
 name: Format Debug
 
 on:
-  push:
-    branches:
-      - refactor/media-playback-clock
+  pull_request:
 
 permissions:
   contents: read
