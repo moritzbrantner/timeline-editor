@@ -44,7 +44,11 @@ import {
   getTimelineEditorWidthPx,
   getVisibleTimelineEditorTicksForRange,
 } from "../timeline-rendering";
-import { defaultTimelineEditorHotkeys, timelineEditorTrackHeaderWidthPx } from "./constants";
+import {
+  defaultTimelineEditorHotkeys,
+  timelineEditorMinPixelsPerSecond,
+  timelineEditorTrackHeaderWidthPx,
+} from "./constants";
 import { getTimelineEditorNudgeMs } from "./hotkeys";
 import {
   getTimelineEditorDragCommitTracks,
@@ -120,6 +124,7 @@ export function TimelineEditorProvider<
   frameRate,
   timeMode,
   tool = "select",
+  minPixelsPerSecond = timelineEditorMinPixelsPerSecond,
   minItemDurationMs,
   editPolicy,
   snap,
@@ -249,6 +254,7 @@ export function TimelineEditorProvider<
     document,
     durationMs,
     hotkeys: resolvedHotkeys,
+    minPixelsPerSecond,
     editPolicy,
     nudgeMs,
     readOnly,
@@ -380,7 +386,7 @@ export function TimelineEditorProvider<
         ? event.clientX - scrollerRect.left + scroller.scrollLeft - timelineEditorTrackHeaderWidthPx
         : 0;
     const timeMs = clampTimelineEditorTime(
-      (timelineOffsetPx / Math.max(1, resolvedViewport.pixelsPerSecond)) * 1_000,
+      (timelineOffsetPx / Math.max(Number.EPSILON, resolvedViewport.pixelsPerSecond)) * 1_000,
       0,
       durationMs,
     );
@@ -810,6 +816,7 @@ export function TimelineEditorProvider<
       const nextPixelsPerSecond = getNextTimelineEditorPixelsPerSecond(
         resolvedViewport.pixelsPerSecond,
         direction,
+        minPixelsPerSecond,
       );
 
       if (nextPixelsPerSecond === resolvedViewport.pixelsPerSecond) {
@@ -824,7 +831,7 @@ export function TimelineEditorProvider<
       );
       const timeMs = clampTimelineEditorTime(
         ((scroller.scrollLeft + offsetX - timelineEditorTrackHeaderWidthPx) /
-          Math.max(1, resolvedViewport.pixelsPerSecond)) *
+          Math.max(Number.EPSILON, resolvedViewport.pixelsPerSecond)) *
           1_000,
         0,
         durationMs,
@@ -835,7 +842,7 @@ export function TimelineEditorProvider<
         pixelsPerSecond: nextPixelsPerSecond,
       });
     },
-    [durationMs, onViewportChange, resolvedViewport],
+    [durationMs, minPixelsPerSecond, onViewportChange, resolvedViewport],
   );
 
   useEffect(() => {

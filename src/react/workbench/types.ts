@@ -332,6 +332,7 @@ export type TimelineWorkbenchProps<
   selection?: TimelineEditorSelection;
   readOnly?: boolean;
   pixelsPerSecond?: number;
+  minPixelsPerSecond?: number;
   viewport?: TimelineEditorViewport;
   frameRate?: number;
   timeMode?: TimelineEditorTimeMode;

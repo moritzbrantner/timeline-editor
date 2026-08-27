@@ -68,11 +68,9 @@ async function collectExports(packageDirectory, packageJson) {
     Object.keys(packageExports)
       .sort((left, right) => left.localeCompare(right))
       .map(async (subpath) => {
-        const importTarget = resolveImportTarget(
-          packageJson.name,
-          subpath,
-          packageExports[subpath],
-        );
+        const exportTarget = packageExports[subpath];
+        validateSourceTarget(packageDirectory, packageJson, subpath, exportTarget);
+        const importTarget = resolveImportTarget(packageJson.name, subpath, exportTarget);
         const importPath = path.resolve(packageDirectory, importTarget);
 
         assert(
@@ -90,6 +88,29 @@ async function collectExports(packageDirectory, packageJson) {
   );
 
   return Object.fromEntries(entries);
+}
+
+function validateSourceTarget(packageDirectory, packageJson, subpath, exportTarget) {
+  if (
+    !exportTarget ||
+    typeof exportTarget !== "object" ||
+    typeof exportTarget.source !== "string"
+  ) {
+    return;
+  }
+
+  assert(
+    exportTarget.source.startsWith("./src/"),
+    `${packageJson.name} export ${subpath} source target must resolve inside ./src`,
+  );
+  assert(
+    existsSync(path.resolve(packageDirectory, exportTarget.source)),
+    `${packageJson.name} export ${subpath} source target is missing: ${exportTarget.source}`,
+  );
+  assert(
+    Array.isArray(packageJson.files) && packageJson.files.includes("src"),
+    `${packageJson.name} must include src in package files when source exports are declared`,
+  );
 }
 
 function resolveImportTarget(packageName, subpath, exportTarget) {

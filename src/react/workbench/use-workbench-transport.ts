@@ -22,6 +22,23 @@ import type {
 } from "./types";
 import { isTimelineWorkbenchCurrentTimeOnlyChange } from "./use-workbench-state";
 
+type TimelineWorkbenchMediaClock = {
+  seekGeneration: number;
+  register: (clockId: string, priority?: number) => void;
+  unregister: (clockId: string) => void;
+  isOwner: (clockId: string) => boolean;
+  reportTime: (clockId: string, timelineTimeMs: number) => void;
+};
+
+type TimelinePreviewTransportContextWithMediaClock = TimelinePreviewTransportContext & {
+  mediaClock: TimelineWorkbenchMediaClock;
+};
+
+type TimelineWorkbenchMediaClockCandidate = {
+  priority: number;
+  order: number;
+};
+
 export type TimelineWorkbenchTransportController = {
   resolvedTransportState: TimelineWorkbenchTransportState;
   transportLoopRange: TimelineEditorTimeRange | undefined;
@@ -58,6 +75,8 @@ export type UseTimelineWorkbenchTransportOptions<TTrackData, TItemData> = {
   commitDocument: (nextDocument: TimelineEditorDocument<TTrackData, TItemData>) => void;
 };
 
+const internalClockTimeToleranceMs = 2;
+
 export function useTimelineWorkbenchTransport<TTrackData, TItemData>({
   document,
   durationMs,
@@ -77,6 +96,7 @@ export function useTimelineWorkbenchTransport<TTrackData, TItemData>({
     useState<TimelineWorkbenchTransportState>(() =>
       resolveTimelineWorkbenchTransportState(defaultTransportState),
     );
+  const [mediaSeekGeneration, setMediaSeekGeneration] = useState(0);
   const previewAnimationFrameRef = useRef<number | null>(null);
   const previewLastFrameTimestampRef = useRef<number | null>(null);
   const documentRef = useRef(document);
@@ -87,6 +107,12 @@ export function useTimelineWorkbenchTransport<TTrackData, TItemData>({
   const resolvedTransportState = transportState ?? internalTransportState;
   const transportStateRef = useRef(resolvedTransportState);
   const onTransportStateChangeRef = useRef(onTransportStateChange);
+  const previousCurrentTimeRef = useRef(currentTimeMs);
+  const recentInternalClockTimesRef = useRef<number[]>([]);
+  const mediaClockCandidatesRef = useRef(new Map<string, TimelineWorkbenchMediaClockCandidate>());
+  const mediaClockOwnerIdRef = useRef<string | null>(null);
+  const mediaClockHasReportedRef = useRef(false);
+  const nextMediaClockOrderRef = useRef(0);
 
   useEffect(() => {
     documentRef.current = document;
@@ -107,16 +133,33 @@ export function useTimelineWorkbenchTransport<TTrackData, TItemData>({
     previewLastFrameTimestampRef.current = null;
   }, []);
 
-  const commitPreviewCurrentTime = useCallback((timeMs: number) => {
-    const currentDocument = documentRef.current;
-    const nextDocument = setTimelineEditorCurrentTime(currentDocument, timeMs, {
-      durationMs: durationMsRef.current,
-      snapMs: 0,
-    });
-
-    onCurrentTimeChangeRef.current?.(nextDocument.currentTimeMs ?? 0);
-    commitDocumentRef.current(nextDocument);
+  const rememberInternalClockTime = useCallback((timeMs: number) => {
+    const recentTimes = recentInternalClockTimesRef.current;
+    recentTimes.push(timeMs);
+    if (recentTimes.length > 32) {
+      recentTimes.splice(0, recentTimes.length - 32);
+    }
   }, []);
+
+  const commitPreviewCurrentTime = useCallback(
+    (timeMs: number) => {
+      const currentDocument = documentRef.current;
+      const nextDocument = setTimelineEditorCurrentTime(currentDocument, timeMs, {
+        durationMs: durationMsRef.current,
+        snapMs: 0,
+      });
+      const resolvedTimeMs = nextDocument.currentTimeMs ?? 0;
+
+      if (Math.abs((currentDocument.currentTimeMs ?? 0) - resolvedTimeMs) <= Number.EPSILON) {
+        return;
+      }
+
+      rememberInternalClockTime(resolvedTimeMs);
+      onCurrentTimeChangeRef.current?.(resolvedTimeMs);
+      commitDocumentRef.current(nextDocument);
+    },
+    [rememberInternalClockTime],
+  );
 
   const commitTransportState = useCallback(
     (
@@ -137,6 +180,52 @@ export function useTimelineWorkbenchTransport<TTrackData, TItemData>({
       });
     },
     [transportState],
+  );
+
+  const recomputeMediaClockOwner = useCallback(() => {
+    let nextOwnerId: string | null = null;
+    let nextOwner: TimelineWorkbenchMediaClockCandidate | undefined;
+
+    for (const [clockId, candidate] of mediaClockCandidatesRef.current) {
+      if (
+        !nextOwner ||
+        candidate.priority > nextOwner.priority ||
+        (candidate.priority === nextOwner.priority && candidate.order < nextOwner.order)
+      ) {
+        nextOwnerId = clockId;
+        nextOwner = candidate;
+      }
+    }
+
+    if (mediaClockOwnerIdRef.current !== nextOwnerId) {
+      mediaClockOwnerIdRef.current = nextOwnerId;
+      mediaClockHasReportedRef.current = false;
+    }
+  }, []);
+
+  const registerMediaClock = useCallback(
+    (clockId: string, priority = 0) => {
+      const existing = mediaClockCandidatesRef.current.get(clockId);
+      mediaClockCandidatesRef.current.set(clockId, {
+        priority,
+        order: existing?.order ?? nextMediaClockOrderRef.current++,
+      });
+      recomputeMediaClockOwner();
+    },
+    [recomputeMediaClockOwner],
+  );
+
+  const unregisterMediaClock = useCallback(
+    (clockId: string) => {
+      mediaClockCandidatesRef.current.delete(clockId);
+      recomputeMediaClockOwner();
+    },
+    [recomputeMediaClockOwner],
+  );
+
+  const isMediaClockOwner = useCallback(
+    (clockId: string) => mediaClockOwnerIdRef.current === clockId,
+    [],
   );
 
   const pauseTransport = useCallback(
@@ -167,11 +256,13 @@ export function useTimelineWorkbenchTransport<TTrackData, TItemData>({
       if (loopRange) {
         if (rate > 0 && currentTime >= loopRange.endMs) {
           commitPreviewCurrentTime(loopRange.startMs);
+          setMediaSeekGeneration((generation) => generation + 1);
         } else if (rate < 0 && currentTime <= loopRange.startMs) {
           commitPreviewCurrentTime(loopRange.endMs);
         }
       } else if (rate > 0 && currentTime >= duration) {
         commitPreviewCurrentTime(0);
+        setMediaSeekGeneration((generation) => generation + 1);
       } else if (rate < 0 && currentTime <= 0) {
         commitPreviewCurrentTime(duration);
       }
@@ -240,6 +331,75 @@ export function useTimelineWorkbenchTransport<TTrackData, TItemData>({
     );
   }, [commitTransportState, readOnly]);
 
+  const reportMediaTime = useCallback(
+    (clockId: string, timelineTimeMs: number) => {
+      const state = transportStateRef.current;
+
+      if (
+        mediaClockOwnerIdRef.current !== clockId ||
+        state.status !== "playing" ||
+        state.playbackRate <= 0 ||
+        !Number.isFinite(timelineTimeMs)
+      ) {
+        return;
+      }
+
+      mediaClockHasReportedRef.current = true;
+      const duration = durationMsRef.current;
+      const loopRange = getTimelineWorkbenchTransportLoopRange(
+        state.loop,
+        resolvedSelectionRef.current.range,
+        duration,
+      );
+      const resolvedTime = resolveTimelineWorkbenchPlaybackTime(
+        timelineTimeMs,
+        duration,
+        state.playbackRate,
+        loopRange,
+      );
+      const wrapped = Math.abs(resolvedTime.timeMs - timelineTimeMs) > internalClockTimeToleranceMs;
+
+      commitPreviewCurrentTime(resolvedTime.timeMs);
+
+      if (wrapped) {
+        setMediaSeekGeneration((generation) => generation + 1);
+      }
+
+      if (resolvedTime.ended) {
+        commitTransportState({ ...state, status: "paused" }, "ended");
+        cancelPreviewAnimationFrame();
+      }
+    },
+    [cancelPreviewAnimationFrame, commitPreviewCurrentTime, commitTransportState],
+  );
+
+  useEffect(() => {
+    const previousCurrentTime = previousCurrentTimeRef.current;
+    previousCurrentTimeRef.current = currentTimeMs;
+
+    if (Math.abs(previousCurrentTime - currentTimeMs) <= Number.EPSILON) {
+      return;
+    }
+
+    const recentTimes = recentInternalClockTimesRef.current;
+    const internalTimeIndex = recentTimes.findIndex(
+      (timeMs) => Math.abs(timeMs - currentTimeMs) <= internalClockTimeToleranceMs,
+    );
+
+    if (internalTimeIndex >= 0) {
+      recentTimes.splice(0, internalTimeIndex + 1);
+      return;
+    }
+
+    recentTimes.length = 0;
+    if (
+      transportStateRef.current.status === "playing" &&
+      transportStateRef.current.playbackRate > 0
+    ) {
+      setMediaSeekGeneration((generation) => generation + 1);
+    }
+  }, [currentTimeMs]);
+
   useEffect(() => {
     if (resolvedTransportState.status !== "playing") {
       cancelPreviewAnimationFrame();
@@ -264,28 +424,35 @@ export function useTimelineWorkbenchTransport<TTrackData, TItemData>({
           return;
         }
 
-        const currentTime = documentRef.current.currentTimeMs ?? 0;
-        const elapsedMs = timestamp - lastTimestamp;
-        const nextTime = currentTime + elapsedMs * state.playbackRate;
-        const loopRange = getTimelineWorkbenchTransportLoopRange(
-          state.loop,
-          resolvedSelectionRef.current.range,
-          duration,
-        );
-        const resolvedTime = resolveTimelineWorkbenchPlaybackTime(
-          nextTime,
-          duration,
-          state.playbackRate,
-          loopRange,
-        );
+        const mediaOwnsForwardPlayback =
+          state.playbackRate > 0 &&
+          mediaClockOwnerIdRef.current !== null &&
+          mediaClockHasReportedRef.current;
 
-        commitPreviewCurrentTime(resolvedTime.timeMs);
+        if (!mediaOwnsForwardPlayback) {
+          const currentTime = documentRef.current.currentTimeMs ?? 0;
+          const elapsedMs = timestamp - lastTimestamp;
+          const nextTime = currentTime + elapsedMs * state.playbackRate;
+          const loopRange = getTimelineWorkbenchTransportLoopRange(
+            state.loop,
+            resolvedSelectionRef.current.range,
+            duration,
+          );
+          const resolvedTime = resolveTimelineWorkbenchPlaybackTime(
+            nextTime,
+            duration,
+            state.playbackRate,
+            loopRange,
+          );
 
-        if (resolvedTime.ended) {
-          commitTransportState({ ...state, status: "paused" }, "ended");
-          previewAnimationFrameRef.current = null;
-          previewLastFrameTimestampRef.current = null;
-          return;
+          commitPreviewCurrentTime(resolvedTime.timeMs);
+
+          if (resolvedTime.ended) {
+            commitTransportState({ ...state, status: "paused" }, "ended");
+            previewAnimationFrameRef.current = null;
+            previewLastFrameTimestampRef.current = null;
+            return;
+          }
         }
       }
 
@@ -336,6 +503,22 @@ export function useTimelineWorkbenchTransport<TTrackData, TItemData>({
     selection.range,
     durationMs,
   );
+  const mediaClock = useMemo<TimelineWorkbenchMediaClock>(
+    () => ({
+      seekGeneration: mediaSeekGeneration,
+      register: registerMediaClock,
+      unregister: unregisterMediaClock,
+      isOwner: isMediaClockOwner,
+      reportTime: reportMediaTime,
+    }),
+    [
+      isMediaClockOwner,
+      mediaSeekGeneration,
+      registerMediaClock,
+      reportMediaTime,
+      unregisterMediaClock,
+    ],
+  );
   const previewTransportContext = useMemo(
     () =>
       ({
@@ -346,8 +529,9 @@ export function useTimelineWorkbenchTransport<TTrackData, TItemData>({
         getItemLocalTimeMs: (item: TimelineEditorItem<unknown>) => currentTimeMs - item.startMs,
         isItemActive: (item: TimelineEditorItem<unknown>) =>
           item.startMs <= currentTimeMs && getTimelineEditorItemEndMs(item) >= currentTimeMs,
-      }) satisfies TimelinePreviewTransportContext,
-    [currentTimeMs, durationMs, resolvedTransportState],
+        mediaClock,
+      }) as TimelinePreviewTransportContextWithMediaClock,
+    [currentTimeMs, durationMs, mediaClock, resolvedTransportState],
   );
 
   return {

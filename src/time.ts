@@ -284,7 +284,7 @@ export function createTimelineEditorSnapResolver<TTrackData, TItemData>(
   }
 
   const sortedSnapTimesMs = [...snapTimesMs].sort((left, right) => left - right);
-  const thresholdMs = (snap.thresholdPx / Math.max(1, pixelsPerSecond)) * 1_000;
+  const thresholdMs = (snap.thresholdPx / Math.max(Number.EPSILON, pixelsPerSecond)) * 1_000;
 
   return (timeMs: number) => {
     let bestTimeMs = timeMs;

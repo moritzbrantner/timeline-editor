@@ -18,64 +18,79 @@
     "url": "git+https://github.com/moritzbrantner/timeline-editor.git"
   },
   "files": [
-    "dist"
+    "dist",
+    "src"
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
     "./core": {
+      "source": "./src/core.ts",
       "types": "./dist/core.d.ts",
       "import": "./dist/core.js"
     },
     "./react": {
+      "source": "./src/react.tsx",
       "types": "./dist/react.d.ts",
       "import": "./dist/react.js"
     },
     "./commands": {
+      "source": "./src/commands.ts",
       "types": "./dist/commands.d.ts",
       "import": "./dist/commands.js"
     },
     "./history": {
+      "source": "./src/history.ts",
       "types": "./dist/history.d.ts",
       "import": "./dist/history.js"
     },
     "./serialization": {
+      "source": "./src/serialization.ts",
       "types": "./dist/serialization.d.ts",
       "import": "./dist/serialization.js"
     },
     "./extensions": {
+      "source": "./src/extensions.ts",
       "types": "./dist/extensions.d.ts",
       "import": "./dist/extensions.js"
     },
     "./media-types": {
+      "source": "./src/media-types.ts",
       "types": "./dist/media-types.d.ts",
       "import": "./dist/media-types.js"
     },
     "./media-import": {
+      "source": "./src/media-import.ts",
       "types": "./dist/media-import.d.ts",
       "import": "./dist/media-import.js"
     },
     "./text": {
+      "source": "./src/text.ts",
       "types": "./dist/text.d.ts",
       "import": "./dist/text.js"
     },
     "./audio": {
+      "source": "./src/audio.ts",
       "types": "./dist/audio.d.ts",
       "import": "./dist/audio.js"
     },
     "./video": {
+      "source": "./src/video.ts",
       "types": "./dist/video.d.ts",
       "import": "./dist/video.js"
     },
     "./image": {
+      "source": "./src/image.ts",
       "types": "./dist/image.d.ts",
       "import": "./dist/image.js"
     },
     "./data": {
+      "source": "./src/data.ts",
       "types": "./dist/data.d.ts",
       "import": "./dist/data.js"
     }
@@ -128,6 +143,11 @@
     "build-storybook": "storybook build",
     "changeset": "changeset",
     "dev": "vite --config examples/dev/vite.config.ts --host 127.0.0.1",
+    "dev:source": "bun run source:prepare && bun run dev",
+    "source:prepare": "node scripts/source-deps.mjs prepare",
+    "source:status": "node scripts/source-deps.mjs status",
+    "source:smoke": "node scripts/source-deps.mjs smoke",
+    "source:restore": "node scripts/source-deps.mjs restore",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "lint": "oxlint --format=github",
@@ -147,7 +167,10 @@
     "test:playwright": "playwright test",
     "test:regression": "playwright test src/react/workbench/workbench-basic-regressions.playwright.spec.ts",
     "test:storybook": "vitest run --config vitest.storybook.config.ts",
-    "verify": "bun run format:check && bun run lint && bun run check-types && bun run test && bun run test:packages && bun run test:rust && bun run test:playwright && bun run test:lighthouse && bun run build-storybook && bun run build && bun run build:packages && bun run build:wasm && bun run check-examples && bun run test:package",
+    "verify:checks": "bun run format:check && bun run lint && bun run check-types && bun run test && bun run test:packages && bun run test:rust && bun run test:playwright && bun run test:lighthouse && bun run build-storybook && bun run build && bun run build:packages && bun run build:wasm && bun run check-examples && bun run test:package",
+    "verify:source": "bun run source:prepare && bun run source:smoke && bun run verify:quick && bun run build && bun run build:packages && bun run check-examples",
+    "verify:registry": "bun run source:restore && bun run verify:checks",
+    "verify": "bun run verify:registry",
     "verify:quick": "bun run check-types && bun run test:unit && bun run test:packages && bun run test:rust && bun run test:regression"
   }
 }

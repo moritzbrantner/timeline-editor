@@ -36,7 +36,7 @@ export function getTimelineEditorVisibleRange(
   measuredViewport: Pick<TimelineEditorMeasuredViewport, "scrollLeftPx" | "widthPx">,
   timelineOffsetPx = 0,
 ): TimelineEditorVisibleRange {
-  const pixelsPerSecond = Math.max(1, viewport.pixelsPerSecond);
+  const pixelsPerSecond = Math.max(Number.EPSILON, viewport.pixelsPerSecond);
   const measuredStartPx = Math.max(0, measuredViewport.scrollLeftPx - timelineOffsetPx);
   const measuredEndPx = Math.max(
     measuredStartPx,
@@ -72,10 +72,14 @@ export function getVisibleTimelineEditorItems<TItemData>(
   );
 }
 
-export function getNextTimelineEditorPixelsPerSecond(pixelsPerSecond: number, direction: number) {
+export function getNextTimelineEditorPixelsPerSecond(
+  pixelsPerSecond: number,
+  direction: number,
+  minPixelsPerSecond = timelineEditorMinPixelsPerSecond,
+) {
   return clampTimelineEditorTime(
     pixelsPerSecond + direction * 16,
-    timelineEditorMinPixelsPerSecond,
+    minPixelsPerSecond,
     timelineEditorMaxPixelsPerSecond,
   );
 }
@@ -86,7 +90,8 @@ export function getTimelineEditorScrollLeftMs(
   durationMs: number,
 ) {
   return clampTimelineEditorTime(
-    (Math.max(0, scrollLeftPx - timelineEditorTrackHeaderWidthPx) / Math.max(1, pixelsPerSecond)) *
+    (Math.max(0, scrollLeftPx - timelineEditorTrackHeaderWidthPx) /
+      Math.max(Number.EPSILON, pixelsPerSecond)) *
       1_000,
     0,
     durationMs,
