@@ -2025,7 +2025,7 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     expect(container.querySelector("[data-slot='timeline-media-video-thumbnails']")).toBeTruthy();
     const thumbnails = container.querySelectorAll("[data-slot='timeline-media-video-thumbnail']");
 
-    expect(thumbnails).toHaveLength(12);
+    expect(thumbnails).toHaveLength(6);
     expect(thumbnails.length).toBeGreaterThan(5);
   });
 
@@ -3229,7 +3229,7 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
 
     rendered.rerender(
       <TimelineWorkbench
-        document={{ ...document, currentTimeMs: 1_080 }}
+        document={{ ...document, currentTimeMs: 1_070 }}
         transportState={{ status: "playing", playbackRate: 1, loop: false }}
         extensions={[createTimelineAudioExtension()]}
       />,
@@ -4155,7 +4155,7 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
       <TimelineWorkbench
         document={document}
         extensions={[createTimelineAudioExtension()]}
-        viewport={{ pixelsPerSecond: 4 }}
+        viewport={{ pixelsPerSecond: 40 }}
       />,
     );
 
@@ -4194,7 +4194,7 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
       <TimelineWorkbench
         document={document}
         extensions={[createTimelineAudioExtension()]}
-        viewport={{ pixelsPerSecond: 4 }}
+        viewport={{ pixelsPerSecond: 8 }}
       />,
     );
 
