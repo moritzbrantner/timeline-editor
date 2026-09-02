@@ -1,0 +1,264 @@
+name: Internalize workbench UI
+
+on:
+  push:
+    branches:
+      - own-workbench-ui
+
+permissions:
+  contents: write
+
+jobs:
+  internalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: own-workbench-ui
+          fetch-depth: 1
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - name: Internalize only the workbench primitives
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ui_ref='1adab636dec869d37e1beab4e046abe1b87e7573'
+          base="https://raw.githubusercontent.com/moritzbrantner/ui/${ui_ref}/src"
+          files=(
+            'lib/cn.ts'
+            'components/stable/badge.tsx'
+            'components/stable/button.tsx'
+            'components/stable/context-menu.tsx'
+            'components/stable/dropdown-menu.tsx'
+            'components/stable/input.tsx'
+            'components/stable/popover.tsx'
+            'components/stable/resizable.tsx'
+            'components/stable/slider.tsx'
+            'components/stable/toggle.tsx'
+            'components/stable/toggle-group.tsx'
+            'components/internal/hotkey-shortcuts.ts'
+            'components/internal/hotkey-visibility.ts'
+            'components/internal/menu-actions.ts'
+            'components/internal/menu-action-rendering.tsx'
+            'components/patterns/action-menu.tsx'
+            'components/patterns/context-action-menu.tsx'
+            'components/patterns/menu-actions.tsx'
+            'components/patterns/workbench-layout.tsx'
+          )
+
+          rm -rf src/internal-ui
+          for file in "${files[@]}"; do
+            mkdir -p "src/internal-ui/$(dirname "$file")"
+            curl -fsSL "$base/$file" -o "src/internal-ui/$file"
+          done
+
+          cat > src/internal-ui/index.ts <<'EOF'
+          export { cn } from "./lib/cn";
+          export { Badge } from "./components/stable/badge";
+          export { Button } from "./components/stable/button";
+          export {
+            ContextMenuCheckboxItem,
+            ContextMenuItem,
+            ContextMenuLabel,
+            ContextMenuRadioGroup,
+            ContextMenuRadioItem,
+            ContextMenuSeparator,
+          } from "./components/stable/context-menu";
+          export { Input } from "./components/stable/input";
+          export {
+            Popover,
+            PopoverContent,
+            PopoverHeader,
+            PopoverTitle,
+            PopoverTrigger,
+          } from "./components/stable/popover";
+          export {
+            ResizableHandle,
+            ResizablePanel,
+            ResizablePanelGroup,
+          } from "./components/stable/resizable";
+          export { Slider } from "./components/stable/slider";
+          export { ToggleGroup, ToggleGroupItem } from "./components/stable/toggle-group";
+          export { ActionMenu } from "./components/patterns/action-menu";
+          export { ContextActionMenu } from "./components/patterns/context-action-menu";
+          export type {
+            MenuActionItem,
+            MenuActionRenderContext,
+          } from "./components/patterns/menu-actions";
+          export {
+            WorkbenchCanvas,
+            WorkbenchPanel,
+            WorkbenchToolbar,
+          } from "./components/patterns/workbench-layout";
+          EOF
+
+          cat > src/internal-ui/styles.css <<'EOF'
+          @import "tailwindcss";
+          @source "../**/*.{ts,tsx}";
+
+          @theme inline {
+            --color-background: var(--timeline-background);
+            --color-foreground: var(--timeline-foreground);
+            --color-card: var(--timeline-card);
+            --color-card-foreground: var(--timeline-card-foreground);
+            --color-popover: var(--timeline-popover);
+            --color-popover-foreground: var(--timeline-popover-foreground);
+            --color-primary: var(--timeline-primary);
+            --color-primary-foreground: var(--timeline-primary-foreground);
+            --color-secondary: var(--timeline-secondary);
+            --color-secondary-foreground: var(--timeline-secondary-foreground);
+            --color-muted: var(--timeline-muted);
+            --color-muted-foreground: var(--timeline-muted-foreground);
+            --color-accent: var(--timeline-accent);
+            --color-accent-foreground: var(--timeline-accent-foreground);
+            --color-destructive: var(--timeline-destructive);
+            --color-border: var(--timeline-border);
+            --color-input: var(--timeline-input);
+            --color-ring: var(--timeline-ring);
+          }
+
+          :root {
+            --timeline-background: #f8fafc;
+            --timeline-foreground: #172033;
+            --timeline-card: #ffffff;
+            --timeline-card-foreground: #172033;
+            --timeline-popover: #ffffff;
+            --timeline-popover-foreground: #172033;
+            --timeline-primary: #0f766e;
+            --timeline-primary-foreground: #ffffff;
+            --timeline-secondary: #e7edf2;
+            --timeline-secondary-foreground: #172033;
+            --timeline-muted: #edf2f6;
+            --timeline-muted-foreground: #64748b;
+            --timeline-accent: #e2e8f0;
+            --timeline-accent-foreground: #172033;
+            --timeline-destructive: #dc2626;
+            --timeline-border: #cbd5e1;
+            --timeline-input: #cbd5e1;
+            --timeline-ring: #0f766e;
+          }
+          EOF
+
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+
+          const walk = (root, files = []) => {
+            if (!fs.existsSync(root)) return files;
+            for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+              const full = path.join(root, entry.name);
+              if (entry.isDirectory()) walk(full, files);
+              else if (/\.(?:ts|tsx)$/.test(entry.name)) files.push(full);
+            }
+            return files;
+          };
+
+          for (const file of walk('src')) {
+            if (file.startsWith(`src${path.sep}internal-ui${path.sep}`)) continue;
+            let source = fs.readFileSync(file, 'utf8');
+            if (!source.includes('@moritzbrantner/ui')) continue;
+            let relative = path.relative(path.dirname(file), 'src/internal-ui/index').replaceAll(path.sep, '/');
+            if (!relative.startsWith('.')) relative = `./${relative}`;
+            source = source.replaceAll('"@moritzbrantner/ui"', `"${relative}"`);
+            source = source.replaceAll("'@moritzbrantner/ui'", `'${relative}'`);
+            source = source.replaceAll('"@moritzbrantner/ui/styles.css"', '"../../internal-ui/styles.css"');
+            source = source.replaceAll("'@moritzbrantner/ui/styles.css'", "'../../internal-ui/styles.css'");
+            fs.writeFileSync(file, source);
+          }
+
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          delete pkg.dependencies['@moritzbrantner/ui'];
+          Object.assign(pkg.dependencies, {
+            'class-variance-authority': '^0.7.1',
+            clsx: '^2.1.1',
+            'lucide-react': '^1.7.0',
+            'radix-ui': '^1.4.3',
+            'react-resizable-panels': '^4.9.0',
+            'tailwind-merge': '^3.6.0',
+          });
+          pkg.devDependencies['@tailwindcss/cli'] = '^4.3.0';
+          pkg.devDependencies['tailwindcss'] = '^4.3.0';
+          pkg.files = [...new Set([...(pkg.files ?? []), 'styles.css'])];
+          pkg.sideEffects = ['*.css'];
+          pkg.exports['./styles.css'] = './styles.css';
+          pkg.scripts['build:styles'] = 'bunx @tailwindcss/cli -i ./src/internal-ui/styles.css -o ./styles.css --minify';
+          pkg.scripts.build = `${pkg.scripts.build} && bun run build:styles`;
+          fs.writeFileSync('package.json', `${JSON.stringify(pkg, null, 2)}\n`);
+
+          for (const file of ['README.md', 'docs/reference.md']) {
+            let source = fs.readFileSync(file, 'utf8');
+            source = source.replace(
+              /The React components expect `react` and `react-dom` as peer dependencies and use\n`@moritzbrantner\/ui@\^0\.10\.0` for workbench chrome\. Timeline rendering is owned by\nthis package\./g,
+              'The React components expect `react` and `react-dom` as peer dependencies. Workbench chrome and timeline rendering are owned by this package. Import `@moritzbrantner/timeline-editor/styles.css` when using the rendered editor/workbench.',
+            );
+            fs.writeFileSync(file, source);
+          }
+
+          let readiness = fs.readFileSync('docs/release-readiness.md', 'utf8');
+          readiness = readiness.replace(
+            'React JSX runtime, or\n`@moritzbrantner/ui` at runtime.',
+            'React JSX runtime or workbench-only UI code at runtime.',
+          );
+          fs.writeFileSync('docs/release-readiness.md', readiness);
+
+          for (const [file, replacement] of [
+            ['.storybook/preview.ts', 'import "../src/internal-ui/styles.css";'],
+            ['examples/dev/main.tsx', 'import "../../src/internal-ui/styles.css";'],
+            ['src/react/workbench/playwright/harness.tsx', 'import "../../../internal-ui/styles.css";'],
+          ]) {
+            let source = fs.readFileSync(file, 'utf8');
+            source = source.replace('import "@moritzbrantner/ui/styles.css";', replacement);
+            if (file.endsWith('harness.tsx')) {
+              source = source.replaceAll('"@moritzbrantner/ui"', '"../../../internal-ui/index"');
+              source = source.replaceAll("'@moritzbrantner/ui'", "'../../../internal-ui/index'");
+            }
+            fs.writeFileSync(file, source);
+          }
+
+          let smoke = fs.readFileSync('tests/package/smoke.mjs', 'utf8');
+          smoke = smoke.replace(
+            '["dist", "src"],\n  "Published root files should stay limited to dist and source exports",',
+            '["dist", "src", "styles.css"],\n  "Published root files should stay limited to dist, source exports, and workbench styles",',
+          );
+          fs.writeFileSync('tests/package/smoke.mjs', smoke);
+          NODE
+
+          mkdir -p .changeset
+          cat > .changeset/quiet-editors-own-ui.md <<'EOF'
+          ---
+          "@moritzbrantner/timeline-editor": patch
+          ---
+
+          Remove the dependency on `@moritzbrantner/ui`, internalize the small set of workbench primitives the editor uses, and publish editor-owned styles at `@moritzbrantner/timeline-editor/styles.css`.
+          EOF
+
+          bun install
+          bun run build
+          bun run update:export-contract
+          bunx oxfmt --write package.json src .storybook examples/dev tests/package/smoke.mjs README.md docs/reference.md docs/release-readiness.md .changeset/quiet-editors-own-ui.md
+
+          if grep -R --line-number --exclude='bun.lock' --exclude='CHANGELOG.md' --exclude='smoke.mjs' '@moritzbrantner/ui' package.json src examples .storybook README.md docs/reference.md docs/release-readiness.md; then
+            echo 'Unexpected @moritzbrantner/ui runtime/reference remains' >&2
+            exit 1
+          fi
+
+          git clone --depth=1 https://github.com/moritzbrantner/editor-core.git ../editor-core
+          EDITOR_CORE_SOURCE="$PWD/../editor-core" bun run source:prepare
+          bun run format:check
+          bun run lint
+          bun run check-types
+          bun run test:unit
+          bun run test:packages
+          bun run build
+          bun run build-storybook
+          bun run test:package
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/internalize-workbench-ui.yml
+          git add -A
+          git commit -m 'refactor: make timeline workbench UI self-contained'
+          git push origin HEAD:own-workbench-ui
