@@ -1,0 +1,125 @@
+name: Fix E2E baseline
+
+on:
+  push:
+    branches:
+      - fix/playwright-ci-baseline
+    paths:
+      - .github/workflows/fix-e2e-baseline.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/playwright-ci-baseline
+      - name: Repair E2E selectors and fixtures
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import wave
+
+          def replace_once(path_name: str, old: str, new: str) -> None:
+              path = Path(path_name)
+              text = path.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path_name}: expected exactly one occurrence, found {count}: {old!r}")
+              path.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              "src/react/workbench/playwright/support/workbench.ts",
+              '''export async function selectContextMenuItem(page: Page, label: string, role = "menuitem") {
+            const item = page.locator(`[role='${role}']`).filter({ hasText: label }).first();
+
+            await item.waitFor({ state: "visible" });
+
+            const box = await item.boundingBox();
+            expect(box).not.toBeNull();
+
+            await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+          }
+          ''',
+              '''export async function selectContextMenuItem(page: Page, label: string, role = "menuitem") {
+            const item = page.locator(`[role='${role}']`).filter({ hasText: label }).first();
+
+            await expect(item).toBeVisible();
+            await item.click();
+          }
+          ''',
+          )
+
+          replace_once(
+              "src/react/workbench/workbench-structure.playwright.spec.ts",
+              '''  const trackRows = await page
+            .locator("[data-slot='timeline-editor-track']")
+            .evaluateAll((tracks) =>
+              tracks.map((track) => ({
+                label: track.textContent ?? "",
+                top: (track.parentElement as HTMLElement | null)?.offsetTop ?? 0,
+              })),
+            );
+          const planningRow = trackRows.find((track) => track.label.includes("Planning"));
+          const reviewRow = trackRows.find((track) => track.label === "Review");
+          const lastReviewRow = trackRows.find((track) => track.label.includes("Review Track 6"));
+          ''',
+              '''  const trackRows = await page
+            .locator("[data-slot='timeline-editor-track']")
+            .evaluateAll((tracks) =>
+              tracks.map((track) => ({
+                id: track.getAttribute("data-track-id") ?? "",
+                top: (track.parentElement as HTMLElement | null)?.offsetTop ?? 0,
+              })),
+            );
+          const planningRow = trackRows.find((track) => track.id === "planning");
+          const reviewRow = trackRows.find((track) => track.id === "review");
+          const lastReviewRow = trackRows.find((track) => track.id === "review-track-6");
+          ''',
+          )
+
+          replace_once(
+              "src/react/workbench/playwright/harness.tsx",
+              '''const previewAudioFixtureFileName = "Me at the zoo [jNQXAC9IVRw].mp3";
+          const previewAudioFixtureUrl = `/${encodeURIComponent(previewAudioFixtureFileName)}`;
+          ''',
+              '''const previewAudioFixtureFileName = "timeline-preview-fixture.wav";
+          const previewAudioFixtureUrl = `/${previewAudioFixtureFileName}`;
+          ''',
+          )
+          replace_once(
+              "src/react/workbench/playwright/harness.tsx",
+              '''              label: previewAudioFixtureFileName,
+                        mimeType: "audio/mpeg",
+          ''',
+              '''              label: previewAudioFixtureFileName,
+                        mimeType: "audio/wav",
+          ''',
+          )
+
+          replace_once(
+              "src/react/workbench/workbench-transport.playwright.spec.ts",
+              'audioSrc: expect.stringContaining("Me%20at%20the%20zoo%20%5BjNQXAC9IVRw%5D.mp3"),',
+              'audioSrc: expect.stringContaining("timeline-preview-fixture.wav"),',
+          )
+
+          fixture = Path("examples/timeline-preview-fixture.wav")
+          with wave.open(str(fixture), "wb") as audio:
+              audio.setnchannels(1)
+              audio.setsampwidth(1)
+              audio.setframerate(8_000)
+              audio.writeframes(bytes([128]) * 16_000)
+          PY
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/react/workbench/playwright/support/workbench.ts \
+            src/react/workbench/workbench-structure.playwright.spec.ts \
+            src/react/workbench/playwright/harness.tsx \
+            src/react/workbench/workbench-transport.playwright.spec.ts \
+            examples/timeline-preview-fixture.wav
+          git commit -m "Stabilize workbench E2E baseline"
+          git push origin HEAD:fix/playwright-ci-baseline
