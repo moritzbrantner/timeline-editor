@@ -1,0 +1,39 @@
+name: Fix editor-core React import
+
+on:
+  push:
+    branches:
+      - fix/playwright-ci-baseline
+    paths:
+      - .github/workflows/fix-editor-core-react-import.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/playwright-ci-baseline
+      - name: Replace bundled React dependency import
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/react/workbench/implementation.tsx")
+          text = path.read_text()
+          old = 'import { useControllableEditorState } from "@moritzbrantner/editor-core/react";'
+          new = 'import { useControllableEditorState } from "./use-controllable-editor-state";'
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f"expected exactly one editor-core React import, found {count}")
+          path.write_text(text.replace(old, new, 1))
+          PY
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/react/workbench/implementation.tsx
+          git commit -m "Decouple workbench state hook from bundled React"
+          git push origin HEAD:fix/playwright-ci-baseline
