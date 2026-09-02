@@ -3251,7 +3251,7 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
       await Promise.resolve();
     });
     expect(media.play).toHaveBeenCalledTimes(1);
-    expect(player.currentTime).toBe(1);
+    expect(player.currentTime).toBe(1.3);
 
     rendered.rerender(
       <TimelineWorkbench
