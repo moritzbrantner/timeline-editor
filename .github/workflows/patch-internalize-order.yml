@@ -1,0 +1,38 @@
+name: Patch internalize workflow order
+
+on:
+  push:
+    branches:
+      - own-workbench-ui
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: own-workbench-ui
+      - name: Build split packages before export contract
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/internalize-workbench-ui.yml')
+          text = path.read_text()
+          old = '          bun install\n          bun run build\n          bun run update:export-contract\n'
+          new = '          bun install\n          bun run build:packages\n          bun run update:export-contract\n'
+          if old not in text:
+              raise SystemExit('workflow build-order target not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit workflow repair
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/patch-internalize-order.yml
+          git add .github/workflows/internalize-workbench-ui.yml
+          git commit -m 'ci: build split packages before export contract'
+          git push origin HEAD:own-workbench-ui
