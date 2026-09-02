@@ -160,8 +160,8 @@ function assertPackageExportTargets(packageDirectory, packageManifest, packageNa
 
 async function importPackageExports(packageDirectory, packageManifest) {
   await Promise.all(
-    Object.values(packageManifest.exports).map(async (exportTarget) => {
-      if (typeof exportTarget === "string") {
+    Object.entries(packageManifest.exports).map(async ([subpath, exportTarget]) => {
+      if (typeof exportTarget === "string" || subpath === "./worker") {
         return;
       }
       await import(pathToFileURL(path.join(packageDirectory, exportTarget.import)).href);
