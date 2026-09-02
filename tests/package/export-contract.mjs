@@ -70,6 +70,16 @@ async function collectExports(packageDirectory, packageJson) {
       .map(async (subpath) => {
         const exportTarget = packageExports[subpath];
         validateSourceTarget(packageDirectory, packageJson, subpath, exportTarget);
+
+        const staticTarget = resolveStaticAssetTarget(exportTarget);
+        if (staticTarget) {
+          assert(
+            existsSync(path.resolve(packageDirectory, staticTarget)),
+            `${packageJson.name} export ${subpath} static asset is missing: ${staticTarget}`,
+          );
+          return [subpath, []];
+        }
+
         const importTarget = resolveImportTarget(packageJson.name, subpath, exportTarget);
         const importPath = path.resolve(packageDirectory, importTarget);
 
@@ -111,6 +121,17 @@ function validateSourceTarget(packageDirectory, packageJson, subpath, exportTarg
     Array.isArray(packageJson.files) && packageJson.files.includes("src"),
     `${packageJson.name} must include src in package files when source exports are declared`,
   );
+}
+
+function resolveStaticAssetTarget(exportTarget) {
+  const target =
+    typeof exportTarget === "string"
+      ? exportTarget
+      : exportTarget && typeof exportTarget === "object"
+        ? exportTarget.default
+        : undefined;
+
+  return typeof target === "string" && target.endsWith(".css") ? target : undefined;
 }
 
 function resolveImportTarget(packageName, subpath, exportTarget) {
