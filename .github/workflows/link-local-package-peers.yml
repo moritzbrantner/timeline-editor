@@ -37,8 +37,7 @@ jobs:
           )
           replace_once(
               "tests/package/export-contract.mjs",
-              '''const actualContract = {
-          ''',
+              "const actualContract = {\n",
               '''for (const { directory, packageJson } of splitPackages) {
             linkWorkspaceRootPeer(rootDir, directory, packageJson, rootPackageJson);
           }
@@ -54,15 +53,8 @@ jobs:
           )
           replace_once(
               "tests/package/smoke.mjs",
-              '''    const splitPackageJson = readJson(path.join(splitPackageDir, "package.json"));
-
-            assert(splitPackageJson.name === packageName, `${packageName} package name changed`);
-          ''',
-              '''    const splitPackageJson = readJson(path.join(splitPackageDir, "package.json"));
-            linkWorkspaceRootPeer(rootDir, splitPackageDir, splitPackageJson, packageJson);
-
-            assert(splitPackageJson.name === packageName, `${packageName} package name changed`);
-          ''',
+              '    const splitPackageJson = readJson(path.join(splitPackageDir, "package.json"));\n',
+              '    const splitPackageJson = readJson(path.join(splitPackageDir, "package.json"));\n    linkWorkspaceRootPeer(rootDir, splitPackageDir, splitPackageJson, packageJson);\n',
           )
           PY
           git diff --check
