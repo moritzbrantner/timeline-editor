@@ -124,7 +124,7 @@ export async function selectContextMenuItem(page: Page, label: string, role = "m
   const item = page.locator(`[role='${role}']`).filter({ hasText: label }).first();
 
   await expect(item).toBeVisible();
-  await item.click();
+  await item.evaluate((element) => (element as HTMLElement).click());
 }
 
 export async function getItem(page: Page, itemId: string) {
