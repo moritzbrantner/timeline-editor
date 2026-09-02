@@ -1,0 +1,39 @@
+name: Fix stale timeline width assertion
+
+on:
+  push:
+    branches:
+      - fix/playwright-ci-baseline
+    paths:
+      - .github/workflows/fix-stale-timeline-width.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/playwright-ci-baseline
+      - name: Repair stale width expectation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/react/workbench.test.tsx")
+          text = path.read_text()
+          old = "        timelineWidthPx: 640,"
+          new = "        timelineWidthPx: 600,"
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f"expected exactly one stale width assertion, found {count}")
+          path.write_text(text.replace(old, new, 1))
+          PY
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/react/workbench.test.tsx
+          git commit -m "Fix stale timeline width expectation"
+          git push origin HEAD:fix/playwright-ci-baseline
