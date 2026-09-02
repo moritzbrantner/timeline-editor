@@ -258,7 +258,6 @@ jobs:
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git rm .github/workflows/internalize-workbench-ui.yml
           git add -A
           git commit -m 'refactor: make timeline workbench UI self-contained'
           git push origin HEAD:own-workbench-ui
