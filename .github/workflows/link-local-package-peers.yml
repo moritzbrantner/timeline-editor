@@ -1,0 +1,73 @@
+name: Link local package peers
+
+on:
+  push:
+    branches:
+      - fix/playwright-ci-baseline
+    paths:
+      - .github/workflows/link-local-package-peers.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/playwright-ci-baseline
+      - name: Wire local root peer into package checks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path_name: str, old: str, new: str) -> None:
+              path = Path(path_name)
+              text = path.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path_name}: expected exactly one occurrence, found {count}: {old!r}")
+              path.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              "tests/package/export-contract.mjs",
+              'import { fileURLToPath, pathToFileURL } from "node:url";\n',
+              'import { fileURLToPath, pathToFileURL } from "node:url";\n\nimport { linkWorkspaceRootPeer } from "./local-peer-resolution.mjs";\n',
+          )
+          replace_once(
+              "tests/package/export-contract.mjs",
+              '''const actualContract = {
+          ''',
+              '''for (const { directory, packageJson } of splitPackages) {
+            linkWorkspaceRootPeer(rootDir, directory, packageJson, rootPackageJson);
+          }
+
+          const actualContract = {
+          ''',
+          )
+
+          replace_once(
+              "tests/package/smoke.mjs",
+              'import { fileURLToPath, pathToFileURL } from "node:url";\n',
+              'import { fileURLToPath, pathToFileURL } from "node:url";\n\nimport { linkWorkspaceRootPeer } from "./local-peer-resolution.mjs";\n',
+          )
+          replace_once(
+              "tests/package/smoke.mjs",
+              '''    const splitPackageJson = readJson(path.join(splitPackageDir, "package.json"));
+
+            assert(splitPackageJson.name === packageName, `${packageName} package name changed`);
+          ''',
+              '''    const splitPackageJson = readJson(path.join(splitPackageDir, "package.json"));
+            linkWorkspaceRootPeer(rootDir, splitPackageDir, splitPackageJson, packageJson);
+
+            assert(splitPackageJson.name === packageName, `${packageName} package name changed`);
+          ''',
+          )
+          PY
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add tests/package/export-contract.mjs tests/package/smoke.mjs
+          git commit -m "Resolve local root peer in package contract checks"
+          git push origin HEAD:fix/playwright-ci-baseline
