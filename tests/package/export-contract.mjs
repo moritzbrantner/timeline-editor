@@ -1,4 +1,12 @@
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -7,6 +15,8 @@ const contractPath = path.join(rootDir, "tests/package/export-contract.json");
 const updateContract = process.env.UPDATE_EXPORT_CONTRACT === "1";
 
 const rootPackageJson = readJson(path.join(rootDir, "package.json"));
+installRootRuntimeFacade();
+
 const splitPackageDirectories = readdirSync(path.join(rootDir, "packages"), {
   withFileTypes: true,
 })
@@ -54,6 +64,29 @@ if (updateContract) {
   }
 
   process.exit(0);
+}
+
+function installRootRuntimeFacade() {
+  const targetDir = path.join(rootDir, "node_modules", ...rootPackageJson.name.split("/"));
+  const distDir = path.join(rootDir, "dist");
+
+  assert(
+    existsSync(distDir),
+    "Root build output is missing. Run `bun run build:packages` before checking exports.",
+  );
+
+  rmSync(targetDir, { force: true, recursive: true });
+  mkdirSync(targetDir, { recursive: true });
+  writeFileSync(
+    path.join(targetDir, "package.json"),
+    `${JSON.stringify(rootPackageJson, null, 2)}\n`,
+  );
+  cpSync(distDir, path.join(targetDir, "dist"), { recursive: true });
+
+  const stylesPath = path.join(rootDir, "styles.css");
+  if (existsSync(stylesPath)) {
+    cpSync(stylesPath, path.join(targetDir, "styles.css"));
+  }
 }
 
 async function collectExports(packageDirectory, packageJson) {
