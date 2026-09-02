@@ -7,7 +7,6 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "paths": {
-      "@moritzbrantner/editor-core/react": ["./src/react/workbench/use-controllable-editor-state.ts"],
       "@moritzbrantner/timeline-editor": ["./src/index.ts"],
       "@moritzbrantner/timeline-editor/core": ["./src/core.ts"],
       "@moritzbrantner/timeline-editor/react": ["./src/react.tsx"],
