@@ -20,30 +20,6 @@ const timelineEditorPlaywrightAlias = [
     replacement: path.resolve(rootDir, "node_modules/react/jsx-dev-runtime.js"),
   },
   {
-    find: "@moritzbrantner/editor-core/history",
-    replacement: path.resolve(rootDir, "../editor-core/src/history.ts"),
-  },
-  {
-    find: "@moritzbrantner/editor-core/hotkeys",
-    replacement: path.resolve(rootDir, "../editor-core/src/hotkeys.ts"),
-  },
-  {
-    find: "@moritzbrantner/editor-core/json",
-    replacement: path.resolve(rootDir, "../editor-core/src/json.ts"),
-  },
-  {
-    find: "@moritzbrantner/editor-core/react",
-    replacement: path.resolve(rootDir, "../editor-core/src/react.tsx"),
-  },
-  {
-    find: "@moritzbrantner/editor-core/serialization",
-    replacement: path.resolve(rootDir, "../editor-core/src/serialization.ts"),
-  },
-  {
-    find: /^@moritzbrantner\/editor-core$/,
-    replacement: path.resolve(rootDir, "../editor-core/src/index.ts"),
-  },
-  {
     find: "@moritzbrantner/timeline-editor/core",
     replacement: path.resolve(rootDir, "src/core.ts"),
   },
