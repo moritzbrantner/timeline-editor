@@ -4,19 +4,29 @@ import {
   type TimelineTextParseOptions,
 } from "@moritzbrantner/timeline-editor/text";
 
-createTimelineWorkerHandler({
-  process(task) {
-    if (task.domain !== "captions" || task.operation !== "parse") {
-      throw {
-        code: "unsupported_source",
-        message: `Captions worker cannot process ${task.domain} tasks.`,
-        recoverable: true,
-      };
-    }
+const timelineCaptionsWorkerScope = globalThis as typeof globalThis & {
+  addEventListener?: unknown;
+  postMessage?: unknown;
+};
 
-    return parseTimelineText(
-      task.input ?? "",
-      task.options as TimelineTextParseOptions | undefined,
-    );
-  },
-});
+if (
+  typeof timelineCaptionsWorkerScope.addEventListener === "function" &&
+  typeof timelineCaptionsWorkerScope.postMessage === "function"
+) {
+  createTimelineWorkerHandler({
+    process(task) {
+      if (task.domain !== "captions" || task.operation !== "parse") {
+        throw {
+          code: "unsupported_source",
+          message: `Captions worker cannot process ${task.domain} tasks.`,
+          recoverable: true,
+        };
+      }
+
+      return parseTimelineText(
+        task.input ?? "",
+        task.options as TimelineTextParseOptions | undefined,
+      );
+    },
+  });
+}
