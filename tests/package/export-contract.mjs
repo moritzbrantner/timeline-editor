@@ -91,6 +91,10 @@ async function collectExports(packageDirectory, packageJson) {
           ].join("\n"),
         );
 
+        if (subpath === "./worker") {
+          return [subpath, []];
+        }
+
         const runtime = await import(pathToFileURL(importPath).href);
 
         return [subpath, Object.keys(runtime).sort((left, right) => left.localeCompare(right))];
