@@ -33,8 +33,8 @@ assert(
 
 assertSetEqual(
   packageJson.files ?? [],
-  ["dist", "src"],
-  "Published root files should stay limited to dist and source exports",
+  ["dist", "src", "styles.css"],
+  "Published root files should stay limited to dist, source exports, and workbench styles",
 );
 
 for (const packageName of expectedSplitPackages.keys()) {
@@ -131,8 +131,20 @@ function assertPackageExportTargets(packageDirectory, packageManifest, packageNa
   );
 
   for (const [subpath, exportTarget] of Object.entries(packageManifest.exports)) {
+    if (typeof exportTarget === "string") {
+      assert(
+        exportTarget.endsWith(".css"),
+        `${packageName} export ${subpath} string target must be a supported static asset`,
+      );
+      assert(
+        existsSync(path.join(packageDirectory, exportTarget)),
+        `${packageName} export ${subpath} target does not exist: ${exportTarget}`,
+      );
+      continue;
+    }
+
     assert(
-      "import" in exportTarget,
+      exportTarget && typeof exportTarget === "object" && "import" in exportTarget,
       `${packageName} export ${subpath} is missing an import target`,
     );
     assert("types" in exportTarget, `${packageName} export ${subpath} is missing a types target`);
@@ -149,6 +161,9 @@ function assertPackageExportTargets(packageDirectory, packageManifest, packageNa
 async function importPackageExports(packageDirectory, packageManifest) {
   await Promise.all(
     Object.values(packageManifest.exports).map(async (exportTarget) => {
+      if (typeof exportTarget === "string") {
+        return;
+      }
       await import(pathToFileURL(path.join(packageDirectory, exportTarget.import)).href);
     }),
   );
