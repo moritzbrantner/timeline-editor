@@ -19,6 +19,10 @@ export const timelineEditorTestAlias = [
     replacement: path.resolve(rootDir, "node_modules/react/jsx-dev-runtime.js"),
   },
   {
+    find: "@moritzbrantner/editor-core/react",
+    replacement: path.resolve(rootDir, "src/react/workbench/use-controllable-editor-state.ts"),
+  },
+  {
     find: "@moritzbrantner/timeline-editor/core",
     replacement: path.resolve(rootDir, "src/core.ts"),
   },
