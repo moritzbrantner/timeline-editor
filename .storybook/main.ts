@@ -8,10 +8,6 @@ import { mergeConfig } from "vite";
 const rootDir = fileURLToPath(new URL("../", import.meta.url));
 
 const alias = {
-  "@moritzbrantner/editor-core/react": path.resolve(
-    rootDir,
-    "src/react/workbench/use-controllable-editor-state.ts",
-  ),
   "@moritzbrantner/timeline-editor": path.resolve(rootDir, "src/index.ts"),
   "@moritzbrantner/timeline-editor/audio": path.resolve(rootDir, "src/audio.ts"),
   "@moritzbrantner/timeline-editor/commands": path.resolve(rootDir, "src/commands.ts"),
