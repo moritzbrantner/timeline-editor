@@ -2,6 +2,8 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { linkWorkspaceRootPeer } from "./local-peer-resolution.mjs";
+
 const rootDir = path.resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const contractPath = path.join(rootDir, "tests/package/export-contract.json");
 const updateContract = process.env.UPDATE_EXPORT_CONTRACT === "1";
@@ -21,6 +23,10 @@ const splitPackages = splitPackageDirectories
     packageJson: readJson(path.join(packageDirectory, "package.json")),
   }))
   .sort((left, right) => left.packageJson.name.localeCompare(right.packageJson.name));
+
+for (const { directory, packageJson } of splitPackages) {
+  linkWorkspaceRootPeer(rootDir, directory, packageJson, rootPackageJson);
+}
 
 const actualContract = {
   rootPackage: await collectExports(rootDir, rootPackageJson),
