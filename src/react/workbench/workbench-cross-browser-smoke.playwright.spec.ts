@@ -1,6 +1,11 @@
 import { expect, test } from "@playwright/test";
 
-import { getHarnessState, getTimelineEditor, scrubRulerTo } from "./playwright/support/workbench";
+import {
+  getClip,
+  getHarnessState,
+  getTimelineEditor,
+  scrubRulerTo,
+} from "./playwright/support/workbench";
 
 test("renders the workbench and supports basic timeline interaction", async ({ page }) => {
   const pageErrors: string[] = [];
@@ -12,7 +17,7 @@ test("renders the workbench and supports basic timeline interaction", async ({ p
   await expect(getTimelineEditor(page)).toBeVisible();
   await expect(page.locator("[data-slot='timeline-editor-tracks']").last()).toBeVisible();
 
-  const clip = page.getByRole("button", { name: /^Brief,/ });
+  const clip = getClip(page, "Brief");
   await expect(clip).toBeVisible();
 
   await clip.click();
