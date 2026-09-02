@@ -4288,7 +4288,7 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
         durationMs: 6_000,
         itemWidthPx: expect.any(Number),
         pixelsPerSecond: 100,
-        timelineWidthPx: 640,
+        timelineWidthPx: 600,
       }),
     );
   });
