@@ -123,12 +123,8 @@ export function getTimelineTrack(page: Page, label: string) {
 export async function selectContextMenuItem(page: Page, label: string, role = "menuitem") {
   const item = page.locator(`[role='${role}']`).filter({ hasText: label }).first();
 
-  await item.waitFor({ state: "visible" });
-
-  const box = await item.boundingBox();
-  expect(box).not.toBeNull();
-
-  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await expect(item).toBeVisible();
+  await item.click();
 }
 
 export async function getItem(page: Page, itemId: string) {

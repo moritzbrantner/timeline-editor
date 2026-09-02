@@ -60,13 +60,13 @@ test("adds and removes whole tracks", async ({ page }) => {
     .locator("[data-slot='timeline-editor-track']")
     .evaluateAll((tracks) =>
       tracks.map((track) => ({
-        label: track.textContent ?? "",
+        id: track.getAttribute("data-track-id") ?? "",
         top: (track.parentElement as HTMLElement | null)?.offsetTop ?? 0,
       })),
     );
-  const planningRow = trackRows.find((track) => track.label.includes("Planning"));
-  const reviewRow = trackRows.find((track) => track.label === "Review");
-  const lastReviewRow = trackRows.find((track) => track.label.includes("Review Track 6"));
+  const planningRow = trackRows.find((track) => track.id === "planning");
+  const reviewRow = trackRows.find((track) => track.id === "review");
+  const lastReviewRow = trackRows.find((track) => track.id === "review-track-6");
   expect(planningRow).toBeTruthy();
   expect(reviewRow?.top).toBeGreaterThan(planningRow!.top);
   expect(lastReviewRow?.top).toBeGreaterThan(reviewRow!.top);
