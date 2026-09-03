@@ -252,17 +252,17 @@ test("adds moves and removes tracks inside a group from track menus", async ({ p
 
   await expect
     .poll(async () => (await getHarnessState(page)).document.groups?.[0]?.trackIds)
-    .toEqual(["review", "planning"]);
+    .toEqual(["planning", "review"]);
 
   await reviewTrack.click({
     button: "right",
     position: { x: 24, y: reviewTrackBox!.height / 2 },
   });
-  await selectContextMenuItem(page, "Move Track Down In Group");
+  await selectContextMenuItem(page, "Move Track Up In Group");
 
   await expect
     .poll(async () => (await getHarnessState(page)).document.groups?.[0]?.trackIds)
-    .toEqual(["planning", "review"]);
+    .toEqual(["review", "planning"]);
 });
 
 test("filters assets and shows selected-track compatibility", async ({ page }) => {
