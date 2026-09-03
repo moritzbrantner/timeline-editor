@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useControllableEditorState } from "@moritzbrantner/editor-core/react";
+import { useControllableEditorState } from "./use-controllable-editor-state";
 
 import { Button, type MenuActionItem } from "@moritzbrantner/ui";
 

@@ -2,6 +2,8 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { linkWorkspaceRootPeer } from "./local-peer-resolution.mjs";
+
 const rootDir = path.resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const packageJson = readJson(path.join(rootDir, "package.json"));
 const distDir = path.join(rootDir, "dist");
@@ -48,6 +50,7 @@ await Promise.all(
   [...expectedSplitPackages].map(async ([packageName, expectedPackage]) => {
     const splitPackageDir = path.join(rootDir, "packages", expectedPackage.directory);
     const splitPackageJson = readJson(path.join(splitPackageDir, "package.json"));
+    linkWorkspaceRootPeer(rootDir, splitPackageDir, splitPackageJson, packageJson);
 
     assert(splitPackageJson.name === packageName, `${packageName} package name changed`);
     assert(splitPackageJson.version === "0.1.0", `${packageName} version changed`);

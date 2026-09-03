@@ -23,8 +23,8 @@ import {
   type TimelineWorkbenchTransportState,
 } from "@moritzbrantner/timeline-editor";
 
-const previewAudioFixtureFileName = "Me at the zoo [jNQXAC9IVRw].mp3";
-const previewAudioFixtureUrl = `/${encodeURIComponent(previewAudioFixtureFileName)}`;
+const previewAudioFixtureFileName = "timeline-preview-fixture.wav";
+const previewAudioFixtureUrl = `/${previewAudioFixtureFileName}`;
 const previewVideoFixtureUrl = "/timeline-preview-fixture.webm";
 
 type HarnessState = {
@@ -277,7 +277,7 @@ const createTransportMediaDocument = (): TimelineEditorDocument => ({
             source: {
               uri: previewAudioFixtureUrl,
               label: previewAudioFixtureFileName,
-              mimeType: "audio/mpeg",
+              mimeType: "audio/wav",
             },
             volume: 0.5,
             sourceStartMs: 500,

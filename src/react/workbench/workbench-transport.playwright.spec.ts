@@ -189,7 +189,7 @@ test("scene preview loads real media fixture files", async ({ page }) => {
       expect.objectContaining({
         audioDurationLoaded: true,
         audioReady: true,
-        audioSrc: expect.stringContaining("Me%20at%20the%20zoo%20%5BjNQXAC9IVRw%5D.mp3"),
+        audioSrc: expect.stringContaining("timeline-preview-fixture.wav"),
         videoDurationLoaded: true,
         videoHeight: 360,
         videoReady: true,

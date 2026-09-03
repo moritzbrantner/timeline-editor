@@ -41,7 +41,9 @@ jobs:
     with:
       bun_version: 1.3.14
       install_command: bun install --frozen-lockfile
-      pre_command: rustup target add wasm32-unknown-unknown
+      pre_command: |
+        rustup target add wasm32-unknown-unknown
+        bunx playwright install --with-deps chromium
       integration_command: bun run test:integration
       package_check_command: |
         bun run build:packages
