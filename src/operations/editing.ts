@@ -8,7 +8,6 @@ import {
   type TimelineEditorItem,
   type TimelineEditorOperationOptions,
   type TimelineEditorTrack,
-  type TimelineEditorTransformValues,
 } from "../types";
 import { findTimelineEditorItem } from "./find";
 import { normalizeTimelineEditorTracks } from "./normalize";
@@ -28,14 +27,13 @@ export type TimelineEditorSlipInput = {
 export function rollTimelineEditorBoundary<
   TTrackData = Record<string, unknown>,
   TItemData = Record<string, unknown>,
-  TTransformValues extends TimelineEditorTransformValues = TimelineEditorTransformValues,
 >(
-  tracks: Array<TimelineEditorTrack<TTrackData, TItemData, TTransformValues>>,
+  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
   itemId: string,
   edge: "start" | "end",
   timeMs: number,
   options: TimelineEditorOperationOptions = {},
-): Array<TimelineEditorTrack<TTrackData, TItemData, TTransformValues>> {
+): Array<TimelineEditorTrack<TTrackData, TItemData>> {
   const found = findTimelineEditorItem(tracks, itemId);
 
   if (!found || found.item.locked || found.track.locked) {
@@ -106,12 +104,11 @@ export function rollTimelineEditorBoundary<
 export function slipTimelineEditorItem<
   TTrackData = Record<string, unknown>,
   TItemData = Record<string, unknown>,
-  TTransformValues extends TimelineEditorTransformValues = TimelineEditorTransformValues,
 >(
-  tracks: Array<TimelineEditorTrack<TTrackData, TItemData, TTransformValues>>,
+  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
   input: TimelineEditorSlipInput,
   adapter: TimelineEditorSlipAdapter<TItemData>,
-): Array<TimelineEditorTrack<TTrackData, TItemData, TTransformValues>> {
+): Array<TimelineEditorTrack<TTrackData, TItemData>> {
   const found = findTimelineEditorItem(tracks, input.itemId);
 
   if (
