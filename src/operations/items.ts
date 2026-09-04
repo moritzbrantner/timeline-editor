@@ -15,6 +15,7 @@ import {
   type TimelineEditorSplitItemInput,
   type TimelineEditorTrack,
 } from "../types";
+import { rollTimelineEditorBoundary } from "./editing";
 import { enforceOverlapPolicy } from "./overlap-policy";
 import { canPlaceTimelineEditorItemOnTrack, findTimelineEditorItem } from "./find";
 import { insertTimelineEditorGap } from "./gaps";
@@ -583,6 +584,10 @@ export function trimTimelineEditorItem<
   mode: "normal" | "ripple" | "roll" = "normal",
   options: TimelineEditorOperationOptions = {},
 ) {
+  if (mode === "roll") {
+    return rollTimelineEditorBoundary(tracks, itemId, edge, timeMs, options);
+  }
+
   const found = findTimelineEditorItem(tracks, itemId);
 
   if (!found) {
