@@ -115,6 +115,7 @@
       "removeTimelineEditorTracksFromGroup",
       "removeTimelineEditorTransformPoint",
       "resizeTimelineEditorItem",
+      "resizeTimelineEditorItems",
       "resolveTimelineEditorSnap",
       "resolveTimelineEditorTimeMode",
       "rippleDeleteTimelineEditorItems",
@@ -172,7 +173,9 @@
       "createTimelineAudioWaveformFromAudioBuffer",
       "loadTimelineAudioMetadata"
     ],
-    "./commands": ["applyTimelineEditorCommand"],
+    "./commands": [
+      "applyTimelineEditorCommand"
+    ],
     "./core": [
       "addTimelineEditorMarker",
       "addTimelineEditorTrack",
@@ -235,6 +238,7 @@
       "removeTimelineEditorTracksFromGroup",
       "removeTimelineEditorTransformPoint",
       "resizeTimelineEditorItem",
+      "resizeTimelineEditorItems",
       "resolveTimelineEditorSnap",
       "resolveTimelineEditorTimeMode",
       "rippleDeleteTimelineEditorItems",
@@ -258,7 +262,9 @@
       "upsertTimelineEditorTransformPoint",
       "validateTimelineEditorDocument"
     ],
-    "./data": ["createTimelineNumericDataExtension"],
+    "./data": [
+      "createTimelineNumericDataExtension"
+    ],
     "./extensions": [
       "doesTimelineEditorExtensionMatchItem",
       "findTimelineEditorExtensionForItem",
@@ -271,8 +277,13 @@
       "redoTimelineEditorHistory",
       "undoTimelineEditorHistory"
     ],
-    "./image": ["createTimelineImageExtension", "createTimelineImageFileAsset"],
-    "./media-import": ["createTimelineMediaImportResolver"],
+    "./image": [
+      "createTimelineImageExtension",
+      "createTimelineImageFileAsset"
+    ],
+    "./media-import": [
+      "createTimelineMediaImportResolver"
+    ],
     "./media-types": [
       "assertTimelineMediaKindMatchesData",
       "createTimelineMediaFileSource",
@@ -341,7 +352,10 @@
       "parseTimelineText",
       "parseTimelineWebVttText"
     ],
-    "./video": ["createTimelineVideoExtension", "createTimelineVideoFileAsset"]
+    "./video": [
+      "createTimelineVideoExtension",
+      "createTimelineVideoFileAsset"
+    ]
   },
   "splitPackages": {
     "@timeline-editor/audio": {
@@ -353,7 +367,9 @@
         "createTimelineAudioWaveformFromAudioBuffer",
         "loadTimelineAudioMetadata"
       ],
-      "./worker": ["analyzeTimelineAudioWorkerTask"]
+      "./worker": [
+        "analyzeTimelineAudioWorkerTask"
+      ]
     },
     "@timeline-editor/captions": {
       ".": [
@@ -425,10 +441,14 @@
         "createTimelineImageExtension",
         "createTimelineImageFileAsset"
       ],
-      "./worker": ["analyzeTimelineImageWorkerTask"]
+      "./worker": [
+        "analyzeTimelineImageWorkerTask"
+      ]
     },
     "@timeline-editor/tauri": {
-      ".": ["createTimelineTauriBackend"]
+      ".": [
+        "createTimelineTauriBackend"
+      ]
     },
     "@timeline-editor/video": {
       ".": [
@@ -437,7 +457,9 @@
         "createTimelineVideoExtension",
         "createTimelineVideoFileAsset"
       ],
-      "./worker": ["analyzeTimelineVideoWorkerTask"]
+      "./worker": [
+        "analyzeTimelineVideoWorkerTask"
+      ]
     }
   }
 }
