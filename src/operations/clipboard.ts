@@ -146,9 +146,11 @@ export function pasteTimelineEditorClipboard<
   );
   const acceptedTracks = enforceOverlapPolicy(nextTracks, tracks, options);
 
-  return acceptedTracks === tracks
-    ? { tracks, itemIds: [] as string[] }
-    : { tracks: acceptedTracks, itemIds: plannedItems.map(({ item }) => item.id) };
+  if (acceptedTracks === tracks || !hasPlannedClipboardPlacement(acceptedTracks, plannedItems)) {
+    return { tracks, itemIds: [] as string[] };
+  }
+
+  return { tracks: acceptedTracks, itemIds: plannedItems.map(({ item }) => item.id) };
 }
 
 export function duplicateTimelineEditorItems<
@@ -181,6 +183,23 @@ export function duplicateTimelineEditorItems<
 
   const sourceEndMs = Math.max(...clipboard.items.map(getTimelineEditorItemEndMs));
   return pasteTimelineEditorClipboard(tracks, clipboard, { timeMs: sourceEndMs }, options).tracks;
+}
+
+function hasPlannedClipboardPlacement<TTrackData, TItemData>(
+  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
+  plannedItems: Array<{
+    item: TimelineEditorTrack<TTrackData, TItemData>["items"][number];
+    targetTrackId: string;
+  }>,
+) {
+  return plannedItems.every(({ item, targetTrackId }) => {
+    const found = findTimelineEditorItem(tracks, item.id);
+    return (
+      found?.track.id === targetTrackId &&
+      found.item.startMs === item.startMs &&
+      found.item.durationMs === item.durationMs
+    );
+  });
 }
 
 function getLegacySourceTrackOffset<TTrackData, TItemData>(
