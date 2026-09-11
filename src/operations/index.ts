@@ -2,7 +2,22 @@ export * from "./find";
 export * from "./normalize";
 export * from "./tracks";
 export * from "./groups";
-export * from "./items";
+export {
+  createTimelineEditorClipboard,
+  duplicateTimelineEditorItem,
+  duplicateTimelineEditorItems,
+  insertTimelineEditorItem,
+  moveTimelineEditorItem,
+  pasteTimelineEditorClipboard,
+  removeTimelineEditorItem,
+  removeTimelineEditorItems,
+  removeTimelineEditorRange,
+  resizeTimelineEditorItem,
+  splitTimelineEditorItem,
+  splitTimelineEditorItems,
+  trimTimelineEditorItem,
+} from "./items";
+export * from "./multi-item-move";
 export * from "./transforms";
 export * from "./markers";
 export * from "./ripple";
