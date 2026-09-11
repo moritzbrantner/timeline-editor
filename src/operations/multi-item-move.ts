@@ -45,18 +45,31 @@ export function moveTimelineEditorItems<
     movingItems.push({ item: found.item, trackIndex });
   }
 
+  const snapMs = getSnapMs(options);
+  const requestedDeltaMs = movingItems
+    .map(({ item }) => ({
+      item,
+      deltaMs: snapTimelineEditorTime(item.startMs + deltaMs, snapMs) - item.startMs,
+    }))
+    .reduce((current, candidate) => {
+      const currentDistance = Math.abs(current.deltaMs - deltaMs);
+      const candidateDistance = Math.abs(candidate.deltaMs - deltaMs);
+
+      if (candidateDistance < currentDistance) {
+        return candidate;
+      }
+
+      if (candidateDistance > currentDistance) {
+        return current;
+      }
+
+      if (candidate.item.startMs !== current.item.startMs) {
+        return candidate.item.startMs < current.item.startMs ? candidate : current;
+      }
+
+      return candidate.item.id < current.item.id ? candidate : current;
+    }).deltaMs;
   const durationMs = options.durationMs ?? Number.POSITIVE_INFINITY;
-  const anchor = movingItems.reduce((current, candidate) =>
-    candidate.item.startMs < current.item.startMs ||
-    (candidate.item.startMs === current.item.startMs && candidate.item.id < current.item.id)
-      ? candidate
-      : current,
-  );
-  const snappedAnchorStartMs = snapTimelineEditorTime(
-    anchor.item.startMs + deltaMs,
-    getSnapMs(options),
-  );
-  const requestedDeltaMs = snappedAnchorStartMs - anchor.item.startMs;
   const minDeltaMs = Math.max(...movingItems.map(({ item }) => -item.startMs));
   const maxDeltaMs = Math.min(
     ...movingItems.map(({ item }) => durationMs - getTimelineEditorItemEndMs(item)),
@@ -66,11 +79,7 @@ export function moveTimelineEditorItems<
     return tracks;
   }
 
-  const resolvedDeltaMs = clampTimelineEditorTime(
-    requestedDeltaMs,
-    minDeltaMs,
-    maxDeltaMs,
-  );
+  const resolvedDeltaMs = clampTimelineEditorTime(requestedDeltaMs, minDeltaMs, maxDeltaMs);
   let resolvedTrackDelta = 0;
 
   if (options.trackDelta !== undefined) {
