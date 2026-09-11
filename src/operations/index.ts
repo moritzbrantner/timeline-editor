@@ -5,10 +5,8 @@ export * from "./groups";
 export {
   createTimelineEditorClipboard,
   duplicateTimelineEditorItem,
-  duplicateTimelineEditorItems,
   insertTimelineEditorItem,
   moveTimelineEditorItem,
-  pasteTimelineEditorClipboard,
   removeTimelineEditorItem,
   removeTimelineEditorItems,
   removeTimelineEditorRange,
@@ -17,6 +15,7 @@ export {
   splitTimelineEditorItems,
   trimTimelineEditorItem,
 } from "./items";
+export { duplicateTimelineEditorItems, pasteTimelineEditorClipboard } from "./clipboard";
 export * from "./multi-item-move";
 export * from "./transforms";
 export * from "./markers";
