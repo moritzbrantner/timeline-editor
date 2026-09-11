@@ -114,7 +114,7 @@ export function resizeTimelineEditorItems<
   return acceptedTracks;
 }
 
-function resolveSharedResizeDelta<TItemData>(
+function resolveSharedResizeDelta(
   items: Array<{ id: string; startMs: number; durationMs: number }>,
   edge: "start" | "end",
   deltaMs: number,
