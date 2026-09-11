@@ -20,6 +20,7 @@ export {
   pasteTimelineEditorClipboard,
 } from "./clipboard";
 export * from "./multi-item-move";
+export * from "./multi-item-resize";
 export * from "./transforms";
 export * from "./markers";
 export * from "./ripple";
