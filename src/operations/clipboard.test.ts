@@ -102,9 +102,12 @@ describe("atomic timeline clipboard operations", () => {
       },
     ];
     const clipboard = createTimelineEditorClipboard(tracks, ["a", "b"])!;
-    const pasted = pasteTimelineEditorClipboard(tracks, clipboard, { timeMs: 900 }, {
-      durationMs: 1_000,
-    });
+    const pasted = pasteTimelineEditorClipboard(
+      tracks,
+      clipboard,
+      { timeMs: 900 },
+      { durationMs: 1_000 },
+    );
     const copies = pasted.tracks[0]!.items.filter((item) => pasted.itemIds.includes(item.id));
 
     expect(copies.map((item) => item.startMs)).toEqual([500, 800]);
