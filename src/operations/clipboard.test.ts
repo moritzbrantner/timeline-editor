@@ -170,6 +170,30 @@ describe("atomic timeline clipboard operations", () => {
     ]);
   });
 
+  it("rejects overlap pushes that would distort a duplicated block", () => {
+    const tracks: TimelineEditorTrack[] = [
+      {
+        id: "timeline",
+        label: "Timeline",
+        items: [
+          { id: "a", trackId: "timeline", label: "A", startMs: 0, durationMs: 100 },
+          { id: "b", trackId: "timeline", label: "B", startMs: 200, durationMs: 100 },
+          {
+            id: "blocker",
+            trackId: "timeline",
+            label: "Blocker",
+            startMs: 350,
+            durationMs: 300,
+          },
+        ],
+      },
+    ];
+
+    expect(
+      duplicateTimelineEditorItems(tracks, ["a", "b"], { editPolicy: { overlap: "push" } }),
+    ).toBe(tracks);
+  });
+
   it("rejects the whole duplicate when any requested item is locked", () => {
     const tracks: TimelineEditorTrack[] = [
       {
