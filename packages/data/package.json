@@ -25,11 +25,12 @@
     "test": "vitest run src/**/*.test.ts"
   },
   "dependencies": {
-    "@timeline-editor/compute": "workspace:*"
+    "@timeline-editor/compute": "^0.1.0"
   },
   "peerDependencies": {
     "@moritzbrantner/timeline-editor": "^1.0.0",
-    "react": "^19.0.0"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org",

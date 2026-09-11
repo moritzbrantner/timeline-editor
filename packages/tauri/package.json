@@ -21,7 +21,7 @@
     "test": "vitest run src/**/*.test.ts"
   },
   "dependencies": {
-    "@timeline-editor/compute": "workspace:*"
+    "@timeline-editor/compute": "^0.1.0"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org",
