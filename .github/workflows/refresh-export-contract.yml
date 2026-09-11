@@ -17,6 +17,7 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
+      - run: bun run build:packages
       - name: Refresh export contract
         run: UPDATE_EXPORT_CONTRACT=1 node ./tests/package/export-contract.mjs
       - name: Commit export contract
