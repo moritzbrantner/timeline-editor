@@ -47,7 +47,7 @@
       "name": "@timeline-editor/audio",
       "version": "0.1.0",
       "dependencies": {
-        "@timeline-editor/compute": "workspace:*",
+        "@timeline-editor/compute": "^0.1.0",
       },
       "devDependencies": {
         "tsup": "^8.5.1",
@@ -57,13 +57,14 @@
       "peerDependencies": {
         "@moritzbrantner/timeline-editor": "^1.0.0",
         "react": "^19.0.0",
+        "react-dom": "^19.0.0",
       },
     },
     "packages/captions": {
       "name": "@timeline-editor/captions",
       "version": "0.1.0",
       "dependencies": {
-        "@timeline-editor/compute": "workspace:*",
+        "@timeline-editor/compute": "^0.1.0",
       },
       "devDependencies": {
         "tsup": "^8.5.1",
@@ -73,6 +74,7 @@
       "peerDependencies": {
         "@moritzbrantner/timeline-editor": "^1.0.0",
         "react": "^19.0.0",
+        "react-dom": "^19.0.0",
       },
     },
     "packages/compute": {
@@ -88,7 +90,7 @@
       "name": "@timeline-editor/data",
       "version": "0.1.0",
       "dependencies": {
-        "@timeline-editor/compute": "workspace:*",
+        "@timeline-editor/compute": "^0.1.0",
       },
       "devDependencies": {
         "tsup": "^8.5.1",
@@ -98,13 +100,14 @@
       "peerDependencies": {
         "@moritzbrantner/timeline-editor": "^1.0.0",
         "react": "^19.0.0",
+        "react-dom": "^19.0.0",
       },
     },
     "packages/geo": {
       "name": "@timeline-editor/geo",
       "version": "0.1.0",
       "dependencies": {
-        "@timeline-editor/compute": "workspace:*",
+        "@timeline-editor/compute": "^0.1.0",
       },
       "devDependencies": {
         "tsup": "^8.5.1",
@@ -114,13 +117,14 @@
       "peerDependencies": {
         "@moritzbrantner/timeline-editor": "^1.0.0",
         "react": "^19.0.0",
+        "react-dom": "^19.0.0",
       },
     },
     "packages/image": {
       "name": "@timeline-editor/image",
       "version": "0.1.0",
       "dependencies": {
-        "@timeline-editor/compute": "workspace:*",
+        "@timeline-editor/compute": "^0.1.0",
       },
       "devDependencies": {
         "tsup": "^8.5.1",
@@ -130,13 +134,14 @@
       "peerDependencies": {
         "@moritzbrantner/timeline-editor": "^1.0.0",
         "react": "^19.0.0",
+        "react-dom": "^19.0.0",
       },
     },
     "packages/tauri": {
       "name": "@timeline-editor/tauri",
       "version": "0.1.0",
       "dependencies": {
-        "@timeline-editor/compute": "workspace:*",
+        "@timeline-editor/compute": "^0.1.0",
       },
       "devDependencies": {
         "tsup": "^8.5.1",
@@ -148,7 +153,7 @@
       "name": "@timeline-editor/video",
       "version": "0.1.0",
       "dependencies": {
-        "@timeline-editor/compute": "workspace:*",
+        "@timeline-editor/compute": "^0.1.0",
       },
       "devDependencies": {
         "tsup": "^8.5.1",
@@ -158,6 +163,7 @@
       "peerDependencies": {
         "@moritzbrantner/timeline-editor": "^1.0.0",
         "react": "^19.0.0",
+        "react-dom": "^19.0.0",
       },
     },
   },
