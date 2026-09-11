@@ -5,9 +5,41 @@ import type {
   TimelineEditorTrack,
 } from "../types";
 import { canPlaceTimelineEditorItemOnTrack, findTimelineEditorItem } from "./find";
-import { createTimelineEditorClipboard } from "./items";
 import { normalizeTimelineEditorTracks } from "./normalize";
 import { enforceOverlapPolicy } from "./overlap-policy";
+
+export function createTimelineEditorClipboard<
+  TTrackData = Record<string, unknown>,
+  TItemData = Record<string, unknown>,
+>(
+  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
+  itemIds: readonly string[],
+): TimelineEditorClipboard<TItemData> | undefined {
+  const selectedIds = new Set(itemIds);
+  const items = tracks
+    .flatMap((track) =>
+      track.items.filter((item) => selectedIds.has(item.id) && !item.locked && !track.locked),
+    )
+    .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id));
+
+  if (items.length === 0) {
+    return undefined;
+  }
+
+  const sourceAnchorTrackIndex = tracks.findIndex((track) => track.id === items[0]!.trackId);
+  const selectedTrackIds = new Set(items.map((item) => item.trackId));
+  const sourceTrackOffsets = tracks.flatMap((track, trackIndex) =>
+    selectedTrackIds.has(track.id)
+      ? [{ trackId: track.id, offset: trackIndex - sourceAnchorTrackIndex }]
+      : [],
+  );
+
+  return {
+    items: items.map((item) => ({ ...item })),
+    sourceStartMs: Math.min(...items.map((item) => item.startMs)),
+    sourceTrackOffsets,
+  };
+}
 
 export function pasteTimelineEditorClipboard<
   TTrackData = Record<string, unknown>,
@@ -38,26 +70,18 @@ export function pasteTimelineEditorClipboard<
     ? Math.max(0, durationMs - selectionDurationMs)
     : Number.POSITIVE_INFINITY;
   const targetStartMs = clampTimelineEditorTime(input.timeMs, 0, maxStartMs);
-  const sourceTrackIndices = new Map<string, number>();
-
-  for (const item of clipboard.items) {
-    if (!sourceTrackIndices.has(item.trackId)) {
-      sourceTrackIndices.set(
-        item.trackId,
-        tracks.findIndex((track) => track.id === item.trackId),
-      );
-    }
-  }
-
   const firstSourceTrackId = clipboard.items[0]?.trackId;
-  const sourceAnchorTrackIndex = firstSourceTrackId
-    ? (sourceTrackIndices.get(firstSourceTrackId) ?? -1)
+  const legacySourceAnchorTrackIndex = firstSourceTrackId
+    ? tracks.findIndex((track) => track.id === firstSourceTrackId)
     : -1;
+  const sourceTrackOffsets = new Map(
+    clipboard.sourceTrackOffsets?.map(({ trackId, offset }) => [trackId, offset]),
+  );
   const targetAnchorTrackIndex = input.trackId
     ? tracks.findIndex((track) => track.id === input.trackId)
     : -1;
 
-  if (input.trackId && (sourceAnchorTrackIndex < 0 || targetAnchorTrackIndex < 0)) {
+  if (input.trackId && targetAnchorTrackIndex < 0) {
     return { tracks, itemIds: [] as string[] };
   }
 
@@ -68,11 +92,13 @@ export function pasteTimelineEditorClipboard<
   }> = [];
 
   for (const item of clipboard.items) {
+    const sourceTrackOffset =
+      sourceTrackOffsets.get(item.trackId) ??
+      getLegacySourceTrackOffset(tracks, item.trackId, legacySourceAnchorTrackIndex);
     const targetTrack = resolvePasteTargetTrack(
       tracks,
       item,
-      sourceTrackIndices.get(item.trackId) ?? -1,
-      sourceAnchorTrackIndex,
+      sourceTrackOffset,
       targetAnchorTrackIndex,
       input.trackId,
     );
@@ -157,20 +183,32 @@ export function duplicateTimelineEditorItems<
   return pasteTimelineEditorClipboard(tracks, clipboard, { timeMs: sourceEndMs }, options).tracks;
 }
 
+function getLegacySourceTrackOffset<TTrackData, TItemData>(
+  tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
+  sourceTrackId: string,
+  sourceAnchorTrackIndex: number,
+) {
+  if (sourceAnchorTrackIndex < 0) {
+    return undefined;
+  }
+
+  const sourceTrackIndex = tracks.findIndex((track) => track.id === sourceTrackId);
+  return sourceTrackIndex < 0 ? undefined : sourceTrackIndex - sourceAnchorTrackIndex;
+}
+
 function resolvePasteTargetTrack<TTrackData, TItemData>(
   tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
   item: TimelineEditorTrack<TTrackData, TItemData>["items"][number],
-  sourceTrackIndex: number,
-  sourceAnchorTrackIndex: number,
+  sourceTrackOffset: number | undefined,
   targetAnchorTrackIndex: number,
   requestedTrackId: string | undefined,
 ) {
   if (requestedTrackId) {
-    if (sourceTrackIndex < 0) {
+    if (sourceTrackOffset === undefined) {
       return undefined;
     }
 
-    return tracks[targetAnchorTrackIndex + (sourceTrackIndex - sourceAnchorTrackIndex)];
+    return tracks[targetAnchorTrackIndex + sourceTrackOffset];
   }
 
   const originalTrack = tracks.find((track) => track.id === item.trackId);
