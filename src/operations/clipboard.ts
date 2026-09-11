@@ -49,9 +49,10 @@ export function pasteTimelineEditorClipboard<
     }
   }
 
-  const knownSourceTrackIndices = [...sourceTrackIndices.values()].filter((index) => index >= 0);
-  const sourceAnchorTrackIndex =
-    knownSourceTrackIndices.length > 0 ? Math.min(...knownSourceTrackIndices) : -1;
+  const firstSourceTrackId = clipboard.items[0]?.trackId;
+  const sourceAnchorTrackIndex = firstSourceTrackId
+    ? (sourceTrackIndices.get(firstSourceTrackId) ?? -1)
+    : -1;
   const targetAnchorTrackIndex = input.trackId
     ? tracks.findIndex((track) => track.id === input.trackId)
     : -1;
