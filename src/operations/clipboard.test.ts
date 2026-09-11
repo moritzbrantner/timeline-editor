@@ -19,9 +19,7 @@ describe("atomic timeline clipboard operations", () => {
       {
         id: "source-b",
         label: "Source B",
-        items: [
-          { id: "b", trackId: "source-b", label: "B", startMs: 50, durationMs: 100 },
-        ],
+        items: [{ id: "b", trackId: "source-b", label: "B", startMs: 50, durationMs: 100 }],
       },
       { id: "target-a", label: "Target A", items: [] },
       { id: "target-gap", label: "Target gap", items: [] },
@@ -106,7 +104,9 @@ describe("atomic timeline clipboard operations", () => {
       tracks,
       clipboard,
       { timeMs: 900 },
-      { durationMs: 1_000 },
+      {
+        durationMs: 1_000,
+      },
     );
     const copies = pasted.tracks[0]!.items.filter((item) => pasted.itemIds.includes(item.id));
 
