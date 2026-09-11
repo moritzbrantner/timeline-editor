@@ -74,8 +74,8 @@ export function pasteTimelineEditorClipboard<
   const legacySourceAnchorTrackIndex = firstSourceTrackId
     ? tracks.findIndex((track) => track.id === firstSourceTrackId)
     : -1;
-  const sourceTrackOffsets = new Map(
-    clipboard.sourceTrackOffsets?.map(({ trackId, offset }) => [trackId, offset]),
+  const sourceTrackOffsets = new Map<string, number>(
+    clipboard.sourceTrackOffsets?.map(({ trackId, offset }) => [trackId, offset] as const),
   );
   const targetAnchorTrackIndex = input.trackId
     ? tracks.findIndex((track) => track.id === input.trackId)
