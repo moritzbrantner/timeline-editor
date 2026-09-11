@@ -43,6 +43,36 @@ describe("atomic timeline clipboard operations", () => {
     ]);
   });
 
+  it("anchors an explicit target track to the first clipboard item", () => {
+    const tracks: TimelineEditorTrack[] = [
+      {
+        id: "upper",
+        label: "Upper",
+        items: [{ id: "later", trackId: "upper", label: "Later", startMs: 200, durationMs: 100 }],
+      },
+      {
+        id: "lower",
+        label: "Lower",
+        items: [{ id: "earlier", trackId: "lower", label: "Earlier", startMs: 0, durationMs: 100 }],
+      },
+      { id: "target-upper", label: "Target upper", items: [] },
+      { id: "target-lower", label: "Target lower", items: [] },
+    ];
+    const clipboard = createTimelineEditorClipboard(tracks, ["later", "earlier"])!;
+    const pasted = pasteTimelineEditorClipboard(tracks, clipboard, {
+      timeMs: 500,
+      trackId: "target-lower",
+    });
+
+    expect(clipboard.items[0]?.id).toBe("earlier");
+    expect(pasted.tracks[3]!.items).toEqual([
+      expect.objectContaining({ id: "earlier-copy", startMs: 500 }),
+    ]);
+    expect(pasted.tracks[2]!.items).toEqual([
+      expect.objectContaining({ id: "later-copy", startMs: 700 }),
+    ]);
+  });
+
   it("rejects the whole anchored paste when one target track is incompatible", () => {
     const tracks: TimelineEditorTrack[] = [
       {
