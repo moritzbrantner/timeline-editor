@@ -36,6 +36,14 @@ describe("atomic multi-item moves", () => {
     expect(tracks[0]!.items.map((item) => item.startMs)).toEqual([100, 250]);
   });
 
+  it("keeps an already snapped selected edge anchored", () => {
+    const tracks = moveTimelineEditorItems(createSingleTrackSelection(), ["a", "b"], 25, {
+      snapMs: 100,
+    });
+
+    expect(tracks[0]!.items.map((item) => item.startMs)).toEqual([50, 200]);
+  });
+
   it("clamps the selection as one unit at the timeline boundary", () => {
     const tracks = createSingleTrackSelection();
     tracks[0]!.items[0]!.startMs = 50;
@@ -51,16 +59,12 @@ describe("atomic multi-item moves", () => {
       {
         id: "one",
         label: "One",
-        items: [
-          { id: "a", trackId: "one", label: "A", startMs: 0, durationMs: 100 },
-        ],
+        items: [{ id: "a", trackId: "one", label: "A", startMs: 0, durationMs: 100 }],
       },
       {
         id: "two",
         label: "Two",
-        items: [
-          { id: "b", trackId: "two", label: "B", startMs: 200, durationMs: 100 },
-        ],
+        items: [{ id: "b", trackId: "two", label: "B", startMs: 200, durationMs: 100 }],
       },
       { id: "three", label: "Three", items: [] },
     ];
