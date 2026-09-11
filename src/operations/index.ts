@@ -3,12 +3,9 @@ export * from "./normalize";
 export * from "./tracks";
 export * from "./groups";
 export {
-  createTimelineEditorClipboard,
   duplicateTimelineEditorItem,
-  duplicateTimelineEditorItems,
   insertTimelineEditorItem,
   moveTimelineEditorItem,
-  pasteTimelineEditorClipboard,
   removeTimelineEditorItem,
   removeTimelineEditorItems,
   removeTimelineEditorRange,
@@ -17,6 +14,11 @@ export {
   splitTimelineEditorItems,
   trimTimelineEditorItem,
 } from "./items";
+export {
+  createTimelineEditorClipboard,
+  duplicateTimelineEditorItems,
+  pasteTimelineEditorClipboard,
+} from "./clipboard";
 export * from "./multi-item-move";
 export * from "./transforms";
 export * from "./markers";

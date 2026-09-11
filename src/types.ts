@@ -140,6 +140,7 @@ export type TimelineEditorClipboard<
 > = {
   items: Array<TimelineEditorItem<TItemData, TTransformValues>>;
   sourceStartMs: number;
+  sourceTrackOffsets?: Array<{ trackId: string; offset: number }>;
 };
 
 export type TimelineEditorViewport = {
