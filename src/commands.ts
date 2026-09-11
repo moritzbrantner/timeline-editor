@@ -26,6 +26,7 @@ import {
   removeTimelineEditorItems,
   removeTimelineEditorTransformPoint,
   resizeTimelineEditorItem,
+  resizeTimelineEditorItems,
   rippleDeleteTimelineEditorItems,
   splitTimelineEditorItems,
   trimTimelineEditorItem,
@@ -74,6 +75,7 @@ export type TimelineEditorCommand<
   | { type: "delete-range"; range?: { startMs: number; endMs: number } }
   | { type: "move-items"; itemIds: string[]; deltaMs: number; trackDelta?: number }
   | { type: "resize-item"; itemId: string; edge: "start" | "end"; timeMs: number }
+  | { type: "resize-items"; itemIds: string[]; edge: "start" | "end"; deltaMs: number }
   | {
       type: "trim-item";
       itemId: string;
@@ -304,6 +306,17 @@ export function applyTimelineEditorCommand<
       },
     );
     return result(document, tracks, selection, `Move ${command.itemIds.length} items`);
+  }
+
+  if (command.type === "resize-items") {
+    const tracks = resizeTimelineEditorItems(
+      document.tracks,
+      getTimelineEditorGroupedItemIds(document, command.itemIds),
+      command.edge,
+      command.deltaMs,
+      options,
+    );
+    return result(document, tracks, selection, `Resize ${command.itemIds.length} items`);
   }
 
   if (command.type === "resize-item") {
