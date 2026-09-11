@@ -29,9 +29,7 @@ export function resizeTimelineEditorItems<
     return tracks;
   }
 
-  const resizingItems: Array<
-    TimelineEditorTrack<TTrackData, TItemData>["items"][number]
-  > = [];
+  const resizingItems: Array<TimelineEditorTrack<TTrackData, TItemData>["items"][number]> = [];
 
   for (const itemId of resizingIds) {
     const found = findTimelineEditorItem(tracks, itemId);
@@ -58,9 +56,7 @@ export function resizeTimelineEditorItems<
   const maxDeltaMs =
     edge === "start"
       ? Math.min(...resizingItems.map((item) => item.durationMs - minItemDurationMs))
-      : Math.min(
-          ...resizingItems.map((item) => durationMs - getTimelineEditorItemEndMs(item)),
-        );
+      : Math.min(...resizingItems.map((item) => durationMs - getTimelineEditorItemEndMs(item)));
 
   if (maxDeltaMs < minDeltaMs) {
     return tracks;
@@ -155,10 +151,7 @@ function resolveSharedResizeDelta(
 
 function hasPlannedResize<TTrackData, TItemData>(
   tracks: Array<TimelineEditorTrack<TTrackData, TItemData>>,
-  plannedItems: ReadonlyMap<
-    string,
-    TimelineEditorTrack<TTrackData, TItemData>["items"][number]
-  >,
+  plannedItems: ReadonlyMap<string, TimelineEditorTrack<TTrackData, TItemData>["items"][number]>,
 ) {
   for (const [itemId, plannedItem] of plannedItems) {
     const found = findTimelineEditorItem(tracks, itemId);
