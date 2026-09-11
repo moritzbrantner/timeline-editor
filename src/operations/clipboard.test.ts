@@ -8,8 +8,8 @@ import {
 } from "../core";
 
 describe("atomic timeline clipboard operations", () => {
-  it("preserves relative track topology when pasting onto another track", () => {
-    const tracks: TimelineEditorTrack[] = [
+  it("preserves relative track topology when pasting into another document", () => {
+    const sourceTracks: TimelineEditorTrack[] = [
       {
         id: "source-a",
         label: "Source A",
@@ -21,24 +21,30 @@ describe("atomic timeline clipboard operations", () => {
         label: "Source B",
         items: [{ id: "b", trackId: "source-b", label: "B", startMs: 50, durationMs: 100 }],
       },
+    ];
+    const targetTracks: TimelineEditorTrack[] = [
       { id: "target-a", label: "Target A", items: [] },
       { id: "target-gap", label: "Target gap", items: [] },
       { id: "target-b", label: "Target B", items: [] },
     ];
-    const clipboard = createTimelineEditorClipboard(tracks, ["a", "b"])!;
+    const clipboard = createTimelineEditorClipboard(sourceTracks, ["a", "b"])!;
     const pasted = pasteTimelineEditorClipboard(
-      tracks,
+      targetTracks,
       clipboard,
       { timeMs: 1_000, trackId: "target-a" },
       { durationMs: 2_000 },
     );
 
+    expect(clipboard.sourceTrackOffsets).toEqual([
+      { trackId: "source-a", offset: 0 },
+      { trackId: "source-b", offset: 2 },
+    ]);
     expect(pasted.itemIds).toEqual(["a-copy", "b-copy"]);
-    expect(pasted.tracks[3]!.items).toEqual([
+    expect(pasted.tracks[0]!.items).toEqual([
       expect.objectContaining({ id: "a-copy", trackId: "target-a", startMs: 1_000 }),
     ]);
-    expect(pasted.tracks[4]!.items).toEqual([]);
-    expect(pasted.tracks[5]!.items).toEqual([
+    expect(pasted.tracks[1]!.items).toEqual([]);
+    expect(pasted.tracks[2]!.items).toEqual([
       expect.objectContaining({ id: "b-copy", trackId: "target-b", startMs: 1_050 }),
     ]);
   });
