@@ -316,7 +316,7 @@ export function applyTimelineEditorCommand<
       command.deltaMs,
       options,
     );
-    return result(document, tracks, selection, `Resize ${command.itemIds.length} items`);
+    return result(document, tracks, selection, `Resize ${command.itemIds.length} items`, options);
   }
 
   if (command.type === "resize-item") {
@@ -336,7 +336,7 @@ export function applyTimelineEditorCommand<
           options,
         )
       : document.tracks;
-    return result(document, tracks, selection, "Resize item");
+    return result(document, tracks, selection, "Resize item", options);
   }
 
   if (command.type === "trim-item") {
@@ -642,11 +642,12 @@ function result<TTrackData, TItemData, TGroupData>(
   tracks: TimelineEditorDocument<TTrackData, TItemData, TGroupData>["tracks"],
   selection: TimelineEditorSelection,
   label: string,
+  options: TimelineEditorOperationOptions = {},
 ): TimelineEditorCommandResult<TTrackData, TItemData, TGroupData> {
   const changed = tracks !== document.tracks;
 
   return {
-    document: changed ? normalizeTimelineEditorDocument({ ...document, tracks }) : document,
+    document: changed ? normalizeTimelineEditorDocument({ ...document, tracks }, options) : document,
     selection,
     label,
     changed,
