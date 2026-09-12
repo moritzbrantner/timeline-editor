@@ -28,11 +28,39 @@ export function getRangeSelectionIds<TTrackData, TItemData>(
   anchorItemId: string,
   itemId: string,
 ) {
-  const sortedItems = [...track.items].sort(
-    (left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id),
-  );
-  const anchorIndex = sortedItems.findIndex((item) => item.id === anchorItemId);
-  const itemIndex = sortedItems.findIndex((item) => item.id === itemId);
+  let anchorIndex = -1;
+  let itemIndex = -1;
+  let sorted = true;
+
+  for (let index = 0; index < track.items.length; index += 1) {
+    const item = track.items[index]!;
+    const previousItem = track.items[index - 1];
+
+    if (
+      previousItem &&
+      (item.startMs < previousItem.startMs ||
+        (item.startMs === previousItem.startMs && item.id.localeCompare(previousItem.id) < 0))
+    ) {
+      sorted = false;
+    }
+    if (item.id === anchorItemId) {
+      anchorIndex = index;
+    }
+    if (item.id === itemId) {
+      itemIndex = index;
+    }
+  }
+
+  const items = sorted
+    ? track.items
+    : [...track.items].sort(
+        (left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id),
+      );
+
+  if (!sorted) {
+    anchorIndex = items.findIndex((item) => item.id === anchorItemId);
+    itemIndex = items.findIndex((item) => item.id === itemId);
+  }
 
   if (anchorIndex === -1 || itemIndex === -1) {
     return [itemId];
@@ -41,7 +69,7 @@ export function getRangeSelectionIds<TTrackData, TItemData>(
   const [startIndex, endIndex] =
     anchorIndex < itemIndex ? [anchorIndex, itemIndex] : [itemIndex, anchorIndex];
 
-  return sortedItems.slice(startIndex, endIndex + 1).map((item) => item.id);
+  return items.slice(startIndex, endIndex + 1).map((item) => item.id);
 }
 
 export function getVisibleTracks<TTrackData, TItemData>(
