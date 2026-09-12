@@ -10,10 +10,15 @@ import {
   splitTimelineEditorItems,
   type TimelineEditorDocument,
 } from "./core";
+import { getRangeSelectionIds } from "./react/timeline-editor/selection";
 
 describe("timeline operation performance smoke coverage", () => {
   test("reports timings for large pure-operation scenarios", () => {
     const document = createSyntheticDocument({ trackCount: 100, itemsPerTrack: 50 });
+    const largeRangeTrack = createSyntheticDocument({
+      trackCount: 1,
+      itemsPerTrack: 10_000,
+    }).tracks[0]!;
     const selectedItemIds = document.tracks.slice(0, 20).map((track) => track.items[10]!.id);
     const timings = {
       normalize: timeOperation(() => normalizeTimelineEditorDocument(document)),
@@ -29,6 +34,13 @@ describe("timeline operation performance smoke coverage", () => {
         }),
       ),
       documentIndex: timeOperation(() => createTimelineEditorDocumentIndex(document)),
+      rangeSelection: timeOperation(() =>
+        getRangeSelectionIds(
+          largeRangeTrack,
+          largeRangeTrack.items[0]!.id,
+          largeRangeTrack.items.at(-1)!.id,
+        ),
+      ),
       snapResolution: timeOperation(() => {
         const resolver = createTimelineEditorSnapResolver(
           document,
