@@ -647,7 +647,9 @@ function result<TTrackData, TItemData, TGroupData>(
   const changed = tracks !== document.tracks;
 
   return {
-    document: changed ? normalizeTimelineEditorDocument({ ...document, tracks }, options) : document,
+    document: changed
+      ? normalizeTimelineEditorDocument({ ...document, tracks }, options)
+      : document,
     selection,
     label,
     changed,
