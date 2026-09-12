@@ -8,7 +8,9 @@ export function detectTimelineEditorOverlaps<
   const overlaps: TimelineEditorOverlap[] = [];
 
   for (const track of tracks) {
-    const items = [...track.items].sort((left, right) => left.startMs - right.startMs);
+    const items = areTimelineEditorItemsSortedByStartMs(track.items)
+      ? track.items
+      : [...track.items].sort((left, right) => left.startMs - right.startMs);
 
     for (let index = 1; index < items.length; index += 1) {
       const previousItem = items[index - 1]!;
@@ -32,4 +34,14 @@ export function detectTimelineEditorOverlaps<
   }
 
   return overlaps;
+}
+
+function areTimelineEditorItemsSortedByStartMs(items: ReadonlyArray<{ startMs: number }>) {
+  for (let index = 1; index < items.length; index += 1) {
+    if (items[index]!.startMs < items[index - 1]!.startMs) {
+      return false;
+    }
+  }
+
+  return true;
 }
