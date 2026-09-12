@@ -37,9 +37,10 @@ export function getRangeSelectionIds<TTrackData, TItemData>(
     const previousItem = track.items[index - 1];
 
     if (
-      previousItem &&
-      (item.startMs < previousItem.startMs ||
-        (item.startMs === previousItem.startMs && item.id.localeCompare(previousItem.id) < 0))
+      Number.isNaN(item.startMs) ||
+      (previousItem &&
+        (item.startMs < previousItem.startMs ||
+          (item.startMs === previousItem.startMs && item.id.localeCompare(previousItem.id) < 0)))
     ) {
       sorted = false;
     }
