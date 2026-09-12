@@ -26,6 +26,7 @@ import {
   removeTimelineEditorItems,
   removeTimelineEditorTransformPoint,
   resizeTimelineEditorItem,
+  resizeTimelineEditorItems,
   rippleDeleteTimelineEditorItems,
   splitTimelineEditorItems,
   trimTimelineEditorItem,
@@ -74,6 +75,7 @@ export type TimelineEditorCommand<
   | { type: "delete-range"; range?: { startMs: number; endMs: number } }
   | { type: "move-items"; itemIds: string[]; deltaMs: number; trackDelta?: number }
   | { type: "resize-item"; itemId: string; edge: "start" | "end"; timeMs: number }
+  | { type: "resize-items"; itemIds: string[]; edge: "start" | "end"; deltaMs: number }
   | {
       type: "trim-item";
       itemId: string;
@@ -306,6 +308,17 @@ export function applyTimelineEditorCommand<
     return result(document, tracks, selection, `Move ${command.itemIds.length} items`);
   }
 
+  if (command.type === "resize-items") {
+    const tracks = resizeTimelineEditorItems(
+      document.tracks,
+      getTimelineEditorGroupedItemIds(document, command.itemIds),
+      command.edge,
+      command.deltaMs,
+      options,
+    );
+    return result(document, tracks, selection, `Resize ${command.itemIds.length} items`, options);
+  }
+
   if (command.type === "resize-item") {
     const found = document.tracks
       .flatMap((track) => track.items)
@@ -323,7 +336,7 @@ export function applyTimelineEditorCommand<
           options,
         )
       : document.tracks;
-    return result(document, tracks, selection, "Resize item");
+    return result(document, tracks, selection, "Resize item", options);
   }
 
   if (command.type === "trim-item") {
@@ -629,11 +642,14 @@ function result<TTrackData, TItemData, TGroupData>(
   tracks: TimelineEditorDocument<TTrackData, TItemData, TGroupData>["tracks"],
   selection: TimelineEditorSelection,
   label: string,
+  options: TimelineEditorOperationOptions = {},
 ): TimelineEditorCommandResult<TTrackData, TItemData, TGroupData> {
   const changed = tracks !== document.tracks;
 
   return {
-    document: changed ? normalizeTimelineEditorDocument({ ...document, tracks }) : document,
+    document: changed
+      ? normalizeTimelineEditorDocument({ ...document, tracks }, options)
+      : document,
     selection,
     label,
     changed,

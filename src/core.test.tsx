@@ -859,6 +859,29 @@ describe("@moritzbrantner/timeline-editor core", () => {
 
     expect(moved.document.tracks[0]?.items[0]?.startMs).toBe(1_500);
 
+    const resizedWithHistory = applyTimelineEditorCommandWithHistory(
+      document,
+      { itemIds: ["brief", "draft"] },
+      createTimelineEditorHistory(),
+      {
+        type: "resize-items",
+        itemIds: ["brief", "draft"],
+        edge: "end",
+        deltaMs: 250,
+      },
+      { durationMs: 8_000 },
+    );
+    expect(resizedWithHistory.label).toBe("Resize 2 items");
+    expect(resizedWithHistory.document.tracks[0]?.items.map((item) => item.durationMs)).toEqual([
+      1_250, 1_250,
+    ]);
+    expect(resizedWithHistory.history.undoStack).toHaveLength(1);
+    expect(
+      undoTimelineEditorHistory(resizedWithHistory.history).document?.tracks[0]?.items.map(
+        (item) => item.durationMs,
+      ),
+    ).toEqual([1_000, 1_000]);
+
     const rippleDeleted = applyTimelineEditorCommand(
       document,
       selection,
