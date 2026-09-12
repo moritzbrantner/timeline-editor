@@ -36,4 +36,14 @@ describe("timeline editor range selection", () => {
 
     expect(getRangeSelectionIds(track, "a", "c")).toEqual(["a", "b", "c"]);
   });
+
+  test("uses the fallback ordering when a start time is NaN", () => {
+    const track = createTrack([
+      { id: "z", startMs: Number.NaN },
+      { id: "a", startMs: 0 },
+      { id: "b", startMs: 100 },
+    ]);
+
+    expect(getRangeSelectionIds(track, "z", "a")).toEqual(["a", "b", "z"]);
+  });
 });
