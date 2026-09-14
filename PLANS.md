@@ -82,7 +82,7 @@ Goal: make local and CI validation trustworthy before broader architecture work.
 Tasks:
 
 - Keep the Playwright Vite harness aliases aligned with `vitest.config.ts` for
-  `react`, React JSX runtimes, `@moritzbrantner/editor-core/*`, and public
+  `react`, React JSX runtimes, `@moenarch/editor-core/*`, and public
   timeline-editor subpaths.
 - Run the targeted regression suite after alias changes:
   `bun run test:playwright src/react/workbench/workbench-basic-regressions.playwright.spec.ts`.

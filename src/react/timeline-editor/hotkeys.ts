@@ -3,7 +3,7 @@ import {
   getEditorHotkeyFromKeyboardEvent,
   isEditorEditableTarget,
   matchesEditorHotkey,
-} from "@moritzbrantner/editor-core/hotkeys";
+} from "@moenarch/editor-core/hotkeys";
 
 import type { TimelineEditorSnapOptions } from "../../types";
 import { defaultTimelineEditorSnapMs } from "../../types";

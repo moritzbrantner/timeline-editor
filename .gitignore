@@ -1,6 +1,7 @@
 node_modules/
 dist/
 coverage/
+.source/
 .unlighthouse/
 .turbo/
 test-results/

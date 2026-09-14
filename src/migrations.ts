@@ -1,5 +1,5 @@
-import { isEditorRecord } from "@moritzbrantner/editor-core/json";
-import { EditorMigrationError } from "@moritzbrantner/editor-core/serialization";
+import { isEditorRecord } from "@moenarch/editor-core/json";
+import { EditorMigrationError } from "@moenarch/editor-core/serialization";
 
 import {
   currentTimelineEditorSchemaVersion,

@@ -1,11 +1,11 @@
-import { isEditorRecord } from "@moritzbrantner/editor-core/json";
+import { isEditorRecord } from "@moenarch/editor-core/json";
 import {
   type EditorDocumentAdapter,
   EditorJsonParseError,
   type EditorParseIssue,
   readEditorDocument,
   serializeEditorDocument,
-} from "@moritzbrantner/editor-core/serialization";
+} from "@moenarch/editor-core/serialization";
 
 import { normalizeTimelineEditorDocument } from "./operations";
 import {
