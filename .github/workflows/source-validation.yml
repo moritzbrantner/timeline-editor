@@ -39,8 +39,26 @@ jobs:
       - name: Install Chromium
         run: bunx playwright install --with-deps chromium
 
-      - name: Verify against editor-core source
-        run: bun run verify:source
+      - name: Verify exact source graph
+        run: bun run source:verify-graph
+
+      - name: Prepare editor-core source
+        run: bun run source:prepare
+
+      - name: Smoke-test editor-core source
+        run: bun run source:smoke
+
+      - name: Run quick source regressions
+        run: bun run verify:quick
+
+      - name: Build timeline package
+        run: bun run build
+
+      - name: Build workspace packages
+        run: bun run build:packages
+
+      - name: Check examples
+        run: bun run check-examples
 
       - name: Report active source
         if: always()
