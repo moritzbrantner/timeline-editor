@@ -19,7 +19,7 @@ bun run source:smoke
 bun run verify:source
 ```
 
-`source:prepare` installs frozen dependencies, recursively prepares upstream source dependencies when supported, builds editor-core, then materializes that build into `node_modules/@moritzbrantner/editor-core` under Timeline Editor's expected package identity. The active Git SHA is stored under `node_modules/.editor-source-deps/`; neither `package.json` nor the lockfile becomes a second development manifest.
+`source:prepare` installs frozen dependencies, recursively prepares upstream source dependencies when supported, builds editor-core, then materializes that build into `node_modules/@moenarch/editor-core` under Timeline Editor's expected package identity. The active Git SHA is stored under `node_modules/.editor-source-deps/`; neither `package.json` nor the lockfile becomes a second development manifest.
 
 `source:smoke` proves the selected source build is active and importable. `verify:source` then runs Timeline Editor against that exact revision and intentionally exposes API drift between the older published dependency contract and current editor-core source.
 

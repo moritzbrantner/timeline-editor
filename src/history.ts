@@ -5,7 +5,7 @@ import {
   undoEditorTransactionHistory,
   type EditorTransaction,
   type EditorTransactionHistory,
-} from "@moritzbrantner/editor-core/history";
+} from "@moenarch/editor-core/history";
 
 import { applyTimelineEditorCommand, type TimelineEditorCommand } from "./commands";
 import {

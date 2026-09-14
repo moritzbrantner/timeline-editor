@@ -100,7 +100,7 @@
     "react-dom": "^19.0.0"
   },
   "dependencies": {
-    "@moritzbrantner/editor-core": "^0.2.1",
+    "@moenarch/editor-core": "^0.4.1",
     "@moritzbrantner/ui": "^0.10.0"
   },
   "devDependencies": {

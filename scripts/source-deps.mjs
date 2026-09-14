@@ -5,10 +5,10 @@ import { fileURLToPath } from "node:url";
 
 const rootDir = fileURLToPath(new URL("../", import.meta.url));
 const dependency = {
-  packageName: "@moritzbrantner/editor-core",
+  packageName: "@moenarch/editor-core",
   sourceEnv: "EDITOR_CORE_SOURCE",
   defaultSourceDir: path.resolve(rootDir, "../editor-core"),
-  acceptedSourceNames: ["@moritzbrantner/editor-core", "@moenarch/editor-core"],
+  acceptedSourceNames: ["@moenarch/editor-core"],
 };
 
 const command = process.argv[2] ?? "status";
