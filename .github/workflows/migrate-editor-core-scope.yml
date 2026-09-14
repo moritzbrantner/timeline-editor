@@ -36,6 +36,9 @@ jobs:
       - name: Resolve release fallback lockfile
         run: bun install
 
+      - name: Install Chromium
+        run: bunx playwright install --with-deps chromium
+
       - name: Format migration result
         run: bun run format
 
