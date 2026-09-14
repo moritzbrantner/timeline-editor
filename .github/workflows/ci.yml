@@ -93,6 +93,7 @@ jobs:
       - name: Verify clean consumer dependency resolution
         run: |
           bun install --frozen-lockfile
+          bun run registry:restore
           bun run build:packages
           bun run test:dependency-resolution
 
