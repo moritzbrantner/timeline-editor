@@ -150,6 +150,7 @@
     "source:status": "bash scripts/source-deps status",
     "source:smoke": "bash scripts/source-deps smoke",
     "source:restore": "bash scripts/source-deps restore",
+    "registry:restore": "bun scripts/restore-registry.mjs",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "lint": "oxlint --format=github",
@@ -172,7 +173,7 @@
     "test:storybook": "vitest run --config vitest.storybook.config.ts",
     "verify:checks": "bun run format:check && bun run lint && bun run check-types && bun run test && bun run test:packages && bun run test:rust && bun run test:playwright && bun run test:lighthouse && bun run build-storybook && bun run build && bun run build:packages && bun run build:wasm && bun run check-examples && bun run test:package",
     "verify:source": "bun run source:verify-graph && bun run source:prepare && bun run source:smoke && bun run verify:quick && bun run build && bun run build:packages && bun run check-examples",
-    "verify:registry": "bun run source:restore && bun run verify:checks",
+    "verify:registry": "bun run registry:restore && bun run verify:checks",
     "verify": "bun run verify:registry",
     "verify:quick": "bun run check-types && bun run test:unit && bun run test:packages && bun run test:rust && bun run test:regression"
   }
