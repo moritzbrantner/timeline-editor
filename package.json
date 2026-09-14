@@ -150,7 +150,7 @@
     "source:status": "bash scripts/source-deps status",
     "source:smoke": "bash scripts/source-deps smoke",
     "source:restore": "bash scripts/source-deps restore",
-    "registry:restore": "bun scripts/restore-registry.mjs",
+    "registry:restore": "bun run source:restore",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "lint": "oxlint --format=github",

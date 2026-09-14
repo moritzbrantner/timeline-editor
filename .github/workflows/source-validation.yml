@@ -66,3 +66,15 @@ jobs:
       - name: Report active source
         if: always()
         run: bun run source:status
+
+      - name: Restore registry dependencies with coding-tooling
+        if: always()
+        run: bun run registry:restore
+
+      - name: Verify registry fallback after source mode
+        run: |
+          bun run source:status
+          bun run check-types
+          bun run build:packages
+          bun run check-examples
+          bun run test:dependency-resolution

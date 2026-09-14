@@ -15,8 +15,18 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      CODING_TOOLING_DIR: ${{ github.workspace }}/.source/coding-tooling
     steps:
       - uses: actions/checkout@v6.0.2
+
+      - name: Check out coding-tooling source dependency runtime
+        uses: actions/checkout@v6.0.2
+        with:
+          repository: moritzbrantner/coding-tooling
+          ref: c67d5b11de0576f96d484db5ac8060cc1655a007
+          path: .source/coding-tooling
+          persist-credentials: false
 
       - uses: oven-sh/setup-bun@v2
         with:
