@@ -11,15 +11,24 @@ jobs:
   editor-core-source:
     runs-on: ubuntu-latest
     env:
+      CODING_TOOLING_DIR: ${{ github.workspace }}/.source/coding-tooling
       EDITOR_CORE_SOURCE: ${{ github.workspace }}/.source/editor-core
     steps:
       - name: Check out timeline-editor
         uses: actions/checkout@v6
 
+      - name: Check out coding-tooling source dependency runtime
+        uses: actions/checkout@v6
+        with:
+          repository: moritzbrantner/coding-tooling
+          ref: c67d5b11de0576f96d484db5ac8060cc1655a007
+          path: .source/coding-tooling
+
       - name: Check out editor-core source
         uses: actions/checkout@v6
         with:
           repository: moritzbrantner/editor-core
+          ref: 1a52e27ddacc5daa8b39713e9de8edd1c498c640
           path: .source/editor-core
 
       - name: Set up Bun
@@ -27,15 +36,45 @@ jobs:
         with:
           bun-version: 1.3.14
 
-      - name: Install dependencies
+      - name: Install locked dependencies
         run: bun install --frozen-lockfile
 
       - name: Install Chromium
         run: bunx playwright install --with-deps chromium
 
-      - name: Verify against editor-core source
-        run: bun run verify:source
+      - name: Verify exact source graph
+        run: bun run source:verify-graph
+
+      - name: Prepare editor-core source
+        run: bun run source:prepare
+
+      - name: Smoke-test editor-core source
+        run: bun run source:smoke
+
+      - name: Run quick source regressions
+        run: bun run verify:quick
+
+      - name: Build timeline package
+        run: bun run build
+
+      - name: Build workspace packages
+        run: bun run build:packages
+
+      - name: Check examples
+        run: bun run check-examples
 
       - name: Report active source
         if: always()
         run: bun run source:status
+
+      - name: Restore registry dependencies with coding-tooling
+        if: always()
+        run: bun run registry:restore
+
+      - name: Verify registry fallback after source mode
+        run: |
+          bun run source:status
+          bun run check-types
+          bun run build:packages
+          bun run check-examples
+          bun run test:dependency-resolution

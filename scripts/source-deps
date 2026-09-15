@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(git rev-parse --show-toplevel)"
+action="${1:-status}"
+
+bridge_source() {
+  local target="$root/.source/editor-core"
+  local override="${EDITOR_CORE_SOURCE:-}"
+  local source="$override"
+
+  if [[ -z "$source" ]]; then
+    source="$root/../editor-core"
+  fi
+
+  if [[ ! -d "$source" ]]; then
+    if [[ -n "$override" ]]; then
+      printf '%s\n' "source override does not exist for editor-core: $source" >&2
+      exit 2
+    fi
+    return
+  fi
+
+  local source_real
+  source_real="$(cd "$source" && pwd -P)"
+
+  if [[ -L "$target" ]]; then
+    if [[ -e "$target" ]]; then
+      local target_real
+      target_real="$(cd "$target" && pwd -P)"
+      if [[ "$target_real" == "$source_real" ]]; then
+        return
+      fi
+    fi
+    rm "$target"
+  elif [[ -e "$target" ]]; then
+    local target_real
+    target_real="$(cd "$target" && pwd -P)"
+    if [[ "$target_real" == "$source_real" ]]; then
+      return
+    fi
+    if [[ -n "$override" ]]; then
+      printf '%s\n' "refusing to replace real checkout at $target with override $source_real" >&2
+      exit 2
+    fi
+    return
+  fi
+
+  mkdir -p "$root/.source"
+  ln -s "$source_real" "$target"
+}
+
+if [[ "$action" == "prepare" || "$action" == "activate" || "$action" == "verify-graph" ]]; then
+  bridge_source
+fi
+
+if [[ -n "${CODING_TOOLING_DIR:-}" ]]; then
+  tooling_dir="$CODING_TOOLING_DIR"
+elif [[ -f "$root/../coding-tooling/src/router.ts" ]]; then
+  tooling_dir="$root/../coding-tooling"
+else
+  tooling_dir="$root/.source/coding-tooling"
+fi
+
+if command -v coding-tooling >/dev/null 2>&1; then
+  exec coding-tooling source-deps "$@"
+fi
+
+if [[ -f "$tooling_dir/src/router.ts" ]]; then
+  exec bun "$tooling_dir/src/router.ts" source-deps "$@"
+fi
+
+printf '%s\n' "coding-tooling is required. Install it, keep a sibling checkout, or set CODING_TOOLING_DIR." >&2
+exit 2
