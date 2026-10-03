@@ -52,6 +52,7 @@ jobs:
         bun run check-examples
         node ./tests/package/export-contract.mjs
         node ./tests/package/smoke.mjs
+        bun run verify:git-install
       cache_cargo: true
       timeout_minutes: 45
 
