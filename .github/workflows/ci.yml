@@ -26,6 +26,7 @@ jobs:
       format_command: bun run format:check
       lint_command: bun run lint
       typecheck_command: bun run check-types
+      build_command: bun run build
       unit_test_command: |
         bun run test:unit
         bun run test:packages
