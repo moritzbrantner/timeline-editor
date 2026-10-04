@@ -39,7 +39,8 @@ function packPackage(directory, destination) {
     ["pack", "--ignore-scripts", "--json", "--pack-destination", destination],
     directory,
   );
-  const metadata = JSON.parse(result.stdout);
+  // npm 10 runs `prepare` despite --ignore-scripts; its output precedes the JSON report.
+  const metadata = JSON.parse(result.stdout.slice(result.stdout.lastIndexOf("\n[") + 1));
   const filename = metadata[0]?.filename;
 
   assert(filename, `${manifest.name} did not produce a package tarball`);
