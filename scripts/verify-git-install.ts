@@ -4,8 +4,8 @@
 // path: a scratch consumer depends on the published GitHub source at HEAD with the package in
 // `trustedDependencies` (bun runs a dependency's lifecycle scripts only for trusted packages),
 // installs it, re-installs it with --frozen-lockfile, and every main/types/exports target of
-// the installed package must exist. A consumer must also trust this package's own commit-pinned
-// git dependencies (its `trustedDependencies`), whose builds are checked the same way.
+// the installed package must exist. A consumer also lists and trusts this package's own
+// commit-pinned git dependencies (its `trustedDependencies`), whose builds are checked too.
 
 import { execFileSync } from "node:child_process";
 import {
@@ -54,6 +54,10 @@ try {
       private: true,
       dependencies: {
         [packageName]: `git+https://github.com/moritzbrantner/timeline-editor.git#${head}`,
+        // As documented, a consumer also lists this package's git dependencies directly.
+        ...Object.fromEntries(
+          gitDependencies.map((dependency) => [dependency, manifest.dependencies[dependency]]),
+        ),
       },
       trustedDependencies: [packageName, ...gitDependencies],
     }),
