@@ -6,6 +6,9 @@
 // ignores tsconfig.json and TypeScript emits no declarations. So the build runs in a copy
 // outside node_modules with its own frozen install, and only the build output is copied back.
 // The dependency's own node_modules, which bun resolved for the consumer, is left untouched.
+// The copy's install runs lifecycle scripts so that commit-pinned owner git dependencies listed
+// in `trustedDependencies` (such as @moritzbrantner/ui) build their own dist via their prepare,
+// which the type build here needs. The copy's own prepare is a no-op: it is not below node_modules.
 // In a normal checkout it does nothing: `bun install` and `npm pack` (npm 10 runs prepare
 // despite --ignore-scripts) must stay side-effect free there.
 
@@ -33,7 +36,7 @@ if (packageRoot.split(path.sep).includes("node_modules")) {
       recursive: true,
       filter: (source) => !skipped.has(source),
     });
-    run(["install", "--frozen-lockfile", "--ignore-scripts"], buildRoot);
+    run(["install", "--frozen-lockfile"], buildRoot);
     run(["run", "build"], buildRoot);
 
     for (const output of buildOutputs) {

@@ -14,6 +14,7 @@
 - Make multi-item paste and duplicate operations atomic, preserve relative timeline and track layout, clamp copied selections as one unit, and reject partial incompatible placements.
 - Build the package in a `prepare` script so consumers can install it as a commit-pinned git dependency (`git+https://github.com/moritzbrantner/timeline-editor.git#<sha>` listed in `trustedDependencies`).
 - Retire npm publishing: remove the changesets Release workflow and its `NPM_TOKEN` use. Releases are commits on `main`.
+- Depend on `@moritzbrantner/ui` 1.x as a commit-pinned git dependency instead of `^0.10.0`, dropping the vulnerable `shadcn > fast-glob > micromatch > braces` chain. Git consumers list `@moritzbrantner/ui` in `trustedDependencies` next to this package.
 
 ## 1.0.0
 

@@ -101,7 +101,7 @@
   },
   "dependencies": {
     "@moenarch/editor-core": "^0.4.1",
-    "@moritzbrantner/ui": "^0.10.0"
+    "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#9892e374bfd760541b25c4480b5af03e87ee7e9d"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.11.3",
@@ -130,6 +130,12 @@
     "unlighthouse": "0.17.9",
     "vite": "^8.0.14",
     "vitest": "^4.1.7"
+  },
+  "trustedDependencies": [
+    "@moritzbrantner/ui"
+  ],
+  "overrides": {
+    "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#9892e374bfd760541b25c4480b5af03e87ee7e9d"
   },
   "scripts": {
     "build": "tsup src/index.ts src/core.ts src/react.tsx src/commands.ts src/history.ts src/serialization.ts src/extensions.ts src/media-types.ts src/media-import.ts src/text.ts src/audio.ts src/video.ts src/image.ts src/data.ts --format esm --dts --clean --out-dir dist",
