@@ -4,10 +4,18 @@
 // path: a scratch consumer depends on the published GitHub source at HEAD with the package in
 // `trustedDependencies` (bun runs a dependency's lifecycle scripts only for trusted packages),
 // installs it, re-installs it with --frozen-lockfile, and every main/types/exports target of
-// the installed package must exist.
+// the installed package must exist. A consumer also lists and trusts this package's own
+// commit-pinned git dependencies (its `trustedDependencies`), whose builds are checked too.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,6 +26,7 @@ const gitInstallOmits = new Set<string>([]);
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const manifest = JSON.parse(readFileSync(path.join(packageRoot, "package.json"), "utf8"));
 const packageName: string = manifest.name;
+const gitDependencies: string[] = manifest.trustedDependencies ?? [];
 const consumerDir = mkdtempSync(path.join(tmpdir(), "git-install-consumer-"));
 
 function run(args: string[]) {
@@ -45,8 +54,12 @@ try {
       private: true,
       dependencies: {
         [packageName]: `git+https://github.com/moritzbrantner/timeline-editor.git#${head}`,
+        // As documented, a consumer also lists this package's git dependencies directly.
+        ...Object.fromEntries(
+          gitDependencies.map((dependency) => [dependency, manifest.dependencies[dependency]]),
+        ),
       },
-      trustedDependencies: [packageName],
+      trustedDependencies: [packageName, ...gitDependencies],
     }),
   );
   run(["install"]);
@@ -63,6 +76,25 @@ try {
     .filter((target) => !gitInstallOmits.has(target))
     .map((target) => (target.includes("*") ? path.dirname(target) : target))
     .filter((target) => !existsSync(path.join(installedDir, target)));
+
+  for (const dependency of gitDependencies) {
+    // Resolve the dependency the way the installed package does (hoisted or isolated linker).
+    const nestedDir = path.join(realpathSync(installedDir), "..", "..", dependency);
+    const resolvedDir = existsSync(path.join(nestedDir, "package.json"))
+      ? nestedDir
+      : path.join(consumerDir, "node_modules", dependency);
+    const dependencyManifest = JSON.parse(
+      readFileSync(path.join(resolvedDir, "package.json"), "utf8"),
+    );
+    const dependencyTargets: string[] = [];
+    collectTargets(dependencyManifest.main, dependencyTargets);
+    collectTargets(dependencyManifest.types, dependencyTargets);
+    missing.push(
+      ...dependencyTargets
+        .filter((target) => !existsSync(path.join(resolvedDir, target)))
+        .map((target) => `${dependency}/${target}`),
+    );
+  }
 
   if (missing.length > 0) {
     throw new Error(`Export targets missing after a git install:\n- ${missing.join("\n- ")}`);
