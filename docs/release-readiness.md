@@ -30,7 +30,7 @@ The root `@moritzbrantner/timeline-editor` package is the stable `1.x` package.
 It owns the generic timeline document model, core operations, React timeline,
 and workbench APIs.
 
-Split packages under `packages/*` are public experimental `0.x` packages. They
+Split packages under `packages/*` are experimental `0.x` workspace packages. They
 provide accelerated and domain-specific entrypoints such as
 `@timeline-editor/compute`, `@timeline-editor/audio`,
 `@timeline-editor/video`, `@timeline-editor/image`,
@@ -49,6 +49,11 @@ commit-pinned git dependency
 (`git+https://github.com/moritzbrantner/timeline-editor.git#<commit-sha>`, listed
 in `trustedDependencies`); its `prepare` script builds `dist` during the install.
 `bun run verify:git-install` checks that path.
+
+The split packages were never published to npm and have no separate git
+distribution yet: a git URL resolves only the root package. Their manifests stay
+packable (`bun run test:package` checks that), so a per-package git or tarball
+distribution can be added when a consumer needs one.
 
 Record public changes in `CHANGELOG.md` under `Unreleased`. A commit on `main`
 is the release; there is no version-bump or publish workflow.

@@ -24,8 +24,10 @@ this package.
 
 Experimental split packages such as `@timeline-editor/compute`,
 `@timeline-editor/audio`, and `@timeline-editor/video` expose accelerated or
-domain-specific entrypoints. They are public `0.x` packages and may change while
-they mature.
+domain-specific entrypoints. They are experimental `0.x` workspace packages that
+may change while they mature. They have never been published and are not yet
+distributed outside this repository; the git install above provides only the
+root package.
 
 ## Main APIs
 
