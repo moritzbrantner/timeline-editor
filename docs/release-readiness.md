@@ -2,7 +2,7 @@
 
 ## Required Checks
 
-Run these before publishing:
+Run these before merging changes to the public package contract:
 
 ```sh
 bun run verify
@@ -36,17 +36,22 @@ provide accelerated and domain-specific entrypoints such as
 `@timeline-editor/video`, `@timeline-editor/image`,
 `@timeline-editor/captions`, `@timeline-editor/geo`,
 `@timeline-editor/data`, and `@timeline-editor/tauri`. Breaking changes are
-allowed while these packages remain `0.x`, but public changes must still use
-changesets.
+allowed while these packages remain `0.x`, but public changes must still be
+recorded in `CHANGELOG.md`.
 
 The root package must not import split packages. Split packages may depend on
 `@timeline-editor/compute` and may peer-depend on the root package.
 
-## Changesets
+## Distribution
 
-Pending changesets should describe one coherent release train. A major v1
-changeset means later minor or patch entries should be treated as part of that
-same release preparation unless the release has already been cut.
+Packages are not published to npm. Consumers install the root package as a
+commit-pinned git dependency
+(`git+https://github.com/moritzbrantner/timeline-editor.git#<commit-sha>`, listed
+in `trustedDependencies`); its `prepare` script builds `dist` during the install.
+`bun run verify:git-install` checks that path.
+
+Record public changes in `CHANGELOG.md` under `Unreleased`. A commit on `main`
+is the release; there is no version-bump or publish workflow.
 
 ## Package Layout
 

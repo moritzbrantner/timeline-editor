@@ -25,8 +25,8 @@ bun run format:check
 bun run lint
 ```
 
-Run the full release-oriented verification before publishing or changing public
-package behavior:
+Run the full release-oriented verification before changing public package
+behavior:
 
 ```sh
 bun run verify
@@ -49,5 +49,5 @@ bun run test:package
 - Keep the root package generic.
 - Do not add domain-specific behavior to core.
 - Do not add empty instructional panels or placeholder-only UI states.
-- Add changesets for public package changes.
+- Record public package changes in `CHANGELOG.md` under `Unreleased`.
 - Keep public exports reflected in export contract snapshots.

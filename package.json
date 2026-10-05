@@ -105,8 +105,6 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "4.11.3",
-    "@changesets/changelog-github": "^0.7.0",
-    "@changesets/cli": "^2.31.0",
     "@playwright/test": "^1.62.1",
     "@storybook/addon-a11y": "10.4.1",
     "@storybook/addon-docs": "^10.4.1",
@@ -133,16 +131,11 @@
     "vite": "^8.0.14",
     "vitest": "^4.1.7"
   },
-  "publishConfig": {
-    "registry": "https://registry.npmjs.org",
-    "access": "public"
-  },
   "scripts": {
     "build": "tsup src/index.ts src/core.ts src/react.tsx src/commands.ts src/history.ts src/serialization.ts src/extensions.ts src/media-types.ts src/media-import.ts src/text.ts src/audio.ts src/video.ts src/image.ts src/data.ts --format esm --dts --clean --out-dir dist",
     "build:packages": "bun run build && (cd packages/compute && bun run build) && for package in packages/*; do if [ -f \"$package/package.json\" ] && [ \"$package\" != \"packages/compute\" ]; then (cd \"$package\" && bun run build); fi; done",
     "build:wasm": "cargo build --workspace --target wasm32-unknown-unknown",
     "build-storybook": "storybook build",
-    "changeset": "changeset",
     "dev": "vite --config examples/dev/vite.config.ts --host 127.0.0.1",
     "dev:source": "bun run source:prepare && bun run dev",
     "source:verify-graph": "bash scripts/source-deps verify-graph",
