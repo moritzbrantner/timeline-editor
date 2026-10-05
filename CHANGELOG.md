@@ -1,5 +1,20 @@
 # @moritzbrantner/timeline-editor
 
+## Unreleased
+
+### Minor Changes
+
+- Implement atomic roll trims and adapter-driven slip editing while preserving the existing normal and ripple trim behavior.
+- Add atomic multi-item resize operations with shared snapping and clamping, lock and overlap-policy enforcement, and rigid fail-closed behavior when push handling would move selected items independently.
+- Add an undoable `resize-items` command that applies the atomic multi-item resize primitive through the shared command/history layer without changing existing single-item pointer resize behavior.
+
+### Patch Changes
+
+- Make multi-item timeline moves atomic so snapping, timeline-boundary clamping, and track movement preserve the selection's relative layout and fail as a unit when any target track is invalid.
+- Make multi-item paste and duplicate operations atomic, preserve relative timeline and track layout, clamp copied selections as one unit, and reject partial incompatible placements.
+- Build the package in a `prepare` script so consumers can install it as a commit-pinned git dependency (`git+https://github.com/moritzbrantner/timeline-editor.git#<sha>` listed in `trustedDependencies`).
+- Retire npm publishing: remove the changesets Release workflow and its `NPM_TOKEN` use. Releases are commits on `main`.
+
 ## 1.0.0
 
 ### Major Changes

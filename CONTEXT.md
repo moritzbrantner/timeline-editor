@@ -7,7 +7,7 @@ This repository is a TypeScript and Rust timeline editor library/workbench. Keep
 - Keep the root package generic.
 - Do not add domain-specific behavior to core.
 - Do not add empty instructional panels or placeholder-only UI states.
-- Add changesets for public package changes.
+- Record public package changes in `CHANGELOG.md` under `Unreleased`.
 - Keep public exports reflected in export contract snapshots.
 
 ## Reference Docs

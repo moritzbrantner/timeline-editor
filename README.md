@@ -4,9 +4,19 @@ Generic timeline document utilities and React components for editing time-aligne
 
 ## Install
 
-```sh
-bun add @moritzbrantner/timeline-editor
+The package is not published to npm. Install it as a commit-pinned git
+dependency and trust it so its `prepare` script can build `dist`:
+
+```json
+{
+  "dependencies": {
+    "@moritzbrantner/timeline-editor": "git+https://github.com/moritzbrantner/timeline-editor.git#<commit-sha>"
+  },
+  "trustedDependencies": ["@moritzbrantner/timeline-editor"]
+}
 ```
+
+Pin a commit from `main`; bump the SHA to upgrade.
 
 The React components expect `react` and `react-dom` as peer dependencies and use
 `@moritzbrantner/ui@^0.10.0` for workbench chrome. Timeline rendering is owned by
@@ -14,8 +24,10 @@ this package.
 
 Experimental split packages such as `@timeline-editor/compute`,
 `@timeline-editor/audio`, and `@timeline-editor/video` expose accelerated or
-domain-specific entrypoints. They are public `0.x` packages and may change while
-they mature.
+domain-specific entrypoints. They are experimental `0.x` workspace packages that
+may change while they mature. They have never been published and are not yet
+distributed outside this repository; the git install above provides only the
+root package.
 
 ## Main APIs
 
