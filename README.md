@@ -21,7 +21,10 @@ Pin a commit from `main`; bump the SHA to upgrade.
 
 The React components expect `react` and `react-dom` as peer dependencies and use
 `@moritzbrantner/ui` (1.x, a commit-pinned git dependency) for workbench chrome.
-Timeline rendering is owned by this package.
+Timeline rendering is owned by this package. Apps that render the React
+components import `@moritzbrantner/ui/styles.css` and
+`@moritzbrantner/ui/component-sources.css`; ui 1.x no longer scans its component
+sources from `styles.css`.
 
 Experimental split packages such as `@timeline-editor/compute`,
 `@timeline-editor/audio`, and `@timeline-editor/video` expose accelerated or
