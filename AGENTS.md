@@ -9,6 +9,9 @@
 - Empty states must either expose relevant document state, provide a concrete action, or be omitted.
 - Protect browser-dependent timeline geometry, clipping, playhead placement, hit targets, and pointer capture with focused browser evidence.
 
-## Domain context
+## Domain and documentation
 
-See `docs/agents/domain.md`.
+- This is a generic TypeScript/Rust timeline editor; keep application-specific behavior in extensions or consumers, not the core package.
+- Record public API changes in `CHANGELOG.md` under `Unreleased` and update export-contract snapshots with exported API changes.
+- `README.md` owns the project overview and the **Deeper Docs** links to existing API/architecture/serialization/extension/workbench contracts; consult only the relevant reference for the work at hand. Do not maintain a duplicate domain-context router or glossary.
+- No local convention manifest or installed snapshot exists; apply the current shared coding-agent conventions.
