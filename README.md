@@ -302,5 +302,6 @@ workflow details.
 - [Workbench integration](./docs/workbench.md)
 - [Extensions and media foundations](./docs/extensions.md)
 - [Serialization and migrations](./docs/serialization.md)
+- [Compute contract](./docs/compute-contract.md)
 - [Release readiness](./docs/release-readiness.md)
 - [Full reference archive](./docs/reference.md)
