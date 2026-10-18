@@ -83,6 +83,9 @@ jobs:
       timeout_minutes: 45
 
   dependency-resolution:
+    outputs:
+      allow-skipped: ${{ steps.merge-scope.outputs.allow-skipped }}
+      validate-source-validation: ${{ steps.merge-scope.outputs.validate-source-validation }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -91,6 +94,35 @@ jobs:
       CODING_TOOLING_DIR: ${{ github.workspace }}/.source/coding-tooling
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+      - name: Determine required PR validation scope
+        id: merge-scope
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_BRANCH: ${{ github.base_ref }}
+        shell: bash
+        run: |
+          python3 - <<'PYTHON'
+          import json, os, re, subprocess
+          paths = subprocess.check_output(["git", "diff", "--no-renames", "--name-only", "-z", os.environ["BASE_SHA"], os.environ["HEAD_SHA"]]).decode().split("\0")
+          filters = {'validate-source-validation': {'paths': None, 'branches': None}}
+          def matches(path, pattern):
+              pattern = re.escape(pattern).replace(r"\*\*", ".*").replace(r"\*", "[^/]*").replace(r"\?", "[^/]")
+              return re.fullmatch(pattern, path) is not None
+          skipped = []
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              for name, scope in filters.items():
+                  matches_paths = scope["paths"] is None or any(matches(path, pattern) for path in paths if path for pattern in scope["paths"])
+                  matches_branch = scope["branches"] is None or any(matches(os.environ["BASE_BRANCH"], pattern) for pattern in scope["branches"])
+                  required = matches_paths and matches_branch
+                  print(f"{name}={str(required).lower()}", file=output)
+                  if not required:
+                      skipped.append(name)
+              print("allow-skipped=" + json.dumps(skipped), file=output)
+          PYTHON
       - name: Check out coding-tooling source dependency runtime
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
@@ -123,3 +155,31 @@ jobs:
         test-results
       artifact_retention_days: 7
       timeout_minutes: 45
+
+  validate-source-validation:
+    needs: dependency-resolution
+    if: github.event_name == 'pull_request' && needs.dependency-resolution.outputs.validate-source-validation == 'true'
+    uses: ./.github/workflows/source-validation.yml
+    permissions:
+      contents: read
+
+  merge-ready:
+    name: merge-ready
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    needs:
+      [
+        "fast-validation",
+        "integration-validation",
+        "storybook-validation",
+        "e2e-validation",
+        "dependency-resolution",
+        "performance-validation",
+        "validate-source-validation",
+      ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: moritzbrantner/reusable-workflows/.github/actions/merge-ready@b0f25f241d76af2584dfc9e375084ff5c5cb97da
+        with:
+          needs: ${{ toJSON(needs) }}
+          required: '["fast-validation", "integration-validation", "storybook-validation", "e2e-validation", "dependency-resolution", "performance-validation", "validate-source-validation"]'
+          allow-skipped: ${{ needs.dependency-resolution.outputs.allow-skipped || '[]' }}
