@@ -1,8 +1,8 @@
 name: Source Validation
 
 on:
-  pull_request:
-  workflow_dispatch:
+  workflow_dispatch: null
+  workflow_call: null
 
 permissions:
   contents: read
