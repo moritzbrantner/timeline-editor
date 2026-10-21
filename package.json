@@ -100,7 +100,7 @@
     "react-dom": "^19.0.0"
   },
   "dependencies": {
-    "@moenarch/editor-core": "^0.4.1",
+    "@moenarch/editor-core": "git+https://github.com/moritzbrantner/editor-core.git#51463abfcafc9f6173f19320316b5161e86b5fbd",
     "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#9892e374bfd760541b25c4480b5af03e87ee7e9d"
   },
   "devDependencies": {
@@ -132,6 +132,7 @@
     "vitest": "4.1.12"
   },
   "trustedDependencies": [
+    "@moenarch/editor-core",
     "@moritzbrantner/ui"
   ],
   "overrides": {

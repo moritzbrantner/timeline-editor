@@ -8,7 +8,7 @@
     "repositories": [
       {
         "git": "https://github.com/moritzbrantner/editor-core.git",
-        "rev": "1a52e27ddacc5daa8b39713e9de8edd1c498c640",
+        "rev": "51463abfcafc9f6173f19320316b5161e86b5fbd",
         "localPath": ".source/editor-core",
         "packages": [
           {

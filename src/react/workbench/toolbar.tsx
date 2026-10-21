@@ -32,7 +32,7 @@ import type {
 } from "../../core";
 import { formatTimelineEditorTimeMs } from "../../core";
 import type { TimelineEditorHistory } from "../../history";
-import { formatShortcutLabel } from "../../shortcut-label";
+import { formatEditorShortcutLabel } from "@moenarch/editor-core/hotkeys";
 import { getHotkeyFromKeyboardEvent } from "../timeline-editor/hotkeys";
 import { type TimelineWorkbenchHotkeyId, timelineWorkbenchHotkeyGroups } from "./hotkeys";
 
@@ -534,7 +534,7 @@ function TimelineWorkbenchHotkeyMenu({
                             conflictLabels.length > 0 && "border-destructive",
                           )}
                           readOnly
-                          value={hotkey ? formatShortcutLabel(hotkey) : ""}
+                          value={hotkey ? formatEditorShortcutLabel(hotkey) : ""}
                           onKeyDown={(event) => {
                             handleTimelineWorkbenchHotkeyInputKeyDown(
                               event,

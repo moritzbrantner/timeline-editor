@@ -1,6 +1,6 @@
 # Source development
 
-Timeline Editor keeps its published semver contract intact while local editor-family development can consume editor-core directly from a sibling checkout.
+Timeline Editor pins `@moenarch/editor-core` to an editor-core `main` commit (git dependency, built by its `prepare` script) while local editor-family development can consume editor-core directly from a sibling checkout.
 
 Default layout:
 

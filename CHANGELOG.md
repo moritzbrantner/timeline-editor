@@ -14,6 +14,7 @@
 - Make multi-item paste and duplicate operations atomic, preserve relative timeline and track layout, clamp copied selections as one unit, and reject partial incompatible placements.
 - Build the package in a `prepare` script so consumers can install it as a commit-pinned git dependency (`git+https://github.com/moritzbrantner/timeline-editor.git#<sha>` listed in `trustedDependencies`).
 - Retire npm publishing: remove the changesets Release workflow and its `NPM_TOKEN` use. Releases are commits on `main`.
+- Depend on `@moenarch/editor-core` `main` as a commit-pinned git dependency instead of `^0.4.1`. Git consumers also list `@moenarch/editor-core` in `trustedDependencies` so its `prepare` build runs. The workbench uses editor-core's `useControllableEditorState` and `formatEditorShortcutLabel` directly; the local copy and the internal `formatShortcutLabel` wrapper are removed.
 - Depend on `@moritzbrantner/ui` 1.x as a commit-pinned git dependency instead of `^0.10.0`, dropping the vulnerable `shadcn > fast-glob > micromatch > braces` chain. Git consumers also list `@moritzbrantner/ui` directly, at the same commit, and in `trustedDependencies`, and apps rendering the React components import `@moritzbrantner/ui/component-sources.css` next to `@moritzbrantner/ui/styles.css`.
 
 ## 1.0.0
