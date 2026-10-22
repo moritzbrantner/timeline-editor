@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: moritzbrantner/editor-core
-          ref: 1a52e27ddacc5daa8b39713e9de8edd1c498c640
+          ref: 51463abfcafc9f6173f19320316b5161e86b5fbd
           path: .source/editor-core
 
       - name: Set up Bun

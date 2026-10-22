@@ -5,7 +5,7 @@
     "": {
       "name": "@moritzbrantner/timeline-editor",
       "dependencies": {
-        "@moenarch/editor-core": "^0.4.1",
+        "@moenarch/editor-core": "git+https://github.com/moritzbrantner/editor-core.git#51463abfcafc9f6173f19320316b5161e86b5fbd",
         "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#9892e374bfd760541b25c4480b5af03e87ee7e9d",
       },
       "devDependencies": {
@@ -167,6 +167,7 @@
   },
   "trustedDependencies": [
     "@moritzbrantner/ui",
+    "@moenarch/editor-core",
   ],
   "overrides": {
     "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#9892e374bfd760541b25c4480b5af03e87ee7e9d",
@@ -370,7 +371,7 @@
 
     "@mdx-js/react": ["@mdx-js/react@3.1.1", "", { "dependencies": { "@types/mdx": "^2.0.0" }, "peerDependencies": { "@types/react": ">=16", "react": ">=16" } }, "sha512-f++rKLQgUVYDAtECQ6fn/is15GkEH9+nZPM3MS0RcxVqoTfawHvDlSCH7JbMhAM6uJ32v3eXLvLmLvjGu7PTQw=="],
 
-    "@moenarch/editor-core": ["@moenarch/editor-core@0.4.1", "", {}, "sha512-5IN7/Dl4OxzoF+7Y+dV/BrFww2ztfW6pClYiQVITtk5epkXWCzk9AC8d4ua/2Bhy3W1KpTwmxLIE6k02I+Z6zQ=="],
+    "@moenarch/editor-core": ["@moenarch/editor-core@github:moritzbrantner/editor-core#51463ab", { "peerDependencies": { "react": "^19.0.0" }, "optionalPeers": ["react"] }, "moritzbrantner-editor-core-51463ab", "sha512-UGt9UbShfD3awuTvFUUGn+aC8jvfAauirRpi0riGjmgwmmRXLYo5+OQcOEuA1jftsOkWo/odbog+E5ViV05C8g=="],
 
     "@moritzbrantner/timeline-editor": ["@moritzbrantner/timeline-editor@1.0.0", "", { "dependencies": { "@moritzbrantner/ui": "^0.9.1" }, "peerDependencies": { "react": "^19.0.0", "react-dom": "^19.0.0" } }, "sha512-nrhIZ/ZFaTz4cldm0foOmF4p/935jgtyzdGFLCy/oIkYubPH4N8EIj1IZbQZHB/1eE2hFMGOEYWR4TDYDjwTOw=="],
 
