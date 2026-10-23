@@ -349,7 +349,7 @@ export const EditingWorkbench: Story = {
   },
   play: async ({ canvas }) => {
     await expect(canvas.getByText("Assets")).toBeVisible();
-    await expect(canvas.getByLabelText("Opening shot")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Opening shot" })).toBeVisible();
   },
 };
 
@@ -359,7 +359,7 @@ export const ReadOnlyWorkbench: Story = {
     readOnly: true,
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByLabelText("Product demo")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Product demo" })).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Add Track" })).toBeDisabled();
   },
 };
@@ -372,7 +372,7 @@ export const AssetImport: Story = {
   },
   play: async ({ canvas }) => {
     await expect(canvas.getByRole("button", { name: "Import files" })).toBeVisible();
-    await expect(canvas.getByLabelText("B-roll clip")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "B-roll clip" })).toBeVisible();
   },
 };
 
@@ -382,8 +382,8 @@ export const OverlapPrevention: Story = {
     editPolicy: { overlap: "prevent", ripple: false },
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByLabelText("First")).toBeVisible();
-    await expect(canvas.getByLabelText("Second")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "First" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Second" })).toBeVisible();
   },
 };
 
@@ -399,6 +399,6 @@ export const KeyframeInspectorAndTrackGroups: Story = {
   },
   play: async ({ canvas }) => {
     await expect(canvas.getByText("Program")).toBeVisible();
-    await expect(canvas.getByLabelText("Lower third")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Lower third" })).toBeVisible();
   },
 };

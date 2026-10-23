@@ -139,7 +139,7 @@ export const ProviderRootContentRulerAndTracks: Story = {
   render: () => <TimelineEditorComponentPartsStory />,
   play: async ({ canvas, canvasElement }) => {
     await expect(canvas.getByText("Program")).toBeVisible();
-    await expect(canvas.getByText("Planning")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Planning" })).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Brief" })).toBeVisible();
     await expect(
       canvasElement.querySelector("[data-slot='timeline-editor-range-overlay']"),

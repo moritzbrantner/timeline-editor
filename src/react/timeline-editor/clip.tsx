@@ -110,7 +110,6 @@ function TimelineEditorClipComponent<TItemData>({
       role="button"
       tabIndex={0}
       aria-pressed={selected}
-      aria-label={item.label}
       title={title}
       className={cn(
         "group absolute flex min-w-8 cursor-grab items-center rounded-md border px-2 text-xs font-medium text-white shadow-sm outline-none data-[selected=true]:ring-2 data-[selected=true]:ring-ring",
@@ -134,24 +133,30 @@ function TimelineEditorClipComponent<TItemData>({
         className={cn(handleClassName, "left-0 rounded-l-md")}
         onPointerDown={(event) => handleResizePointerDown("start", event)}
       />
-      {renderItem ? (
-        renderItem({
-          item,
-          selected,
-          readOnly,
-          durationMs,
-          timelineWidthPx,
-          itemWidthPx,
-          pixelsPerSecond,
-        })
-      ) : (
-        <TimelineEditorDefaultClipContent
-          density={density}
-          item={item}
-          locked={locked}
-          transformPointCount={transformPointCount}
-        />
-      )}
+      {/* The accessible name is the label alone (WCAG 2.5.3); rendered metadata is described by the title. */}
+      <span data-slot="timeline-editor-clip-name" className="sr-only">
+        {item.label}
+      </span>
+      <span aria-hidden="true" data-slot="timeline-editor-clip-content" className="contents">
+        {renderItem ? (
+          renderItem({
+            item,
+            selected,
+            readOnly,
+            durationMs,
+            timelineWidthPx,
+            itemWidthPx,
+            pixelsPerSecond,
+          })
+        ) : (
+          <TimelineEditorDefaultClipContent
+            density={density}
+            item={item}
+            locked={locked}
+            transformPointCount={transformPointCount}
+          />
+        )}
+      </span>
       <span
         aria-hidden="true"
         data-slot="timeline-editor-resize-end"

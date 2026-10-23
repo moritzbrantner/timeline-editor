@@ -101,7 +101,9 @@ export async function getHarnessState(page: Page) {
 }
 
 export function getClip(page: Page, name: string) {
-  return page.locator(`[data-slot='timeline-editor-clip'][aria-label="${name}"]`);
+  return page
+    .getByRole("button", { name, exact: true })
+    .and(page.locator("[data-slot='timeline-editor-clip']"));
 }
 
 export function getTimelineEditor(page: Page) {

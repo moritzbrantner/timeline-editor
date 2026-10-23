@@ -7,6 +7,7 @@
 - Implement atomic roll trims and adapter-driven slip editing while preserving the existing normal and ripple trim behavior.
 - Add atomic multi-item resize operations with shared snapping and clamping, lock and overlap-policy enforcement, and rigid fail-closed behavior when push handling would move selected items independently.
 - Add an undoable `resize-items` command that applies the atomic multi-item resize primitive through the shared command/history layer without changing existing single-item pointer resize behavior.
+- Meet WCAG 2.5.3 (Label in Name, enforced by axe 4.14's `label-content-name-mismatch`) for clips and track headers. Their accessible name now comes from a visually hidden copy of the item or track label instead of `aria-label`, and the rendered content (default or `renderItem`/`renderTrackHeader`) is `aria-hidden`. Clip metadata stays available as the `title` description, and default track-header metadata (item count, accepted kinds, lock state) is linked with `aria-describedby`. Clips and track headers no longer carry an `aria-label` attribute: query them by role and name (`getByRole("button", { name })`) instead of by label.
 
 ### Patch Changes
 
