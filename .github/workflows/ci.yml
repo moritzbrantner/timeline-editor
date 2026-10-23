@@ -21,7 +21,7 @@ jobs:
       packages: read
     uses: moritzbrantner/reusable-workflows/.github/workflows/fast-validation.yml@458c85c1a58cac26a5ab978e12ab8e9a27d4e0ee # workflow-standard-v1.2
     with:
-      bun_version: 1.4.3
+      bun_version: latest
       install_command: bun install --frozen-lockfile
       format_command: bun run format:check
       lint_command: bun run lint
@@ -40,7 +40,7 @@ jobs:
       packages: read
     uses: moritzbrantner/reusable-workflows/.github/workflows/integration-validation.yml@458c85c1a58cac26a5ab978e12ab8e9a27d4e0ee # workflow-standard-v1.2
     with:
-      bun_version: 1.4.3
+      bun_version: latest
       install_command: bun install --frozen-lockfile
       pre_command: |
         rustup target add wasm32-unknown-unknown
@@ -62,7 +62,7 @@ jobs:
       packages: read
     uses: moritzbrantner/reusable-workflows/.github/workflows/storybook-validation.yml@458c85c1a58cac26a5ab978e12ab8e9a27d4e0ee # workflow-standard-v1.2
     with:
-      bun_version: 1.4.3
+      bun_version: latest
       install_command: bun install --frozen-lockfile
       storybook_build_command: bun run build-storybook
       storybook_test_command: bun run test:storybook
@@ -75,7 +75,7 @@ jobs:
       packages: read
     uses: moritzbrantner/reusable-workflows/.github/workflows/e2e-validation.yml@458c85c1a58cac26a5ab978e12ab8e9a27d4e0ee # workflow-standard-v1.2
     with:
-      bun_version: 1.4.3
+      bun_version: latest
       install_command: bun install --frozen-lockfile
       e2e_command: bun run test:playwright
       install_playwright: true
@@ -132,7 +132,7 @@ jobs:
           persist-credentials: false
       - uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
         with:
-          bun-version: 1.4.3
+          bun-version: latest
       - name: Verify clean consumer dependency resolution
         run: |
           bun install --frozen-lockfile
@@ -146,7 +146,7 @@ jobs:
       packages: read
     uses: moritzbrantner/reusable-workflows/.github/workflows/performance-validation.yml@458c85c1a58cac26a5ab978e12ab8e9a27d4e0ee # workflow-standard-v1.2
     with:
-      bun_version: 1.4.3
+      bun_version: latest
       install_command: bun install --frozen-lockfile
       pre_command: bunx playwright install --with-deps chromium
       unlighthouse_command: bun run test:lighthouse

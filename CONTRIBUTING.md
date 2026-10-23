@@ -2,7 +2,7 @@
 
 ## Required Tools
 
-- Bun `1.4.3`
+- Bun (latest stable)
 - Rust stable
 - Rust `wasm32-unknown-unknown` target
 - Playwright Chromium for local browser checks
