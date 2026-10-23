@@ -911,19 +911,17 @@ export function TimelineWorkbench<
       },
       ...(document.groups ?? [])
         .filter((group) => group.id !== trackGroup?.id)
-        .map(
-          (group): MenuActionItem => ({
-            id: `add-track-to-group-${group.id}`,
-            label: `Add Track To ${group.label}`,
-            disabled: readOnly || group.trackIds.includes(context.track.id),
-            onSelect: () =>
-              runCommand({
-                type: "add-tracks-to-group",
-                groupId: group.id,
-                trackIds: [context.track.id],
-              }),
-          }),
-        ),
+        .map((group): MenuActionItem => ({
+          id: `add-track-to-group-${group.id}`,
+          label: `Add Track To ${group.label}`,
+          disabled: readOnly || group.trackIds.includes(context.track.id),
+          onSelect: () =>
+            runCommand({
+              type: "add-tracks-to-group",
+              groupId: group.id,
+              trackIds: [context.track.id],
+            }),
+        })),
       {
         id: "move-track-group-up",
         label: "Move Track Up In Group",
