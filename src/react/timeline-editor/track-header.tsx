@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+
 import { TimelineEditorContextActionMenu } from "./context-menu-items";
 import { useTimelineEditor } from "./provider";
 import type {
@@ -16,6 +18,10 @@ export function TimelineEditorTrackHeader<
   const selected = Boolean(
     editor.selection.itemIds.length === 0 && editor.selection.trackIds?.includes(entry.track.id),
   );
+  const metaId = useId();
+  const describedByMeta =
+    !editor.renderTrackHeader &&
+    (entry.track.items.length > 0 || Boolean(entry.track.acceptsItemKinds?.length) || locked);
   const selectTrack = () => {
     editor.commitSelection({
       itemIds: [],
@@ -48,7 +54,7 @@ export function TimelineEditorTrackHeader<
       role="button"
       tabIndex={0}
       aria-pressed={selected}
-      aria-label={entry.track.label}
+      aria-describedby={describedByMeta ? metaId : undefined}
       className="flex items-center border-r bg-muted/20 px-3 text-sm font-medium data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground"
       onPointerDown={(event) => {
         if (event.button !== 0) {
@@ -72,15 +78,29 @@ export function TimelineEditorTrackHeader<
         selectTrack();
       }}
     >
-      {editor.renderTrackHeader ? (
-        editor.renderTrackHeader({
-          track: entry.track as never,
-          locked: entry.locked,
-          collapsed: false,
-        })
-      ) : (
-        <TimelineEditorDefaultTrackHeaderContent locked={locked} track={entry.track} />
-      )}
+      {/* The accessible name is the label alone (WCAG 2.5.3); default metadata is the description. */}
+      <span data-slot="timeline-editor-track-header-name" className="sr-only">
+        {entry.track.label}
+      </span>
+      <span
+        aria-hidden="true"
+        data-slot="timeline-editor-track-header-content"
+        className="contents"
+      >
+        {editor.renderTrackHeader ? (
+          editor.renderTrackHeader({
+            track: entry.track as never,
+            locked: entry.locked,
+            collapsed: false,
+          })
+        ) : (
+          <TimelineEditorDefaultTrackHeaderContent
+            locked={locked}
+            metaId={metaId}
+            track={entry.track}
+          />
+        )}
+      </span>
     </div>
   );
 
@@ -103,9 +123,11 @@ function TimelineEditorDefaultTrackHeaderContent<
   TItemData,
 >({
   locked,
+  metaId,
   track,
 }: {
   locked: boolean;
+  metaId: string;
   track: TimelineEditorTrackHeaderProps<TTrackData, TItemData>["entry"]["track"];
 }) {
   const itemCountLabel =
@@ -122,7 +144,10 @@ function TimelineEditorDefaultTrackHeaderContent<
         {track.label}
       </span>
       {itemCountLabel || acceptedKindsLabel || locked ? (
-        <span className="flex min-w-0 items-center gap-1.5 text-xs font-normal text-muted-foreground">
+        <span
+          id={metaId}
+          className="flex min-w-0 items-center gap-1.5 text-xs font-normal text-muted-foreground"
+        >
           {itemCountLabel ? (
             <span data-slot="timeline-editor-track-header-meta" className="shrink-0">
               {itemCountLabel}

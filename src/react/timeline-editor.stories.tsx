@@ -141,8 +141,8 @@ export const Basic: Story = {
     document: baseDocument,
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText("Video")).toBeVisible();
-    await expect(canvas.getByLabelText("Opening shot")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Video" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Opening shot" })).toBeVisible();
   },
 };
 
@@ -152,7 +152,7 @@ export const ReadOnly: Story = {
     readOnly: true,
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByLabelText("Product demo")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Product demo" })).toBeVisible();
   },
 };
 
@@ -162,7 +162,7 @@ export const WithMarkersAndRange: Story = {
     selection: { itemIds: ["lower-third"], range: { startMs: 2_000, endMs: 4_000 } },
   },
   play: async ({ canvas, canvasElement }) => {
-    await expect(canvas.getByLabelText("Lower third")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Lower third" })).toBeVisible();
     await expect(canvasElement.querySelector('[title="Review"]')).not.toBeNull();
   },
 };
@@ -172,7 +172,7 @@ export const DenseVirtualized: Story = {
     document: denseDocument,
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText("Track 1")).toBeVisible();
-    await expect(canvas.getByLabelText("Item 1-1")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Track 1" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Item 1-1" })).toBeVisible();
   },
 };

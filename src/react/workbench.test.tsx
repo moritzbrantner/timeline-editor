@@ -94,7 +94,9 @@ function mockTimelineEditorScrollSize(options: { clientWidth: number; scrollWidt
 function getTimelineWorkbenchClip(container: HTMLElement, label: string) {
   return Array.from(
     container.querySelectorAll<HTMLElement>("[data-slot='timeline-editor-clip']"),
-  ).find((clip) => clip.getAttribute("aria-label")?.startsWith(label));
+  ).find((clip) =>
+    clip.querySelector("[data-slot='timeline-editor-clip-name']")?.textContent?.startsWith(label),
+  );
 }
 
 beforeAll(() => {
@@ -289,7 +291,7 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
       </TimelineEditorProvider>,
     );
 
-    expect(screen.getByText("Planning")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Planning" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Brief" })).toBeTruthy();
   });
 
@@ -309,7 +311,7 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
       </TimelineEditorProvider>,
     );
 
-    expect(screen.getByText("Planning")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Planning" })).toBeTruthy();
     expect(screen.queryByText("0:00.0")).toBeNull();
 
     rerender(
