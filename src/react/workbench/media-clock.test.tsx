@@ -102,17 +102,17 @@ function installMockMediaElement() {
     },
   });
 
-  const play = vi
-    .spyOn(HTMLMediaElement.prototype, "play")
-    .mockImplementation(function play(this: HTMLMediaElement) {
-      getState(this).paused = false;
-      return Promise.resolve();
-    });
-  const pause = vi
-    .spyOn(HTMLMediaElement.prototype, "pause")
-    .mockImplementation(function pause(this: HTMLMediaElement) {
-      getState(this).paused = true;
-    });
+  const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(function play(
+    this: HTMLMediaElement,
+  ) {
+    getState(this).paused = false;
+    return Promise.resolve();
+  });
+  const pause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(function pause(
+    this: HTMLMediaElement,
+  ) {
+    getState(this).paused = true;
+  });
 
   return {
     play,
