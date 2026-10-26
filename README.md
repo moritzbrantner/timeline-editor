@@ -5,18 +5,25 @@ Generic timeline document utilities and React components for editing time-aligne
 ## Install
 
 The package is not published to npm. Install it as a commit-pinned git
-dependency together with its `@moritzbrantner/ui` git dependency, pinned to the
-same ui commit that this package's `package.json` pins, and trust both so their
-`prepare` scripts can build `dist`. Listing ui directly matters: some bun
-versions (seen with 1.4.2) skip a trusted transitive git dependency's `prepare`.
+dependency together with its `@moritzbrantner/ui` and `@moenarch/editor-core` git
+dependencies, pinned to the same commits that this package's `package.json`
+pins. List and trust all three directly so their `prepare` scripts can build
+`dist`: some Bun versions (seen with 1.4.2 and 1.4.3) skip a trusted transitive
+git dependency's `prepare`. The `verify:git-install` consumer follows this
+source-install contract.
 
 ```json
 {
   "dependencies": {
     "@moritzbrantner/timeline-editor": "git+https://github.com/moritzbrantner/timeline-editor.git#<commit-sha>",
-    "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#<ui-sha-pinned-by-timeline-editor>"
+    "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#<ui-sha-pinned-by-timeline-editor>",
+    "@moenarch/editor-core": "git+https://github.com/moritzbrantner/editor-core.git#<editor-core-sha-pinned-by-timeline-editor>"
   },
-  "trustedDependencies": ["@moritzbrantner/timeline-editor", "@moritzbrantner/ui"]
+  "trustedDependencies": [
+    "@moritzbrantner/timeline-editor",
+    "@moritzbrantner/ui",
+    "@moenarch/editor-core"
+  ]
 }
 ```
 
