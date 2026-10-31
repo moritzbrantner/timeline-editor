@@ -217,8 +217,12 @@ export function TimelineWorkbench<
     itemIds: selectedItemId ? [selectedItemId] : [],
     anchorItemId: selectedItemId ?? undefined,
   };
-  const itemLookup = useMemo(() => createTimelineWorkbenchItemLookup(document), [document]);
-  const trackLookup = useMemo(() => createTimelineWorkbenchTrackLookup(document), [document]);
+  // Keyed on tracks, not document: the document changes on every playhead tick.
+  const itemLookup = useMemo(() => createTimelineWorkbenchItemLookup(document), [document.tracks]);
+  const trackLookup = useMemo(
+    () => createTimelineWorkbenchTrackLookup(document),
+    [document.tracks],
+  );
   const selectedItems = getTimelineWorkbenchSelectedItems(resolvedSelection, itemLookup);
   const selected = resolvedSelection.itemIds[0]
     ? itemLookup.get(resolvedSelection.itemIds[0])
