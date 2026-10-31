@@ -209,18 +209,25 @@ export function TimelineEditorProvider<
   const mouseRangeDragStateRef = useRef<typeof rangeDragState>(null);
   const mouseScrubbingRef = useRef(false);
   const selectedIds = useMemo(() => new Set(selection.itemIds), [selection.itemIds]);
-  const documentIndex = useMemo(() => createTimelineEditorDocumentIndex(document), [document]);
+  // Keyed on tracks, not document: the document changes on every playhead tick.
+  const documentIndex = useMemo(
+    () => createTimelineEditorDocumentIndex(document),
+    [document.tracks],
+  );
   const selectedItems = useMemo(
     () => getSelectedTimelineEditorItems(document, selectedIds, documentIndex),
-    [document, selectedIds, documentIndex],
+    [selectedIds, documentIndex],
   );
   const renderDocument = useMemo(
     () => (previewTracks ? { ...document, tracks: previewTracks } : document),
     [document, previewTracks],
   );
   const renderDocumentIndex = useMemo(
-    () => createTimelineEditorDocumentIndex(renderDocument),
-    [renderDocument],
+    () =>
+      renderDocument.tracks === document.tracks
+        ? documentIndex
+        : createTimelineEditorDocumentIndex(renderDocument),
+    [documentIndex, renderDocument.tracks],
   );
   const visibleRange = useMemo(
     () =>
@@ -234,7 +241,7 @@ export function TimelineEditorProvider<
   );
   const visibleTracks = useMemo(
     () => getVisibleTracks(renderDocument, renderDocumentIndex),
-    [renderDocument, renderDocumentIndex],
+    [renderDocument.groups, renderDocument.tracks, renderDocumentIndex],
   );
   const ticks = useMemo(
     () =>
