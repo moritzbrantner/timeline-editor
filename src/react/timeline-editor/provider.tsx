@@ -76,6 +76,8 @@ import {
 import type {
   TimelineEditorContextValue,
   TimelineEditorDragState,
+  TimelineEditorItemContextMenuItems,
+  TimelineEditorItemRenderContext,
   TimelineEditorProviderProps,
   TimelineEditorTimelineContextMenuContext,
 } from "./types";
@@ -88,6 +90,41 @@ import {
 } from "./viewport";
 
 const TimelineEditorContext = createContext<unknown>(null);
+
+/**
+ * Internal, clip-only slice of the editor context. It holds only values that change when
+ * the clips' rendered output can change, plus stable actions that read the latest editor
+ * state when an event fires. Playhead-only (`currentTimeMs`) updates leave it untouched, so
+ * the memoized `TimelineEditorClip` skips re-rendering while scrubbing or playing. Item
+ * context menus are built lazily from these actions when the menu opens.
+ */
+export type TimelineEditorClipContextValue<TItemData = Record<string, unknown>> = {
+  durationMs: number;
+  hasItemContextMenu: boolean;
+  pixelsPerSecond: number;
+  readOnly: boolean;
+  renderItem?: (context: TimelineEditorItemRenderContext<TItemData>) => React.ReactNode;
+  selectedIds: ReadonlySet<string>;
+  timelineWidthPx: number;
+  beginClipMove: TimelineEditorContextValue<Record<string, unknown>, TItemData>["beginClipMove"];
+  beginClipResize: TimelineEditorContextValue<
+    Record<string, unknown>,
+    TItemData
+  >["beginClipResize"];
+  getItemContextMenuItems: (input: {
+    durationMs: number;
+    item: TimelineEditorItem<TItemData>;
+    locked: boolean;
+    track: TimelineEditorTrack<Record<string, unknown>, TItemData>;
+  }) => ReturnType<TimelineEditorItemContextMenuItems>;
+  selectItemForContextMenu: (item: TimelineEditorItem<TItemData>) => void;
+};
+
+const TimelineEditorClipContext = createContext<unknown>(null);
+
+export function useOptionalTimelineEditorClipContext<TItemData = Record<string, unknown>>() {
+  return useContext(TimelineEditorClipContext) as TimelineEditorClipContextValue<TItemData> | null;
+}
 
 export function useTimelineEditor<
   TTrackData extends Record<string, unknown> = Record<string, unknown>,
@@ -208,7 +245,9 @@ export function TimelineEditorProvider<
   const scrubStateRef = useRef<typeof scrubState>(null);
   const mouseRangeDragStateRef = useRef<typeof rangeDragState>(null);
   const mouseScrubbingRef = useRef(false);
-  const selectedIds = useMemo(() => new Set(selection.itemIds), [selection.itemIds]);
+  // Keyed on the ids, not the array: hosts often rebuild an equal selection on every render.
+  const selectedIdsKey = selection.itemIds.join("\u0000");
+  const selectedIds = useMemo(() => new Set(selection.itemIds), [selectedIdsKey]);
   // Keyed on tracks, not document: the document changes on every playhead tick.
   const documentIndex = useMemo(
     () => createTimelineEditorDocumentIndex(document),
@@ -1170,5 +1209,103 @@ export function TimelineEditorProvider<
     ],
   );
 
-  return <TimelineEditorContext.Provider value={value}>{children}</TimelineEditorContext.Provider>;
+  const latestClipStateRef = useRef({
+    beginClipMove,
+    beginClipResize,
+    commitSelection,
+    document,
+    getItemContextMenuItems,
+    selectedIds,
+    selectedItems,
+    selection,
+  });
+  useLayoutEffect(() => {
+    latestClipStateRef.current = {
+      beginClipMove,
+      beginClipResize,
+      commitSelection,
+      document,
+      getItemContextMenuItems,
+      selectedIds,
+      selectedItems,
+      selection,
+    };
+  });
+  const clipActions = useMemo(
+    () =>
+      ({
+        beginClipMove: (item, track, locked, event) =>
+          latestClipStateRef.current.beginClipMove(item, track as never, locked, event),
+        beginClipResize: (edge, item, locked, event) =>
+          latestClipStateRef.current.beginClipResize(edge, item, locked, event),
+        selectItemForContextMenu: (item) => {
+          const latest = latestClipStateRef.current;
+
+          if (!latest.selectedIds.has(item.id)) {
+            latest.commitSelection({ itemIds: [item.id], anchorItemId: item.id });
+          }
+        },
+        getItemContextMenuItems: ({ durationMs: itemDurationMs, item, locked, track }) => {
+          const latest = latestClipStateRef.current;
+
+          if (!latest.getItemContextMenuItems) {
+            return [];
+          }
+
+          // Opening the menu on an unselected clip selects it first (see
+          // `selectItemForContextMenu`), so describe the selection the menu acts on.
+          const isSelected = latest.selectedIds.has(item.id);
+
+          return latest.getItemContextMenuItems({
+            document: latest.document,
+            durationMs: itemDurationMs,
+            item,
+            readOnly: locked,
+            selected: true,
+            selectedItems: isSelected ? latest.selectedItems : [item],
+            selection: isSelected
+              ? latest.selection
+              : { itemIds: [item.id], anchorItemId: item.id },
+            track: track as TimelineEditorTrack<TTrackData, TItemData>,
+          });
+        },
+      }) satisfies Pick<
+        TimelineEditorClipContextValue<TItemData>,
+        "beginClipMove" | "beginClipResize" | "getItemContextMenuItems" | "selectItemForContextMenu"
+      >,
+    [],
+  );
+  const hasItemContextMenu = Boolean(getItemContextMenuItems);
+  const pixelsPerSecond = resolvedViewport.pixelsPerSecond;
+  const clipValue = useMemo(
+    () =>
+      ({
+        ...clipActions,
+        durationMs,
+        hasItemContextMenu,
+        pixelsPerSecond,
+        readOnly,
+        renderItem,
+        selectedIds,
+        timelineWidthPx,
+      }) satisfies TimelineEditorClipContextValue<TItemData>,
+    [
+      clipActions,
+      durationMs,
+      hasItemContextMenu,
+      pixelsPerSecond,
+      readOnly,
+      renderItem,
+      selectedIds,
+      timelineWidthPx,
+    ],
+  );
+
+  return (
+    <TimelineEditorContext.Provider value={value}>
+      <TimelineEditorClipContext.Provider value={clipValue}>
+        {children}
+      </TimelineEditorClipContext.Provider>
+    </TimelineEditorContext.Provider>
+  );
 }

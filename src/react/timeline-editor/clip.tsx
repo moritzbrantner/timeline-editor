@@ -8,8 +8,9 @@ import { cn, type MenuActionItem } from "@moritzbrantner/ui";
 import type { TimelineEditorItem } from "../../types";
 import { formatTimelineEditorTimeMs } from "../../time";
 import { getTimelineEditorItemStyle } from "../timeline-rendering";
+import { TimelineEditorContextMenuTarget } from "./context-menu";
 import { TimelineEditorContextActionMenu } from "./context-menu-items";
-import { useOptionalTimelineEditor } from "./provider";
+import { useOptionalTimelineEditorClipContext } from "./provider";
 import type { TimelineEditorClipPublicProps, TimelineEditorItemRenderContext } from "./types";
 
 export type TimelineEditorClipProps<TItemData> = TimelineEditorClipPublicProps<TItemData> & {
@@ -42,7 +43,9 @@ function TimelineEditorClipComponent<TItemData>({
   onMovePointerDown,
   onResizePointerDown,
 }: TimelineEditorClipPublicProps<TItemData>) {
-  const editor = useOptionalTimelineEditor<Record<string, unknown>, TItemData>();
+  // The clip-only context ignores playhead-only updates, so this memoized clip does not
+  // re-render on every scrub or playback tick.
+  const editor = useOptionalTimelineEditorClipContext<TItemData>();
   const selected = selectedProp ?? Boolean(editor?.selectedIds.has(item.id));
   const readOnly = readOnlyProp ?? Boolean(editor?.readOnly);
   const locked = lockedProp ?? Boolean(readOnly || item.locked || track?.locked);
@@ -51,30 +54,20 @@ function TimelineEditorClipComponent<TItemData>({
     timelineWidthPxProp ?? editor?.timelineWidthPx ?? Math.max(640, item.durationMs);
   const itemWidthPx = Math.max(32, (item.durationMs / Math.max(1, durationMs)) * timelineWidthPx);
   const pixelsPerSecond =
-    editor?.viewport.pixelsPerSecond ?? (timelineWidthPx / Math.max(1, durationMs)) * 1_000;
+    editor?.pixelsPerSecond ?? (timelineWidthPx / Math.max(1, durationMs)) * 1_000;
   const density = getTimelineEditorClipDensity(itemWidthPx);
   const transformPointCount = item.transform?.points.length ?? 0;
   const renderItem = renderItemProp ?? editor?.renderItem;
-  const contextMenuItems =
-    contextMenuItemsProp ??
-    (editor?.getItemContextMenuItems && track
-      ? editor.getItemContextMenuItems({
-          document: editor.document,
-          durationMs,
-          item,
-          readOnly: locked,
-          selected,
-          selectedItems: editor.selectedItems,
-          selection: editor.selection,
-          track,
-        })
-      : []);
+  // Editor item menus are built when the menu opens, from the latest document and selection.
+  const getLazyContextMenuItems =
+    !contextMenuItemsProp && editor?.hasItemContextMenu && track
+      ? () => editor.getItemContextMenuItems({ durationMs, item, locked, track })
+      : undefined;
+  const contextMenuItems = contextMenuItemsProp ?? [];
   const handleContextMenu =
     onContextMenu ??
     (() => {
-      if (editor && !editor.selectedIds.has(item.id)) {
-        editor.commitSelection({ itemIds: [item.id], anchorItemId: item.id });
-      }
+      editor?.selectItemForContextMenu(item);
     });
   const handleMovePointerDown =
     onMovePointerDown ??
@@ -165,6 +158,18 @@ function TimelineEditorClipComponent<TItemData>({
       />
     </div>
   );
+
+  if (getLazyContextMenuItems) {
+    return (
+      <TimelineEditorContextMenuTarget
+        contentProps={{ "data-slot": "timeline-editor-clip-menu" }}
+        getContext={() => undefined}
+        getItems={getLazyContextMenuItems}
+      >
+        {clip}
+      </TimelineEditorContextMenuTarget>
+    );
+  }
 
   if (contextMenuItems.length === 0) {
     return clip;
