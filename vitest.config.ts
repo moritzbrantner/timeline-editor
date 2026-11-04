@@ -104,6 +104,11 @@ export default defineConfig({
     name: "unit",
     environment: "jsdom",
     globals: true,
-    include: ["src/**/*.test.ts", "src/**/*.test.tsx", "packages/**/*.test.ts"],
+    include: [
+      "src/**/*.test.ts",
+      "src/**/*.test.tsx",
+      "packages/**/*.test.ts",
+      "examples/**/*.test.ts",
+    ],
   },
 });

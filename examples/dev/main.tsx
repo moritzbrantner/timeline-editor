@@ -1,9 +1,19 @@
 import "@moritzbrantner/ui/styles.css";
 import "@moritzbrantner/ui/component-sources.css";
+import "@moritzbrantner/input-bindings-react/workbench.css";
 import "./styles.css";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import {
+  createSettingsSession,
+  type BrowserSettingsSession,
+  type SettingValue,
+} from "@moritzbrantner/settings-browser";
+import { InputBindingsWorkbench } from "@moritzbrantner/input-bindings-react/workbench";
+import { InputRuntimeController } from "@moritzbrantner/input-bindings-runtime";
+import { attachKeyboardRuntime } from "@moritzbrantner/input-bindings-web";
+import type { Profile } from "@moritzbrantner/input-bindings";
 
 import {
   TimelineWorkbench,
@@ -15,10 +25,18 @@ import {
   type TimelineEditorSelection,
   type TimelineWorkbenchAsset,
 } from "@moritzbrantner/timeline-editor";
+import { denseDocument, storyAnimationDocument } from "../scenarios";
+import {
+  SETTINGS_STORAGE_KEY,
+  loadBindingsProfile,
+  saveBindingsProfile,
+  timelineActions,
+  timelineRegistry,
+  timelineSettings,
+} from "./dogfood";
 
-const zooAudioFileName = "Me at the zoo [jNQXAC9IVRw].mp3";
-const zooAudioUrl = `/${encodeURIComponent(zooAudioFileName)}`;
-const previewVideoUrl = "/timeline-preview-fixture.webm";
+const previewAudioUrl = `${import.meta.env.BASE_URL}timeline-preview-fixture.wav`;
+const previewVideoUrl = `${import.meta.env.BASE_URL}timeline-preview-fixture.webm`;
 
 const initialDocument: TimelineEditorDocument = {
   durationMs: 18_000,
@@ -81,9 +99,9 @@ const initialDocument: TimelineEditorDocument = {
           data: {
             mediaType: "audio",
             source: {
-              label: "Me at the zoo",
-              uri: zooAudioUrl,
-              mimeType: "audio/mpeg",
+              label: "timeline-preview-fixture.wav",
+              uri: previewAudioUrl,
+              mimeType: "audio/wav",
             },
             muted: true,
             volume: 0.85,
@@ -179,13 +197,13 @@ const assets = [
     mediaType: "audio",
     durationMs: 1_200,
     color: "#16a34a",
-    description: "MP3 audio cue",
+    description: "Audio cue",
     data: {
       mediaType: "audio",
       source: {
-        label: "Me at the zoo [jNQXAC9IVRw].mp3",
-        uri: zooAudioUrl,
-        mimeType: "audio/mpeg",
+        label: "timeline-preview-fixture.wav",
+        uri: previewAudioUrl,
+        mimeType: "audio/wav",
       },
       volume: 0.85,
       channels: 2,
@@ -203,10 +221,114 @@ const assets = [
   },
 ] satisfies TimelineWorkbenchAsset[];
 
+type ScenarioId = "media" | "story" | "dense";
+type Panel = "settings" | "controls" | null;
+
+const scenarios: readonly { id: ScenarioId; label: string; description: string }[] = [
+  {
+    id: "media",
+    label: "Media editing",
+    description: "Video, audio, markers, transforms and asset placement",
+  },
+  {
+    id: "story",
+    label: "Story & animation",
+    description: "Scenes, narration, character poses and timed effects",
+  },
+  {
+    id: "dense",
+    label: "Dense timeline",
+    description: "80 tracks and 3,200 clips for scrolling and virtualization",
+  },
+];
+
+function scenarioDocument(id: ScenarioId): TimelineEditorDocument {
+  if (id === "story") return storyAnimationDocument;
+  if (id === "dense") return denseDocument;
+  return initialDocument;
+}
+
+function initialScenario(): ScenarioId {
+  const fromUrl = new URLSearchParams(window.location.search).get("scenario");
+  return scenarios.find((scenario) => scenario.id === fromUrl)?.id ?? "media";
+}
+
+function persistedProfile(): Profile {
+  try {
+    return loadBindingsProfile(window.localStorage);
+  } catch {
+    return { id: "timeline-playground-user", patches: [] };
+  }
+}
+
 function App() {
-  const [document, setDocument] = useState(initialDocument);
+  const [scenarioId, setScenarioId] = useState<ScenarioId>(initialScenario);
+  const [document, setDocument] = useState(() => scenarioDocument(initialScenario()));
   const [selection, setSelection] = useState<TimelineEditorSelection>({ itemIds: [] });
-  const [readOnly, setReadOnly] = useState(false);
+  const [panel, setPanel] = useState<Panel>(null);
+  const [settingsSession, setSettingsSession] = useState<BrowserSettingsSession | null>(null);
+  const [settingsValues, setSettingsValues] = useState<Record<string, SettingValue>>(() =>
+    Object.fromEntries(timelineSettings.map((setting) => [setting.id, setting.default])),
+  );
+  const [profile, setProfile] = useState<Profile>(persistedProfile);
+  const [status, setStatus] = useState("Try dragging a clip or select a different example.");
+  const actionsRef = useRef<Readonly<Record<string, () => void>>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    let sessionToDispose: BrowserSettingsSession | null = null;
+    void createSettingsSession(timelineSettings)
+      .then((session) => {
+        sessionToDispose = session;
+        if (cancelled) {
+          session.dispose();
+          return;
+        }
+        try {
+          const snapshot = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
+          if (snapshot) session.importScope("user", snapshot);
+        } catch {
+          setStatus("Stored settings could not be restored; using defaults.");
+        }
+        setSettingsSession(session);
+        setSettingsValues(session.effectiveValues());
+      })
+      .catch((error: unknown) => setStatus(`Settings unavailable: ${String(error)}`));
+
+    return () => {
+      cancelled = true;
+      sessionToDispose?.dispose();
+    };
+  }, []);
+
+  const changeSetting = (id: string, value: SettingValue) => {
+    if (!settingsSession) return;
+    try {
+      settingsSession.set(id, value);
+      setSettingsValues(settingsSession.effectiveValues());
+      window.localStorage.setItem(SETTINGS_STORAGE_KEY, settingsSession.exportScope("user"));
+      setStatus(`${id.replace("timeline.", "")} updated through shared settings.`);
+    } catch (error) {
+      setStatus(`Could not save setting: ${String(error)}`);
+    }
+  };
+
+  const readOnlyValue = settingsValues["timeline.readOnly"];
+  const snapValue = settingsValues["timeline.snapMs"];
+  const scaleValue = settingsValues["timeline.pixelsPerSecond"];
+  const readOnly = readOnlyValue?.type === "bool" && readOnlyValue.value;
+  const snapMs = snapValue?.type === "integer" ? snapValue.value : 100;
+  const pixelsPerSecond = scaleValue?.type === "integer" ? scaleValue.value : 84;
+
+  const changeScenario = (next: ScenarioId) => {
+    setScenarioId(next);
+    setDocument(scenarioDocument(next));
+    setSelection({ itemIds: [] });
+    const url = new URL(window.location.href);
+    url.searchParams.set("scenario", next);
+    window.history.replaceState(null, "", url);
+    setStatus(`Loaded ${scenarios.find((scenario) => scenario.id === next)?.label}.`);
+  };
 
   const updateDocument = (nextDocument: TimelineEditorDocument) => {
     setDocument(nextDocument);
@@ -217,9 +339,49 @@ function App() {
   };
 
   const resetDocument = () => {
-    setDocument(initialDocument);
+    setDocument(scenarioDocument(scenarioId));
     setSelection({ itemIds: [] });
+    setStatus("Example document reset; settings and bindings preserved.");
   };
+
+  const changeProfile = (nextProfile: Profile) => {
+    setProfile(nextProfile);
+    try {
+      saveBindingsProfile(window.localStorage, nextProfile);
+      setStatus("Bindings saved through the shared input-bindings format.");
+    } catch {
+      setStatus("Bindings active for this session but could not be saved locally.");
+    }
+  };
+
+  // The input runtime only owns shell commands. Native timeline shortcuts and drag gestures
+  // remain with the timeline editor, and the controls editor exclusively owns rebinding input.
+  actionsRef.current = {
+    [timelineActions.nextScenario]: () => {
+      const current = scenarios.findIndex((scenario) => scenario.id === scenarioId);
+      changeScenario(scenarios[(current + 1) % scenarios.length]!.id);
+    },
+    [timelineActions.toggleReadOnly]: () =>
+      changeSetting("timeline.readOnly", { type: "bool", value: !readOnly }),
+    [timelineActions.resetDocument]: resetDocument,
+  };
+
+  useEffect(() => {
+    if (panel !== null) return;
+    const runtime = new InputRuntimeController({
+      registry: timelineRegistry,
+      profile,
+      getActiveContexts: () => new Set(["timeline"]),
+      onDispatch: (event) => {
+        if (event.phase === "press") actionsRef.current[event.action]?.();
+      },
+    });
+    return attachKeyboardRuntime(runtime, {
+      mode: "logical",
+      ignoreTextEntry: true,
+      stopPropagation: true,
+    });
+  }, [profile, panel]);
 
   return (
     <main className="dev-shell">
@@ -227,31 +389,167 @@ function App() {
         <header className="dev-header">
           <div>
             <p className="dev-kicker">@moritzbrantner/timeline-editor</p>
-            <h1>Development Workbench</h1>
+            <h1>Timeline Editor Playground</h1>
           </div>
           <div className="dev-header-actions">
-            <label className="dev-toggle">
-              <input
-                type="checkbox"
-                checked={readOnly}
-                onChange={(event) => setReadOnly(event.currentTarget.checked)}
-              />
-              Read-only
-            </label>
+            <button
+              type="button"
+              className="dev-button"
+              aria-expanded={panel === "settings"}
+              onClick={() => setPanel(panel === "settings" ? null : "settings")}
+            >
+              Settings
+            </button>
+            <button
+              type="button"
+              className="dev-button"
+              aria-expanded={panel === "controls"}
+              onClick={() => setPanel(panel === "controls" ? null : "controls")}
+            >
+              Input bindings
+            </button>
             <button type="button" className="dev-button" onClick={resetDocument}>
               Reset
             </button>
           </div>
         </header>
 
+        <div className="dev-scenario-bar">
+          <label htmlFor="scenario-picker">Try an example</label>
+          <select
+            id="scenario-picker"
+            value={scenarioId}
+            onChange={(event) => changeScenario(event.currentTarget.value as ScenarioId)}
+          >
+            {scenarios.map((scenario) => (
+              <option key={scenario.id} value={scenario.id}>
+                {scenario.label}
+              </option>
+            ))}
+          </select>
+          <span>{scenarios.find((scenario) => scenario.id === scenarioId)?.description}</span>
+          <a href="./storybook/">Component stories</a>
+        </div>
+
+        {panel === "settings" && (
+          <section className="dev-panel dev-settings" aria-label="Timeline preferences">
+            <div className="dev-panel-header">
+              <div>
+                <h2>Editor settings</h2>
+                <p>
+                  Shared settings session; changes immediately affect the actual editor and survive
+                  refresh.
+                </p>
+              </div>
+              <button
+                className="dev-button"
+                type="button"
+                onClick={() => {
+                  if (!settingsSession) return;
+                  settingsSession.resetAll();
+                  setSettingsValues(settingsSession.effectiveValues());
+                  window.localStorage.setItem(
+                    SETTINGS_STORAGE_KEY,
+                    settingsSession.exportScope("user"),
+                  );
+                  setStatus("Settings restored to defaults.");
+                }}
+              >
+                Reset preferences
+              </button>
+            </div>
+            <label className="dev-setting">
+              <span>Read-only</span>
+              <input
+                type="checkbox"
+                checked={readOnly}
+                disabled={!settingsSession}
+                onChange={(event) =>
+                  changeSetting("timeline.readOnly", {
+                    type: "bool",
+                    value: event.currentTarget.checked,
+                  })
+                }
+              />
+            </label>
+            <label className="dev-setting">
+              <span>
+                Snap interval <strong>{snapMs} ms</strong>
+              </span>
+              <input
+                type="range"
+                min="0"
+                max="1000"
+                step="10"
+                value={snapMs}
+                disabled={!settingsSession}
+                onChange={(event) =>
+                  changeSetting("timeline.snapMs", {
+                    type: "integer",
+                    value: Number(event.currentTarget.value),
+                  })
+                }
+              />
+            </label>
+            <label className="dev-setting">
+              <span>
+                Timeline scale <strong>{pixelsPerSecond} px/s</strong>
+              </span>
+              <input
+                type="range"
+                min="30"
+                max="240"
+                step="1"
+                value={pixelsPerSecond}
+                disabled={!settingsSession}
+                onChange={(event) =>
+                  changeSetting("timeline.pixelsPerSecond", {
+                    type: "integer",
+                    value: Number(event.currentTarget.value),
+                  })
+                }
+              />
+            </label>
+          </section>
+        )}
+
+        {panel === "controls" && (
+          <section className="dev-panel dev-controls" aria-label="Input binding editor">
+            <InputBindingsWorkbench
+              registry={timelineRegistry}
+              profile={profile}
+              onProfileChange={changeProfile}
+              title="Timeline input bindings"
+              description="Rebind the playground commands and inspect conflicts. Changes take effect when you close this panel."
+              contextScenarios={[
+                {
+                  id: "timeline",
+                  label: "Timeline",
+                  activeContexts: ["timeline"],
+                  stack: [],
+                  defaultKeyboardMode: "logical",
+                },
+              ]}
+            />
+          </section>
+        )}
+
+        <p className="dev-status" role="status">
+          {status}{" "}
+          <span>
+            Default shell shortcuts: F8 next example · F9 read-only · F10 reset.{" "}
+            <a href="https://moritzbrantner.github.io/workflow-editor/">Try Workflow Editor</a>.
+          </span>
+        </p>
+
         <TimelineWorkbench
           className="dev-workbench"
           document={document}
           selection={selection}
           readOnly={readOnly}
-          pixelsPerSecond={84}
-          snapMs={100}
-          assets={assets}
+          pixelsPerSecond={pixelsPerSecond}
+          snapMs={snapMs}
+          assets={scenarioId === "media" ? assets : []}
           extensions={[createTimelineAudioExtension(), createTimelineVideoExtension()]}
           inspectorSchema={{
             transformFields: [

@@ -10,6 +10,11 @@
       },
       "devDependencies": {
         "@axe-core/playwright": "4.14.0",
+        "@moritzbrantner/input-bindings": "git+https://github.com/moritzbrantner/input-bindings.git#68f5a33171c958752971ab50ff3fc81f6431d8e0",
+        "@moritzbrantner/input-bindings-react": "git+https://github.com/moritzbrantner/input-bindings.git#6f29eea4743fc2d199ad3fa67a3886d687b8b504",
+        "@moritzbrantner/input-bindings-runtime": "git+https://github.com/moritzbrantner/input-bindings.git#4f6afa966bd2829c02ec61edad5858c84bbdbb70",
+        "@moritzbrantner/input-bindings-web": "git+https://github.com/moritzbrantner/input-bindings.git#181bf4cd75277008b0d61b72976592b99775101e",
+        "@moritzbrantner/settings-browser": "git+https://github.com/moritzbrantner/settings.git#27904ae572800f7d343c31d5177cfc6cf8c74706",
         "@playwright/test": "1.64.1",
         "@storybook/addon-a11y": "10.6.5",
         "@storybook/addon-docs": "10.6.5",
@@ -372,6 +377,16 @@
     "@mdx-js/react": ["@mdx-js/react@3.1.1", "", { "dependencies": { "@types/mdx": "^2.0.0" }, "peerDependencies": { "@types/react": ">=16", "react": ">=16" } }, "sha512-f++rKLQgUVYDAtECQ6fn/is15GkEH9+nZPM3MS0RcxVqoTfawHvDlSCH7JbMhAM6uJ32v3eXLvLmLvjGu7PTQw=="],
 
     "@moenarch/editor-core": ["@moenarch/editor-core@github:moritzbrantner/editor-core#05ae0d0", { "peerDependencies": { "react": "^19.0.0" }, "optionalPeers": ["react"], "hasInstallScript": true }, "moritzbrantner-editor-core-05ae0d0", "sha512-gxZiKelPMLykKPY8Ocs47YdALI9Y78S/FI+C0ewuF5yNTSXGg9nepsmiqJtnQe+Q6Ur4J6kfIfUjL8FwxFw/zA=="],
+
+    "@moritzbrantner/input-bindings": ["@moritzbrantner/input-bindings@github:moritzbrantner/input-bindings#68f5a33", {}, "moritzbrantner-input-bindings-68f5a33", "sha512-OZ73ASR9XcLuUyRPz/3N381OEHVHLgP9sh/0FhZvYKoBbANaYtcQONFpPC6HxV6kCiCqka009oxxzF5367RXpA=="],
+
+    "@moritzbrantner/input-bindings-react": ["@moritzbrantner/input-bindings-react@github:moritzbrantner/input-bindings#6f29eea", { "dependencies": { "@moritzbrantner/input-bindings": "github:moritzbrantner/input-bindings#68f5a33171c958752971ab50ff3fc81f6431d8e0", "@moritzbrantner/input-bindings-runtime": "github:moritzbrantner/input-bindings#4f6afa966bd2829c02ec61edad5858c84bbdbb70", "@moritzbrantner/input-bindings-web": "github:moritzbrantner/input-bindings#181bf4cd75277008b0d61b72976592b99775101e" }, "peerDependencies": { "react": ">=19" } }, "moritzbrantner-input-bindings-6f29eea", "sha512-dJQVR5WLZ4iFmUNZ/lAFlLDFVG4f1gbyCRWL9oT15cRBGjOMO8JvkDIQt1yfWlJBvw9BTUckiM4IcP9rXYOZ3A=="],
+
+    "@moritzbrantner/input-bindings-runtime": ["@moritzbrantner/input-bindings-runtime@github:moritzbrantner/input-bindings#4f6afa9", { "dependencies": { "@moritzbrantner/input-bindings": "github:moritzbrantner/input-bindings#68f5a33171c958752971ab50ff3fc81f6431d8e0" } }, "moritzbrantner-input-bindings-4f6afa9", "sha512-wZ2iWxS03Pc+NV6fqSU0fV4PuuntMn4w8UUslaCCaLZhwwqcV0BOHa5S139ch34IAn0ASwA1kQpsDrwg6XIUrA=="],
+
+    "@moritzbrantner/input-bindings-web": ["@moritzbrantner/input-bindings-web@github:moritzbrantner/input-bindings#181bf4c", { "dependencies": { "@moritzbrantner/input-bindings": "github:moritzbrantner/input-bindings#68f5a33171c958752971ab50ff3fc81f6431d8e0", "@moritzbrantner/input-bindings-runtime": "github:moritzbrantner/input-bindings#4f6afa966bd2829c02ec61edad5858c84bbdbb70" } }, "moritzbrantner-input-bindings-181bf4c", "sha512-DF6HIBK5QSGhlocJ1h1aQOXim0TlUUiIfXr6NQNQbosGyQQRKnLWDV+cPrrBK2YZQlVNPFcY6mpxGptjuFGTzQ=="],
+
+    "@moritzbrantner/settings-browser": ["@moritzbrantner/settings-browser@github:moritzbrantner/settings#27904ae", { "peerDependencies": { "@moritzbrantner/ui": ">=1.1.0", "react": ">=19.0.0" }, "optionalPeers": ["@moritzbrantner/ui", "react"] }, "moritzbrantner-settings-27904ae", "sha512-GpB0p/1R61MuRjjOAHfBPeT1UWS475BcDsBnhTemdLwVj8yCVrr7rgah5afSkrLQSo5ki4xERoX9V++w3fo2Lg=="],
 
     "@moritzbrantner/timeline-editor": ["@moritzbrantner/timeline-editor@1.0.0", "", { "dependencies": { "@moritzbrantner/ui": "^0.9.1" }, "peerDependencies": { "react": "^19.0.0", "react-dom": "^19.0.0" } }, "sha512-nrhIZ/ZFaTz4cldm0foOmF4p/935jgtyzdGFLCy/oIkYubPH4N8EIj1IZbQZHB/1eE2hFMGOEYWR4TDYDjwTOw=="],
 
