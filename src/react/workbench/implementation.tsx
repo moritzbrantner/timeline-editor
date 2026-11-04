@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useControllableEditorState } from "@moenarch/editor-core/react";
 
 import {
@@ -87,6 +87,10 @@ export type {
   TimelineWorkbenchTransportStatus,
 } from "./types";
 
+// Shared default so item renderers and lookups keep their identity across renders.
+const noTimelineWorkbenchExtensions: never[] = [];
+const noTimelineWorkbenchAssets: never[] = [];
+
 export function TimelineWorkbench<
   TTrackData extends Record<string, unknown> = Record<string, unknown>,
   TItemData = Record<string, unknown>,
@@ -120,9 +124,9 @@ export function TimelineWorkbench<
   defaultTransportState,
   onTransportStateChange,
   onSnapChange,
-  extensions = [],
+  extensions = noTimelineWorkbenchExtensions,
   inspectorSchema,
-  assets = [],
+  assets = noTimelineWorkbenchAssets,
   onImportAssets,
   onImportCancel,
   acceptedImportTypes,
@@ -371,9 +375,12 @@ export function TimelineWorkbench<
     inspectorContext,
   );
 
-  const renderResolvedTimelineItem = (context: TimelineEditorItemRenderContext<TItemData>) => {
-    return renderTimelineWorkbenchItem(context, extensionItems, renderTimelineItem);
-  };
+  // Stable across playhead ticks so the editor's memoized clips can skip scrub re-renders.
+  const renderResolvedTimelineItem = useCallback(
+    (context: TimelineEditorItemRenderContext<TItemData>) =>
+      renderTimelineWorkbenchItem(context, extensionItems, renderTimelineItem),
+    [extensionItems, renderTimelineItem],
+  );
   const {
     getWorkbenchItemContextMenuItems,
     getWorkbenchTimelineContextMenuItems,

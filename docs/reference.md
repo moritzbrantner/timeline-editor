@@ -139,6 +139,35 @@ layers in mixed scenes, while all-custom previews may still own the whole body.
 />
 ```
 
+## Document Snapshots
+
+Treat `document.tracks` as an immutable snapshot. When an edit changes tracks or
+items, pass a new `tracks` array and new track/item objects for whatever
+changed; unchanged tracks and items may be reused. `TimelineEditor`,
+`TimelineEditorProvider`, and `TimelineWorkbench` key their item, track,
+selection, overlap, and render lookups on the identity of `document.tracks`, so a
+playhead-only update (`{ ...document, currentTimeMs }`) reuses them instead of
+rebuilding them on every scrub or playback tick.
+
+Mutating `document.tracks`, a track, or its `items` array in place and only
+passing a new document object is unsupported: lookups, overlaps, selected items,
+and menu contexts stay stale until `tracks` is replaced. No runtime check
+detects in-place mutation.
+
+Clips rendered by the editor are memoized and do not re-render for
+playhead-only updates. They re-render when their item or track snapshot,
+selection, read-only state, duration, timeline width, zoom, or `renderItem`
+changes, so pass a stable `renderItem` / `renderTimelineItem` (for example from
+`useCallback`) to keep scrubbing cheap with many mounted clips. Item context
+menus from `getItemContextMenuItems` are built when a menu opens, from the
+latest document and selection; opening a menu on an unselected clip selects it
+first, and the menu context describes that selection. If the builder returns no
+items, the browser's native menu is suppressed for that clip.
+
+`bun run bench:scrub` measures scrubbing with 2,000 mounted clips in Chromium
+using production React; add `-- --baseline <git-ref>` to compare against
+another revision (see `tests/performance/scrub-benchmark.mjs` for options).
+
 ## Choosing APIs
 
 - Use core operations from `@moritzbrantner/timeline-editor/core` for non-React

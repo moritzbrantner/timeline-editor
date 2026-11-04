@@ -12,6 +12,7 @@
 
 ### Patch Changes
 
+- Document and test the immutable `document.tracks` snapshot contract: editor and workbench lookups, overlaps, and memoized clips are keyed on `document.tracks`, playhead-only updates reuse them, and mutating tracks or items in place is unsupported. Clips no longer re-render on playhead-only updates (10-20x faster scrub ticks with 2,000 mounted clips in the `bun run bench:scrub` Chromium benchmark), and `getItemContextMenuItems` is now called when an item menu opens, from the latest document and selection, instead of for every clip on every render. Opening a menu on an unselected clip describes the selection it commits, and a builder that returns no items suppresses the native browser menu for that clip.
 - Make multi-item timeline moves atomic so snapping, timeline-boundary clamping, and track movement preserve the selection's relative layout and fail as a unit when any target track is invalid.
 - Make multi-item paste and duplicate operations atomic, preserve relative timeline and track layout, clamp copied selections as one unit, and reject partial incompatible placements.
 - Build the package in a `prepare` script so consumers can install it as a commit-pinned git dependency (`git+https://github.com/moritzbrantner/timeline-editor.git#<sha>` listed in `trustedDependencies`).

@@ -129,6 +129,14 @@ restrictions and source failures are surfaced in preview as blocked, stalled,
 or unavailable media states. Reverse media playback uses timeline-driven
 seeking because native negative media playback is not portable.
 
+Playback and scrubbing change only `document.currentTimeMs`, so the workbench
+relies on the immutable `document.tracks` snapshot contract described in
+[Document Snapshots](reference.md#document-snapshots): item and track lookups,
+overlaps, and the editor's memoized clips are reused across playhead-only
+updates and rebuilt when `tracks` is replaced. Mutating tracks or items in place
+is unsupported and leaves those lookups stale. Keep `renderTimelineItem` and
+`extensions` stable between renders so clips are not re-rendered on every tick.
+
 Hosts can control transport with `transportState`, initialize uncontrolled
 transport with `defaultTransportState`, and observe changes with
 `onTransportStateChange`. The uncontrolled defaults are paused, `1x`, and loop
