@@ -1,5 +1,6 @@
 import "@moritzbrantner/ui/styles.css";
 import "@moritzbrantner/ui/component-sources.css";
+import "../timeline-sources.css";
 import "@moritzbrantner/input-bindings-react/workbench.css";
 import "./styles.css";
 
@@ -542,46 +543,48 @@ function App() {
           </span>
         </p>
 
-        <TimelineWorkbench
-          className="dev-workbench"
-          document={document}
-          selection={selection}
-          readOnly={readOnly}
-          pixelsPerSecond={pixelsPerSecond}
-          snapMs={snapMs}
-          assets={scenarioId === "media" ? assets : []}
-          extensions={[createTimelineAudioExtension(), createTimelineVideoExtension()]}
-          inspectorSchema={{
-            transformFields: [
-              { id: "x", label: "X", step: 1, defaultValue: 0 },
-              { id: "opacity", label: "Opacity", min: 0, max: 1, step: 0.1, defaultValue: 1 },
-            ],
-          }}
-          onDocumentChange={updateDocument}
-          onSelectionChange={updateSelection}
-          renderAsset={(asset) => (
-            <div className="dev-asset">
-              <span className="dev-swatch" style={{ background: asset.color }} />
-              <span>
-                <strong>{asset.label}</strong>
-                <small>
-                  {asset.description} - {formatTimelineEditorTimeMs(asset.durationMs)}
-                </small>
-              </span>
-            </div>
-          )}
-          renderTimelineItem={(context) => <TimelineItemPreview item={context.item} />}
-          getItemContextMenuItems={(context) => [
-            {
-              id: "lock",
-              label: context.item.locked ? "Unlock item" : "Lock item",
-              disabled: context.readOnly,
-              onSelect: () => {
-                context.updateItem(context.item.id, { locked: !context.item.locked });
+        <div className="dev-workbench-frame">
+          <TimelineWorkbench
+            className="dev-workbench"
+            document={document}
+            selection={selection}
+            readOnly={readOnly}
+            pixelsPerSecond={pixelsPerSecond}
+            snapMs={snapMs}
+            assets={scenarioId === "media" ? assets : []}
+            extensions={[createTimelineAudioExtension(), createTimelineVideoExtension()]}
+            inspectorSchema={{
+              transformFields: [
+                { id: "x", label: "X", step: 1, defaultValue: 0 },
+                { id: "opacity", label: "Opacity", min: 0, max: 1, step: 0.1, defaultValue: 1 },
+              ],
+            }}
+            onDocumentChange={updateDocument}
+            onSelectionChange={updateSelection}
+            renderAsset={(asset) => (
+              <div className="dev-asset">
+                <span className="dev-swatch" style={{ background: asset.color }} />
+                <span>
+                  <strong>{asset.label}</strong>
+                  <small>
+                    {asset.description} - {formatTimelineEditorTimeMs(asset.durationMs)}
+                  </small>
+                </span>
+              </div>
+            )}
+            renderTimelineItem={(context) => <TimelineItemPreview item={context.item} />}
+            getItemContextMenuItems={(context) => [
+              {
+                id: "lock",
+                label: context.item.locked ? "Unlock item" : "Lock item",
+                disabled: context.readOnly,
+                onSelect: () => {
+                  context.updateItem(context.item.id, { locked: !context.item.locked });
+                },
               },
-            },
-          ]}
-        />
+            ]}
+          />
+        </div>
       </section>
     </main>
   );

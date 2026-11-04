@@ -1,5 +1,6 @@
 import "@moritzbrantner/ui/styles.css";
 import "@moritzbrantner/ui/component-sources.css";
+import "../../../../examples/timeline-sources.css";
 
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -21,6 +22,8 @@ import {
   type TimelineWorkbenchImportSource,
   type TimelineWorkbenchSelection,
   type TimelineWorkbenchTransportChangeReason,
+  type TimelineWorkbenchPanelLayout,
+  type TimelineWorkbenchPanelPresentation,
   type TimelineWorkbenchTransportState,
 } from "@moritzbrantner/timeline-editor";
 
@@ -612,6 +615,15 @@ function App() {
       showAssetsPanel={searchParams.get("showAssetsPanel") !== "false"}
       showPreviewPanel={searchParams.get("showPreviewPanel") !== "false"}
       showInspectorPanel={searchParams.get("showInspectorPanel") !== "false"}
+      defaultPanelLayout={parsePanelLayout(searchParams.get("panelLayout"))}
+      panelPresentation={parsePanelPresentation(searchParams.get("panelPresentation"))}
+      onPanelLayoutChange={(layout, context) => {
+        if (context.reason !== "resize") {
+          recordChange(
+            `panel-layout:${context.paneId}:${context.reason}:${JSON.stringify(layout)}`,
+          );
+        }
+      }}
       onImportAssets={importAssetsFixture ? handleImportAssets : undefined}
       allowUrlImport={allowUrlImport}
       onDocumentChange={handleDocumentChange}
@@ -768,3 +780,18 @@ if (!root) {
 }
 
 createRoot(root).render(<App />);
+
+function parsePanelLayout(value: string | null): TimelineWorkbenchPanelLayout | undefined {
+  if (!value) return undefined;
+  try {
+    return JSON.parse(value) as TimelineWorkbenchPanelLayout;
+  } catch {
+    return undefined;
+  }
+}
+
+function parsePanelPresentation(
+  value: string | null,
+): TimelineWorkbenchPanelPresentation | undefined {
+  return value === "auto" || value === "docked" || value === "overlay" ? value : undefined;
+}

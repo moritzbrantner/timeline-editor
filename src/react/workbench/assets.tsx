@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -352,6 +353,7 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
   const [urlImportValue, setUrlImportValue] = useState("");
   const [urlImportError, setUrlImportError] = useState("");
   const panelContentRef = useRef<HTMLDivElement | null>(null);
+  const assetDescriptionIdPrefix = `timeline-workbench-asset-${useId().replaceAll(":", "")}`;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const suppressAssetActivationUntilRef = useRef(0);
   const filterOptions = useMemo(
@@ -686,7 +688,7 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
                 </Button>
               </div>
             ) : null}
-            {filteredAssets.map((asset) => {
+            {filteredAssets.map((asset, assetIndex) => {
               const assetBrowserItem = assetBrowserItemLookup.get(asset.id);
               const compatibility = getTimelineWorkbenchAssetCompatibility(
                 asset,
@@ -740,13 +742,17 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
                 insertAsset();
               };
 
+              const assetDescriptionId = `${assetDescriptionIdPrefix}-${assetIndex}`;
+
               return (
                 <div
                   key={asset.id}
                   role="button"
                   tabIndex={readOnly || !compatibility.compatible ? -1 : 0}
                   aria-disabled={readOnly || !compatibility.compatible}
-                  aria-label={asset.label}
+                  // Custom renderers may contain their own controls, so they keep `aria-label`.
+                  aria-label={renderAsset ? asset.label : undefined}
+                  aria-describedby={renderAsset ? undefined : assetDescriptionId}
                   className={cn(
                     "inline-flex h-auto w-full items-center justify-start rounded-md border border-border bg-background px-3 py-2 text-left text-sm transition-colors",
                     readOnly || !compatibility.compatible
@@ -761,7 +767,18 @@ export function TimelineWorkbenchAssetsPanel<TAssetData>({
                   onDragStartCapture={startAssetDrag}
                   onDragEnd={onAssetDragEnd}
                 >
-                  <div className="grid gap-1">
+                  {/* WCAG 2.5.3: the default card names the asset by its label and describes it
+                      with the visible details. */}
+                  {renderAsset ? null : (
+                    <span data-slot="timeline-workbench-asset-name" className="sr-only">
+                      {asset.label}
+                    </span>
+                  )}
+                  <div
+                    id={renderAsset ? undefined : assetDescriptionId}
+                    aria-hidden={renderAsset ? undefined : true}
+                    className="grid gap-1"
+                  >
                     {renderAsset ? (
                       renderAsset(asset)
                     ) : (

@@ -315,11 +315,18 @@ test("keeps workbench panels usable on a small viewport", async ({ page }) => {
 
   await expect(getTimelineEditor(page)).toBeVisible();
   await expect(page.locator("[data-slot='timeline-workbench-toolbar']")).toBeVisible();
+  // Narrow workbenches present side panes as drawers that the toolbar opens.
+  await expect(page.locator("[data-slot='timeline-workbench-inspector']")).toBeHidden();
+  await page.getByRole("button", { name: "Toggle Inspector" }).click();
   await expect(page.locator("[data-slot='timeline-workbench-inspector']")).toBeVisible();
-  await expect(page.getByLabel("Import asset URL")).toBeVisible();
   await expect(
     page.locator("[data-slot='timeline-workbench-inspector']").getByText("Track fields"),
   ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("[data-slot='timeline-workbench-inspector']")).toBeHidden();
+  await page.getByRole("button", { name: "Toggle Assets" }).click();
+  await expect(page.getByLabel("Import asset URL")).toBeVisible();
+  await page.keyboard.press("Escape");
 
   const editorBox = await getTimelineEditor(page).boundingBox();
   expect(editorBox).not.toBeNull();

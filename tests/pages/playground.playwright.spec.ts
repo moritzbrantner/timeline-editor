@@ -76,3 +76,27 @@ test("media fixtures are served from the example origin", async ({ request }) =>
     }),
   );
 });
+
+test("docks side panels on desktop and opens them as drawers on phones", async ({
+  page,
+  isMobile,
+}) => {
+  const inspector = page.locator("[data-slot='timeline-workbench-inspector']");
+  const toggle = page.getByRole("button", { name: "Toggle Inspector" });
+
+  if (!isMobile) {
+    await expect(inspector).toBeVisible();
+    await expect(page.getByRole("separator", { name: "Resize Inspector" })).toBeVisible();
+    return;
+  }
+
+  await expect(inspector).toBeHidden();
+  await toggle.click();
+  await expect(inspector).toBeVisible();
+  await expect(inspector.getByText("Document", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(inspector).toBeHidden();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+});

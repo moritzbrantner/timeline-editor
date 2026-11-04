@@ -101,7 +101,7 @@
   },
   "dependencies": {
     "@moenarch/editor-core": "git+https://github.com/moritzbrantner/editor-core.git#05ae0d0ef9f782ff70d65e8db0675e6aa2dd6870",
-    "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#06f4bdd38f24920cac4a98c2621d6d14d8af9f0b"
+    "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#2f8da604881d4513ac16ccceea446072d0a59a5d"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
@@ -130,6 +130,7 @@
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "storybook": "10.6.5",
+    "tailwindcss": "4.3.3",
     "tsup": "8.5.1",
     "typescript": "6.0.3",
     "unlighthouse": "0.19.1",
@@ -141,7 +142,7 @@
     "@moritzbrantner/ui"
   ],
   "overrides": {
-    "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#06f4bdd38f24920cac4a98c2621d6d14d8af9f0b"
+    "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#2f8da604881d4513ac16ccceea446072d0a59a5d"
   },
   "scripts": {
     "build": "tsup src/index.ts src/core.ts src/react.tsx src/commands.ts src/history.ts src/serialization.ts src/extensions.ts src/media-types.ts src/media-import.ts src/text.ts src/audio.ts src/video.ts src/image.ts src/data.ts --format esm --dts --clean --out-dir dist",
