@@ -129,12 +129,16 @@ test("presents panes as drawers over the editor on narrow containers", async ({ 
   const drawer = pane(page, "Inspector");
   await expect(drawer).toBeVisible();
   await expect(drawer).toBeFocused();
+  // The drawer slides in from the end edge; measure once its entry transition has settled.
+  await expect
+    .poll(async () => {
+      const box = await drawer.boundingBox();
+      return box ? box.x + box.width : Number.POSITIVE_INFINITY;
+    })
+    .toBeLessThanOrEqual(workbenchBox!.x + workbenchBox!.width + 1);
   const drawerBox = await drawer.boundingBox();
   // The drawer covers the preview and timeline rows, not only the short preview row.
   expect(drawerBox!.height).toBeGreaterThan(workbenchBox!.height * 0.75);
-  expect(drawerBox!.x + drawerBox!.width).toBeLessThanOrEqual(
-    workbenchBox!.x + workbenchBox!.width + 1,
-  );
 
   // The drawer is on top of the sticky timeline ruler.
   const topmost = await page.evaluate(
