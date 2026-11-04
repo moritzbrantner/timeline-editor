@@ -77,7 +77,9 @@ jobs:
     with:
       bun_version: latest
       install_command: bun install --frozen-lockfile
-      e2e_command: bun run test:playwright
+      e2e_command: |
+        bun run test:playwright
+        bun run test:pages
       install_playwright: true
       artifact_retention_days: 7
       timeout_minutes: 45

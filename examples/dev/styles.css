@@ -33,8 +33,8 @@ textarea {
 }
 
 .dev-stage {
-  display: grid;
-  grid-template-rows: auto minmax(32rem, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 0.75rem;
 }
 
@@ -64,8 +64,9 @@ textarea {
 .dev-header-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .dev-toggle {
@@ -93,8 +94,132 @@ textarea {
   background: #f8fafc;
 }
 
+.dev-button[aria-expanded="true"] {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.dev-button:focus-visible,
+.dev-scenario-bar select:focus-visible,
+.dev-scenario-bar a:focus-visible,
+.dev-setting input:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.dev-scenario-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #334155;
+  font-size: 0.85rem;
+}
+
+.dev-scenario-bar label {
+  font-weight: 700;
+}
+
+.dev-scenario-bar select {
+  max-width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #94a3b8;
+  border-radius: 0.35rem;
+  background: #fff;
+  color: #172033;
+}
+
+.dev-scenario-bar span {
+  flex: 1 1 15rem;
+}
+
+.dev-scenario-bar a,
+.dev-status a {
+  color: #1d4ed8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.dev-panel {
+  min-width: 0;
+  max-height: min(65vh, 40rem);
+  overflow: auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  background: white;
+  padding: 0.85rem;
+}
+
+.dev-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.dev-panel h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #0f172a;
+}
+
+.dev-panel-header p {
+  margin: 0.25rem 0 0.75rem;
+  color: #475569;
+  font-size: 0.85rem;
+}
+
+.dev-settings {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.dev-setting {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.5rem;
+  color: #334155;
+  font-size: 0.9rem;
+}
+
+.dev-setting input[type="range"] {
+  min-width: 8rem;
+  width: min(40vw, 26rem);
+}
+
+.dev-setting strong {
+  margin-left: 0.5rem;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
+.dev-controls {
+  padding: 0;
+}
+
+.dev-controls .ib-workbench {
+  min-width: 0;
+}
+
+.dev-status {
+  margin: 0;
+  color: #475569;
+  font-size: 0.8rem;
+}
+
+.dev-status span {
+  margin-left: 0.25rem;
+}
+
 .dev-workbench {
-  min-height: 0;
+  flex: 1 1 32rem;
+  min-height: 32rem;
   border-radius: 0.5rem;
   box-shadow: 0 10px 32px rgb(15 23 42 / 0.08);
 }
@@ -162,5 +287,18 @@ textarea {
   .dev-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .dev-panel-header {
+    flex-direction: column;
+  }
+
+  .dev-setting {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .dev-setting input[type="range"] {
+    width: 100%;
   }
 }
