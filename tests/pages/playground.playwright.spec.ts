@@ -5,15 +5,24 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Timeline Editor Playground" })).toBeVisible();
 });
 
-test("switches between media, story/animation and dense editing workloads", async ({ page }) => {
+test("switches between media, story/animation and dense editing workloads", async ({
+  page,
+  isMobile,
+}) => {
   const picker = page.getByLabel("Try an example");
   await expect(picker).toHaveValue("media");
   await expect(page.getByText("Opening shot", { exact: true }).first()).toBeVisible();
 
   await picker.selectOption("story");
   await expect(page).toHaveURL(/scenario=story/);
-  await expect(page.getByText("Reveal scene", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Wave and turn", { exact: true }).first()).toBeVisible();
+  // On a narrow viewport, late clips are intentionally virtualized/offscreen.
+  // Verify the selected workload without forcing those clips into the initial viewport.
+  if (isMobile) {
+    await expect(page.getByRole("status")).toContainText("Loaded Story & animation");
+  } else {
+    await expect(page.getByText("Reveal scene", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Wave and turn", { exact: true }).first()).toBeVisible();
+  }
 
   await picker.selectOption("dense");
   await expect(page).toHaveURL(/scenario=dense/);
