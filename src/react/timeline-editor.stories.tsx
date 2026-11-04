@@ -181,7 +181,7 @@ const authoredSequenceDocument: TimelineEditorDocument = {
           kind: "effect",
           startMs: 8_000,
           durationMs: 4_000,
-          color: "#d97706",
+          color: "#92400e",
           transform: {
             points: [
               { offsetMs: 0, values: { opacity: 0 } },

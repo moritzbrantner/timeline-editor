@@ -226,7 +226,8 @@ test("shows keyframe positions without covering clip pointer interactions", asyn
   const keyframeBox = await keyframes.boundingBox();
   expect(clipBox).not.toBeNull();
   expect(keyframeBox).not.toBeNull();
-  expect(Math.abs(keyframeBox!.width - clipBox!.width)).toBeLessThan(2);
+  // The SVG sits inside the clip's two 1px borders.
+  expect(Math.abs(keyframeBox!.width - clipBox!.width)).toBeLessThan(3);
   expect(keyframeBox!.y).toBeGreaterThan(clipBox!.y + clipBox!.height - 12);
 
   await clickClip(page, "Brief");
