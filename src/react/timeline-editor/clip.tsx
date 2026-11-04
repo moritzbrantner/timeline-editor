@@ -176,7 +176,8 @@ function TimelineEditorClipComponent<TItemData>({
           focusable="false"
           data-slot="timeline-editor-clip-keyframes"
           data-count={transformPointCount}
-          className="pointer-events-none absolute inset-x-0 -bottom-1 h-2 w-full text-white"
+          className="pointer-events-none absolute inset-x-0 h-2 w-full text-white"
+          style={{ bottom: -4 }}
           viewBox={`0 0 ${itemWidthPx} 8`}
           preserveAspectRatio="none"
         >

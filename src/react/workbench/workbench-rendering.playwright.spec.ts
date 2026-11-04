@@ -221,6 +221,7 @@ test("shows keyframe positions without covering clip pointer interactions", asyn
   expect(await keyframes.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe(
     "none",
   );
+  await expect(keyframes).toHaveCSS("bottom", "-4px");
 
   const clipBox = await clip.boundingBox();
   const keyframeBox = await keyframes.boundingBox();
