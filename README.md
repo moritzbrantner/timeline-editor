@@ -112,6 +112,13 @@ that owns sources outside the workbench import flow. Set `allowUrlImport` with
 Track selection is represented with `selection.trackIds`. The default
 workbench inspector has document, track, range, marker, item, and multi-item
 states, and the track state exposes concrete track metadata plus track actions.
+Track headers remain visible during horizontal timeline scrolling and highlight
+the lane containing a selected clip. The default `TimelineEditor` group header
+has a keyboard-accessible collapse/expand control that changes the host-owned
+`document.groups`; a read-only timeline cannot change it. Clips with transform
+points show non-interactive keyframe diamonds at their times when there is room
+to display them. Actual keyframe editing continues through the workbench
+inspector or a domain extension, rather than adding competing clip gestures.
 
 Workbench import state reports progress, warnings, cancellation, and per-source
 failures when the host uses the optional import context passed to
