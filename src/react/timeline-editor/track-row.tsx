@@ -16,6 +16,10 @@ export function TimelineEditorTrackRow<
   const Header = components?.TrackHeader ?? TimelineEditorTrackHeader;
   const Lane = components?.TrackLane ?? TimelineEditorTrackLane;
   const locked = Boolean(editor.readOnly || entry.locked);
+  const active = Boolean(
+    editor.selection.trackIds?.includes(entry.track.id) ||
+    editor.selectedItems.some((item) => item.trackId === entry.track.id),
+  );
   const trackContextMenuItems =
     !editor.getTimelineContextMenuItems && editor.getTrackContextMenuItems
       ? editor.getTrackContextMenuItems({
@@ -32,7 +36,8 @@ export function TimelineEditorTrackRow<
     <div
       data-slot="timeline-editor-track"
       data-track-id={entry.track.id}
-      className="grid"
+      data-active={active ? "true" : undefined}
+      className="flex border-b border-border/60 bg-card/40 data-[active=true]:bg-accent/10"
       onPointerDownCapture={(event) => {
         if (
           entry.locked ||
@@ -55,13 +60,19 @@ export function TimelineEditorTrackRow<
         editor.commitSelection({ itemIds: [] });
       }}
       style={{
-        gridTemplateColumns: `${timelineEditorTrackHeaderWidthPx}px ${editor.timelineWidthPx}px`,
         minHeight: entry.track.height ?? timelineEditorDefaultTrackHeightPx,
         ...style,
       }}
     >
-      <Header contextMenu={Boolean(editor.getTimelineContextMenuItems)} entry={entry} />
-      <Lane components={components} entry={entry} />
+      <div
+        className="sticky left-0 z-30 grid shrink-0"
+        style={{ width: timelineEditorTrackHeaderWidthPx }}
+      >
+        <Header contextMenu={Boolean(editor.getTimelineContextMenuItems)} entry={entry} />
+      </div>
+      <div className="grid shrink-0" style={{ width: editor.timelineWidthPx }}>
+        <Lane components={components} entry={entry} />
+      </div>
     </div>
   );
 

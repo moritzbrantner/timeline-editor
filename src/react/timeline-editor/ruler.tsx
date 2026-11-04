@@ -19,7 +19,8 @@ export function TimelineEditorRuler({
   const rulerLane = (
     <div
       data-slot="timeline-editor-ruler-lane"
-      className="relative"
+      className="relative shrink-0"
+      style={{ width: editor.timelineWidthPx }}
       onPointerDown={(event) => {
         if (event.defaultPrevented || !isTimelineEditorPrimaryPointerButton(event)) {
           return;
@@ -81,15 +82,17 @@ export function TimelineEditorRuler({
     <>
       <div
         data-slot="timeline-editor-ruler"
-        className={cn("sticky top-0 z-50 grid border-b bg-card shadow-sm", className)}
+        className={cn("sticky top-0 z-50 flex border-b bg-card shadow-sm", className)}
         style={{
-          gridTemplateColumns: `${timelineEditorTrackHeaderWidthPx}px ${editor.timelineWidthPx}px`,
           height: timelineEditorRulerHeightPx,
           ...style,
         }}
         {...props}
       >
-        <div className="border-r bg-card" />
+        <div
+          className="sticky left-0 z-40 shrink-0 border-r bg-card"
+          style={{ width: timelineEditorTrackHeaderWidthPx }}
+        />
         {editor.getTimelineContextMenuItems ? (
           <TimelineEditorContextMenuTarget
             contentProps={{ "data-slot": "timeline-editor-ruler-menu" }}

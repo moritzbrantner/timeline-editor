@@ -18,6 +18,9 @@ export function TimelineEditorTrackHeader<
   const selected = Boolean(
     editor.selection.itemIds.length === 0 && editor.selection.trackIds?.includes(entry.track.id),
   );
+  const active = Boolean(
+    selected || editor.selectedItems.some((item) => item.trackId === entry.track.id),
+  );
   const metaId = useId();
   const describedByMeta =
     !editor.renderTrackHeader &&
@@ -47,6 +50,7 @@ export function TimelineEditorTrackHeader<
     <div
       data-slot="timeline-editor-track-header"
       data-selected={selected ? "true" : undefined}
+      data-active={active ? "true" : undefined}
       data-kind={entry.track.kind}
       data-locked={locked ? "true" : undefined}
       data-accepts-item-kinds={entry.track.acceptsItemKinds?.join(" ")}
@@ -55,7 +59,7 @@ export function TimelineEditorTrackHeader<
       tabIndex={0}
       aria-pressed={selected}
       aria-describedby={describedByMeta ? metaId : undefined}
-      className="flex items-center border-r bg-muted/20 px-3 text-sm font-medium data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground"
+      className="flex h-full min-w-0 cursor-pointer items-center border-r border-l-2 border-l-transparent bg-card px-3 text-sm font-medium hover:bg-muted/70 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring data-[active=true]:border-l-primary data-[active=true]:bg-accent/70 data-[selected=true]:text-accent-foreground"
       onPointerDown={(event) => {
         if (event.button !== 0) {
           return;

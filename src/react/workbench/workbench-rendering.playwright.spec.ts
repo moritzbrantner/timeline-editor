@@ -181,6 +181,58 @@ test("aligns timeline zero after track headers", async ({ page }) => {
   expect(Math.round(clipBox!.x - laneBox!.x)).toBe(80);
 });
 
+test("keeps track identity readable and clickable during horizontal scrolling", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 720 });
+  await page.goto("/?fixture=large");
+
+  const editor = getTimelineEditor(page);
+  const header = page.getByRole("button", { name: "Track 21" });
+
+  await editor.evaluate((element) => {
+    element.scrollLeft = 800;
+  });
+  await expect
+    .poll(async () => editor.evaluate((element) => element.scrollLeft))
+    .toBeGreaterThan(500);
+
+  const editorBox = await editor.boundingBox();
+  const headerBox = await header.boundingBox();
+  expect(editorBox).not.toBeNull();
+  expect(headerBox).not.toBeNull();
+  expect(headerBox!.x - editorBox!.x).toBeGreaterThanOrEqual(0);
+  expect(headerBox!.x - editorBox!.x).toBeLessThan(4);
+
+  await header.click();
+  await expect(header).toHaveAttribute("data-selected", "true");
+});
+
+test("shows keyframe positions without covering clip pointer interactions", async ({ page }) => {
+  await page.goto("/?transformInspector=true");
+
+  await clickClip(page, "Brief");
+  await page.getByRole("button", { name: "Add Keyframe" }).click();
+
+  const clip = getClip(page, "Brief");
+  const keyframes = clip.locator("[data-slot='timeline-editor-clip-keyframes']");
+  await expect(keyframes).toBeVisible();
+  await expect(keyframes).toHaveAttribute("data-count", "1");
+  expect(await keyframes.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe(
+    "none",
+  );
+
+  const clipBox = await clip.boundingBox();
+  const keyframeBox = await keyframes.boundingBox();
+  expect(clipBox).not.toBeNull();
+  expect(keyframeBox).not.toBeNull();
+  expect(Math.abs(keyframeBox!.width - clipBox!.width)).toBeLessThan(2);
+  expect(keyframeBox!.y).toBeGreaterThan(clipBox!.y + clipBox!.height - 12);
+
+  await clickClip(page, "Brief");
+  await expect(clip).toHaveAttribute("data-selected", "true");
+});
+
 test("virtualizes large timeline rows", async ({ page }) => {
   await page.goto("/?fixture=large");
 
