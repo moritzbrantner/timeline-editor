@@ -73,6 +73,11 @@ export type {
   TimelineWorkbenchItemContextMenuContext,
   TimelineWorkbenchMediaErrorCode,
   TimelineWorkbenchMediaStatus,
+  TimelineWorkbenchPaneId,
+  TimelineWorkbenchPaneLayout,
+  TimelineWorkbenchPanelLayout,
+  TimelineWorkbenchPanelLayoutChangeContext,
+  TimelineWorkbenchPanelPresentation,
   TimelineWorkbenchProps,
   TimelineWorkbenchPreviewMode,
   TimelineWorkbenchSelection,
@@ -134,6 +139,11 @@ export function TimelineWorkbench<
   showAssetsPanel = true,
   showPreviewPanel = true,
   showInspectorPanel = true,
+  panelLayout,
+  defaultPanelLayout,
+  onPanelLayoutChange,
+  panelPresentation,
+  panelNarrowBreakpoint,
   className,
   style,
   createItemId,
@@ -614,6 +624,11 @@ export function TimelineWorkbench<
       inspectorPanel={inspectorPanel}
       previewPanel={previewPanel}
       canvasPanel={canvasPanel}
+      panelLayout={panelLayout}
+      defaultPanelLayout={defaultPanelLayout}
+      onPanelLayoutChange={onPanelLayoutChange}
+      panelPresentation={panelPresentation}
+      panelNarrowBreakpoint={panelNarrowBreakpoint}
       onKeyDown={handleWorkbenchKeyDown}
     />
   );

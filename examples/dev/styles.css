@@ -15,9 +15,10 @@ body {
   margin: 0;
 }
 
-button,
-input,
-textarea {
+/* Only the playground's own controls inherit the page font; editor controls keep ui's type scale. */
+.dev-button,
+.dev-scenario-bar select,
+.dev-setting input {
   font: inherit;
 }
 
@@ -217,9 +218,13 @@ textarea {
   margin-left: 0.25rem;
 }
 
-.dev-workbench {
+.dev-workbench-frame {
+  display: flex;
   flex: 1 1 32rem;
   min-height: 32rem;
+}
+
+.dev-workbench {
   border-radius: 0.5rem;
   box-shadow: 0 10px 32px rgb(15 23 42 / 0.08);
 }
@@ -300,5 +305,12 @@ textarea {
 
   .dev-setting input[type="range"] {
     width: 100%;
+  }
+
+  /* Give the editor a full screen on phones; side panes open as drawers over it. */
+  .dev-workbench-frame {
+    flex-basis: auto;
+    height: calc(100dvh - 1.5rem);
+    min-height: 34rem;
   }
 }

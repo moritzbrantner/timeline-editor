@@ -1,5 +1,6 @@
 import "@moritzbrantner/ui/styles.css";
 import "@moritzbrantner/ui/component-sources.css";
+import "../examples/timeline-sources.css";
 
 import type { Preview } from "@storybook/react-vite";
 

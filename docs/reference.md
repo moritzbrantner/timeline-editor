@@ -446,6 +446,9 @@ The root package does not import these split packages.
   `onHotkeysChange`.
 - Preview mode persistence: pass `previewMode` and persist changes from
   `onPreviewModeChange`. Omit both to use the internal `active-scene` default.
+- Panel layout persistence: pass `defaultPanelLayout` (or controlled
+  `panelLayout`) and persist changes from `onPanelLayoutChange` when
+  `context.reason` is `"resize-end"` or `"collapse"`.
 - Read-only mode: pass `readOnly` to block pointer, keyboard, toolbar, and
   context-menu mutations.
 

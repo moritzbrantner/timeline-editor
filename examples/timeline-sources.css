@@ -1,0 +1,9 @@
+/*
+ * Generates the Tailwind utilities used by Timeline Editor's own React sources.
+ * `@moritzbrantner/ui/component-sources.css` only scans ui's components, so without this the
+ * playground, Storybook, and browser harness silently drop timeline-only utilities.
+ */
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@reference "@moritzbrantner/ui/base.css";
+
+@source "../src/**/*.{ts,tsx}";

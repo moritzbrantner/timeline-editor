@@ -112,6 +112,45 @@ read-only overview with track rows, item bars, and the playhead. Hosts can
 control the mode with `previewMode` and observe changes with
 `onPreviewModeChange`.
 
+## Panels and responsive chrome
+
+The workbench shell uses the shared editor chrome from `@moritzbrantner/ui`.
+The toolbar is an `EditorToolbar`: it is one Tab stop, and arrow keys, Home,
+and End move between commands. The tool selector keeps its own arrow keys. On
+workbenches narrower than `panelNarrowBreakpoint` (768px of workbench width,
+not viewport width) the toolbar stays on one row and scrolls horizontally.
+
+The assets and inspector panels are `EditorPane`s with pixel widths. They keep
+their size when the window resizes, and the preview and timeline take the
+remaining width. Drag a splitter, or focus it and use the arrow keys (Shift for
+larger steps, Home/End for the limits, Enter to collapse or expand). Dragging a
+pane below half its minimum width collapses it to a rail. The panel buttons at
+the start of the toolbar show and hide each pane. The timeline surface remains
+the only owner of temporal gestures; pane splitters only size panes.
+
+With `panelPresentation="auto"` (the default), narrow workbenches show the panes
+as overlay drawers over the preview and timeline instead of docking them. A
+drawer takes focus when opened and closes on Escape, a click on the scrim, or
+focus moving outside it. Pass `panelPresentation="docked"` or `"overlay"` to
+force one presentation.
+
+Pane sizes and collapse state are presentation state, not document state. Pass
+`defaultPanelLayout` to restore a stored layout, or `panelLayout` to control it.
+Fields left undefined in `panelLayout` stay uncontrolled. `onPanelLayoutChange`
+receives the full layout and a `{ paneId, reason }` context. `reason` is
+`"resize"` while a splitter is being dragged, and `"resize-end"` or `"collapse"`
+when an edit finishes. Persist on those two:
+
+```tsx
+<TimelineWorkbench
+  document={document}
+  defaultPanelLayout={storedLayout}
+  onPanelLayoutChange={(layout, { reason }) => {
+    if (reason !== "resize") saveLayout(layout);
+  }}
+/>
+```
+
 The compact transport strip is the synchronized workbench transport. Playback
 updates `document.currentTimeMs` through `onDocumentChange`, so the main timeline
 playhead advances too, and the timeline follows with keep-visible scrolling only

@@ -6,6 +6,8 @@ import {
   ActionMenu,
   Badge,
   Button,
+  EditorToolbarButton,
+  EditorToolbarGroup,
   Input,
   type MenuActionItem,
   Popover,
@@ -16,6 +18,8 @@ import {
   Slider,
   ToggleGroup,
   ToggleGroupItem,
+  ToolbarSeparator,
+  ToolbarSpacer,
   cn,
 } from "@moritzbrantner/ui";
 
@@ -160,161 +164,126 @@ export function TimelineWorkbenchToolbar<TTrackData extends Record<string, unkno
     },
   ];
 
+  // Rendered inside the shell's EditorToolbar: one Tab stop, arrow keys move between commands.
   return (
-    <div
-      data-slot="timeline-workbench-toolbar"
-      className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2"
-    >
-      <div className="flex min-w-0 max-w-full flex-nowrap items-center gap-1.5 overflow-x-auto pb-1">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
+    <>
+      <EditorToolbarGroup aria-label="History">
+        <EditorToolbarButton
+          label="Undo"
+          showLabel
+          tooltip
+          shortcut={
+            resolvedHotkeys.undo ? formatEditorShortcutLabel(resolvedHotkeys.undo) : undefined
+          }
           disabled={readOnly || history.undoStack.length === 0}
           onClick={onUndo}
-        >
-          Undo
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
+        />
+        <EditorToolbarButton
+          label="Redo"
+          showLabel
+          tooltip
+          shortcut={
+            resolvedHotkeys.redo ? formatEditorShortcutLabel(resolvedHotkeys.redo) : undefined
+          }
           disabled={readOnly || history.redoStack.length === 0}
           onClick={onRedo}
-        >
-          Redo
-        </Button>
-        <ToggleGroup
-          type="single"
-          value={resolvedTool}
-          aria-label="Timeline tool"
-          disabled={readOnly}
-          className="ml-1"
-          onValueChange={(value) => {
-            if (value) {
-              onToolChange(value as TimelineEditorTool);
-            }
-          }}
-        >
-          {(["select", "blade", "trim", "ripple-trim", "pan"] as const).map((tool) => (
-            <ToggleGroupItem
-              key={tool}
-              value={tool}
-              size="sm"
-              aria-label={formatTimelineWorkbenchToolLabel(tool)}
-            >
-              {formatTimelineWorkbenchToolLabel(tool)}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-      </div>
-      <div className="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-1.5">
-        {selectedItemCount > 0 ? (
-          <>
-            <Badge variant="secondary">
-              {selectedItemCount} {selectedItemCount === 1 ? "item" : "items"}
-            </Badge>
-            <Button type="button" size="sm" variant="outline" onClick={onCopy}>
-              Copy
-            </Button>
-            <Button type="button" size="sm" variant="outline" disabled={readOnly} onClick={onCut}>
-              Cut
-            </Button>
-            <Button type="button" size="sm" variant="outline" disabled={readOnly} onClick={onSplit}>
-              Split
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
+        />
+      </EditorToolbarGroup>
+      <ToolbarSeparator />
+      <ToggleGroup
+        type="single"
+        value={resolvedTool}
+        aria-label="Timeline tool"
+        disabled={readOnly}
+        onValueChange={(value) => {
+          if (value) {
+            onToolChange(value as TimelineEditorTool);
+          }
+        }}
+      >
+        {(["select", "blade", "trim", "ripple-trim", "pan"] as const).map((tool) => (
+          <ToggleGroupItem
+            key={tool}
+            value={tool}
+            size="sm"
+            aria-label={formatTimelineWorkbenchToolLabel(tool)}
+          >
+            {formatTimelineWorkbenchToolLabel(tool)}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+      {selectedItemCount > 0 ? (
+        <EditorToolbarGroup aria-label="Selection">
+          <Badge variant="secondary">
+            {selectedItemCount} {selectedItemCount === 1 ? "item" : "items"}
+          </Badge>
+          <EditorToolbarButton label="Copy" showLabel onClick={onCopy} />
+          <EditorToolbarButton label="Cut" showLabel disabled={readOnly} onClick={onCut} />
+          <EditorToolbarButton label="Split" showLabel disabled={readOnly} onClick={onSplit} />
+          <EditorToolbarButton
+            label="Duplicate"
+            showLabel
+            disabled={readOnly}
+            onClick={onDuplicate}
+          />
+          {selectedItemCount > 1 ? (
+            <EditorToolbarButton label="Group" showLabel disabled={readOnly} onClick={onGroup} />
+          ) : null}
+          {hasSelectedItemGroup ? (
+            <EditorToolbarButton
+              label="Ungroup"
+              showLabel
               disabled={readOnly}
-              onClick={onDuplicate}
-            >
-              Duplicate
-            </Button>
-            {selectedItemCount > 1 ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={readOnly}
-                onClick={onGroup}
-              >
-                Group
-              </Button>
-            ) : null}
-            {hasSelectedItemGroup ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={readOnly}
-                onClick={onUngroup}
-              >
-                Ungroup
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              size="sm"
-              variant="destructive"
-              disabled={readOnly}
-              onClick={onDelete}
-            >
-              Delete
-            </Button>
-          </>
-        ) : null}
-        {hasRange && range ? (
-          <>
-            <Badge variant="outline">
-              Range {formatTimelineEditorTimeMs(range.startMs)}-
-              {formatTimelineEditorTimeMs(range.endMs)} (
-              {formatTimelineEditorTimeMs(range.endMs - range.startMs)})
-            </Badge>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={readOnly}
-              onClick={onDeleteRange}
-            >
-              Delete Range
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={readOnly}
-              onClick={onInsertGap}
-            >
-              Insert Gap
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={readOnly}
-              onClick={onCloseGap}
-            >
-              Close Gap
-            </Button>
-          </>
-        ) : null}
-        {clipboard?.items.length ? (
-          <Button type="button" size="sm" variant="outline" disabled={readOnly} onClick={onPaste}>
-            Paste
-          </Button>
-        ) : null}
-        {selectedItemCount === 0 && !hasRange && !clipboard?.items.length ? (
-          <span className="text-xs text-muted-foreground">
-            {formatTimelineWorkbenchToolLabel(resolvedTool)} tool ·{" "}
-            {(resolvedSnap.enabled ?? true) ? "Snap on" : "Snap off"} ·{" "}
-            {formatTimelineEditorTimeMs(currentTimeMs)} / {formatTimelineEditorTimeMs(durationMs)}
-          </span>
-        ) : null}
-      </div>
-      <div className="flex min-w-0 max-w-full flex-nowrap items-center justify-end gap-2 overflow-x-auto pb-1">
+              onClick={onUngroup}
+            />
+          ) : null}
+          <EditorToolbarButton
+            label="Delete"
+            showLabel
+            variant="destructive"
+            disabled={readOnly}
+            onClick={onDelete}
+          />
+        </EditorToolbarGroup>
+      ) : null}
+      {hasRange && range ? (
+        <EditorToolbarGroup aria-label="Range">
+          <Badge variant="outline">
+            Range {formatTimelineEditorTimeMs(range.startMs)}-
+            {formatTimelineEditorTimeMs(range.endMs)} (
+            {formatTimelineEditorTimeMs(range.endMs - range.startMs)})
+          </Badge>
+          <EditorToolbarButton
+            label="Delete Range"
+            showLabel
+            disabled={readOnly}
+            onClick={onDeleteRange}
+          />
+          <EditorToolbarButton
+            label="Insert Gap"
+            showLabel
+            disabled={readOnly}
+            onClick={onInsertGap}
+          />
+          <EditorToolbarButton
+            label="Close Gap"
+            showLabel
+            disabled={readOnly}
+            onClick={onCloseGap}
+          />
+        </EditorToolbarGroup>
+      ) : null}
+      {clipboard?.items.length ? (
+        <EditorToolbarButton label="Paste" showLabel disabled={readOnly} onClick={onPaste} />
+      ) : null}
+      {selectedItemCount === 0 && !hasRange && !clipboard?.items.length ? (
+        <span className="text-xs text-muted-foreground">
+          {formatTimelineWorkbenchToolLabel(resolvedTool)} tool ·{" "}
+          {(resolvedSnap.enabled ?? true) ? "Snap on" : "Snap off"}
+        </span>
+      ) : null}
+      <ToolbarSpacer />
+      <EditorToolbarGroup aria-label="Document summary">
         <Badge variant="outline">{document.tracks.length} tracks</Badge>
         {document.groups?.length ? (
           <Badge variant="outline">{document.groups.length} groups</Badge>
@@ -336,15 +305,13 @@ export function TimelineWorkbenchToolbar<TTrackData extends Record<string, unkno
             {announcement}
           </span>
         ) : null}
+      </EditorToolbarGroup>
+      <EditorToolbarGroup aria-label="Timeline options">
         <ActionMenu
           label="More timeline actions"
           align="end"
           items={moreItems}
-          trigger={
-            <Button type="button" size="sm" variant="outline">
-              More
-            </Button>
-          }
+          trigger={<EditorToolbarButton label="More" showLabel />}
         />
         <TimelineWorkbenchSnapMenu snap={resolvedSnap} onSnapChange={onSnapChange} />
         <TimelineWorkbenchHotkeyMenu
@@ -352,9 +319,12 @@ export function TimelineWorkbenchToolbar<TTrackData extends Record<string, unkno
           onHotkeyChange={onHotkeyChange}
           onHotkeysReset={onHotkeysReset}
         />
-        <span className="text-xs text-muted-foreground">Zoom</span>
+      </EditorToolbarGroup>
+      <EditorToolbarGroup aria-label="Zoom">
         <Slider
-          className="w-32"
+          className="w-24 sm:w-32"
+          aria-label="Timeline zoom"
+          title="Timeline zoom"
           value={[resolvedViewport.pixelsPerSecond]}
           min={minPixelsPerSecond}
           max={timelineEditorMaxPixelsPerSecond}
@@ -366,12 +336,13 @@ export function TimelineWorkbenchToolbar<TTrackData extends Record<string, unkno
             });
           }}
         />
-        <span className="text-xs tabular-nums text-muted-foreground">
-          {formatTimelineEditorTimeMs(currentTimeMs)} / {formatTimelineEditorTimeMs(durationMs)}
-        </span>
-        {renderToolbarActions?.(inspectorContext)}
-      </div>
-    </div>
+      </EditorToolbarGroup>
+      {renderToolbarActions ? (
+        <EditorToolbarGroup aria-label="Host actions">
+          {renderToolbarActions(inspectorContext)}
+        </EditorToolbarGroup>
+      ) : null}
+    </>
   );
 }
 
@@ -412,9 +383,7 @@ function TimelineWorkbenchSnapMenu({ snap, onSnapChange }: TimelineWorkbenchSnap
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button type="button" size="sm" variant="outline">
-          Snap
-        </Button>
+        <EditorToolbarButton label="Snap" showLabel />
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 p-0" data-slot="timeline-workbench-snap-menu">
         <PopoverHeader className="border-b border-border">
@@ -484,9 +453,7 @@ function TimelineWorkbenchHotkeyMenu({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button type="button" size="sm" variant="outline">
-          Hotkeys
-        </Button>
+        <EditorToolbarButton label="Hotkeys" showLabel />
       </PopoverTrigger>
       <PopoverContent
         align="end"

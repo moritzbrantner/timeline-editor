@@ -322,6 +322,34 @@ export type TimelineWorkbenchItemContextMenuContext<
   updateItem: (itemId: string, patch: Partial<TimelineEditorItem<TItemData>>) => void;
 };
 
+/** Side panes of the workbench shell that the host can size, collapse, and persist. */
+export type TimelineWorkbenchPaneId = "assets" | "inspector";
+
+/** Presentation state of one side pane. Sizes are CSS pixels; this is not document state. */
+export type TimelineWorkbenchPaneLayout = {
+  size?: number;
+  collapsed?: boolean;
+};
+
+export type TimelineWorkbenchPanelLayout = Partial<
+  Record<TimelineWorkbenchPaneId, TimelineWorkbenchPaneLayout>
+>;
+
+/**
+ * `auto` docks side panes and turns them into overlay drawers when the workbench is narrower than
+ * `panelNarrowBreakpoint`; `docked` and `overlay` force one presentation.
+ */
+export type TimelineWorkbenchPanelPresentation = "auto" | "docked" | "overlay";
+
+export type TimelineWorkbenchPanelLayoutChangeContext = {
+  paneId: TimelineWorkbenchPaneId;
+  /**
+   * `resize` fires continuously while dragging; `resize-end` and `collapse` mark finished edits and
+   * are the moments to persist the layout.
+   */
+  reason: "resize" | "resize-end" | "collapse";
+};
+
 export type TimelineWorkbenchProps<
   TTrackData extends Record<string, unknown> = Record<string, unknown>,
   TItemData = Record<string, unknown>,
@@ -373,6 +401,19 @@ export type TimelineWorkbenchProps<
   showAssetsPanel?: boolean;
   showPreviewPanel?: boolean;
   showInspectorPanel?: boolean;
+  /**
+   * Controlled side-pane sizes and collapse state. Fields left undefined stay uncontrolled and
+   * start from `defaultPanelLayout`.
+   */
+  panelLayout?: TimelineWorkbenchPanelLayout;
+  defaultPanelLayout?: TimelineWorkbenchPanelLayout;
+  onPanelLayoutChange?: (
+    layout: TimelineWorkbenchPanelLayout,
+    context: TimelineWorkbenchPanelLayoutChangeContext,
+  ) => void;
+  panelPresentation?: TimelineWorkbenchPanelPresentation;
+  /** Workbench width in pixels below which `auto` presentation uses drawers. Defaults to 768. */
+  panelNarrowBreakpoint?: number;
   className?: string;
   style?: CSSProperties;
   createItemId?: (asset: TimelineWorkbenchAsset<TAssetData>) => string;

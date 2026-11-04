@@ -12,6 +12,7 @@ import {
   type TimelineEditorSelection,
   type TimelineWorkbenchAsset,
   type TimelineWorkbenchInspectorSchema,
+  type TimelineWorkbenchPanelLayout,
   type TimelineWorkbenchImportSource,
 } from "@moritzbrantner/timeline-editor";
 
@@ -262,7 +263,21 @@ type TimelineWorkbenchStoryProps = {
   importAssets?: boolean;
   inspectorSchema?: TimelineWorkbenchInspectorSchema;
   readOnly?: boolean;
+  /** Width of the surrounding container in pixels, to show narrow/embedded presentation. */
+  containerWidth?: number;
+  /** Persist side-pane sizes and collapse state in this story's local storage key. */
+  persistPanelLayoutKey?: string;
 };
+
+function readStoredPanelLayout(key: string | undefined): TimelineWorkbenchPanelLayout | undefined {
+  if (!key) return undefined;
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as TimelineWorkbenchPanelLayout) : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function TimelineWorkbenchStory({
   acceptedImportTypes,
@@ -272,7 +287,10 @@ function TimelineWorkbenchStory({
   importAssets,
   inspectorSchema,
   readOnly,
+  containerWidth,
+  persistPanelLayoutKey,
 }: TimelineWorkbenchStoryProps) {
+  const [defaultPanelLayout] = useState(() => readStoredPanelLayout(persistPanelLayoutKey));
   const [document, setDocument] = useState(initialDocument);
   const [selection, setSelection] = useState<TimelineEditorSelection>({ itemIds: [] });
   const [importedAssets, setImportedAssets] = useState<TimelineWorkbenchAsset[]>([]);
@@ -312,7 +330,7 @@ function TimelineWorkbenchStory({
   };
 
   return (
-    <div style={{ height: 720 }}>
+    <div style={{ height: 720, width: containerWidth, maxWidth: "100%" }}>
       <TimelineWorkbench
         document={document}
         selection={selection}
@@ -325,6 +343,16 @@ function TimelineWorkbenchStory({
         acceptedImportTypes={acceptedImportTypes}
         extensions={[createTimelineAudioExtension() as unknown as TimelineEditorExtension]}
         onImportAssets={importAssets ? handleImportAssets : undefined}
+        defaultPanelLayout={defaultPanelLayout}
+        onPanelLayoutChange={(layout, context) => {
+          // Persist finished edits only; `resize` fires on every pointer move.
+          if (!persistPanelLayoutKey || context.reason === "resize") return;
+          try {
+            window.localStorage.setItem(persistPanelLayoutKey, JSON.stringify(layout));
+          } catch {
+            // Storage can be unavailable; the layout still works for this session.
+          }
+        }}
         onDocumentChange={setDocument}
         onSelectionChange={setSelection}
       />
@@ -400,5 +428,28 @@ export const KeyframeInspectorAndTrackGroups: Story = {
   play: async ({ canvas }) => {
     await expect(canvas.getByText("Program")).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Lower third" })).toBeVisible();
+  },
+};
+
+export const NarrowEmbedded: Story = {
+  args: {
+    document: editingDocument,
+    containerWidth: 390,
+  },
+  play: async ({ canvas }) => {
+    const toggle = canvas.getByRole("button", { name: "Toggle Inspector" });
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(canvas.getByRole("button", { name: "Opening shot" })).toBeVisible();
+  },
+};
+
+export const PersistedPanelLayout: Story = {
+  args: {
+    document: editingDocument,
+    persistPanelLayoutKey: "timeline-editor.storybook.panel-layout",
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByRole("separator", { name: "Resize Assets" })).toBeVisible();
+    await expect(canvas.getByRole("separator", { name: "Resize Inspector" })).toBeVisible();
   },
 };

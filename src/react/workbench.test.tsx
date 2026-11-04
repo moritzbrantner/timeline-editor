@@ -382,6 +382,45 @@ describe("@moritzbrantner/timeline-editor React workbench", () => {
     expect(screen.getByRole("button", { name: "Custom clip: Brief" })).toBeTruthy();
   });
 
+  test("keeps side-pane layout under host control", () => {
+    const document: TimelineEditorDocument = {
+      tracks,
+      durationMs: 8_000,
+      currentTimeMs: 1_000,
+    };
+    const onPanelLayoutChange = vi.fn();
+    const { container, rerender } = render(
+      <TimelineWorkbench
+        document={document}
+        showAssetsPanel={false}
+        panelLayout={{ inspector: { collapsed: true } }}
+        onPanelLayoutChange={onPanelLayoutChange}
+      />,
+    );
+    const inspectorPane = () =>
+      container.querySelector<HTMLElement>("[data-slot='editor-pane'][aria-label='Inspector']")!;
+
+    expect(inspectorPane().hidden).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Inspector" }));
+    expect(onPanelLayoutChange).toHaveBeenLastCalledWith(
+      { inspector: { size: 320, collapsed: false } },
+      { paneId: "inspector", reason: "collapse" },
+    );
+    // The host has not accepted the change yet, so the pane stays collapsed.
+    expect(inspectorPane().hidden).toBe(true);
+
+    rerender(
+      <TimelineWorkbench
+        document={document}
+        showAssetsPanel={false}
+        panelLayout={{ inspector: { collapsed: false, size: 360 } }}
+        onPanelLayoutChange={onPanelLayoutChange}
+      />,
+    );
+    expect(inspectorPane().hidden).toBe(false);
+    expect(inspectorPane().style.width).toBe("360px");
+  });
+
   test("commits drag edits once and undo returns to the pre-drag document", () => {
     const document: TimelineEditorDocument = {
       tracks,
