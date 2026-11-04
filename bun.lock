@@ -6,10 +6,15 @@
       "name": "@moritzbrantner/timeline-editor",
       "dependencies": {
         "@moenarch/editor-core": "git+https://github.com/moritzbrantner/editor-core.git#05ae0d0ef9f782ff70d65e8db0675e6aa2dd6870",
-        "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#0f7cbac8086bacb971c2f3c398c523c7de28c3e1",
+        "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#06f4bdd38f24920cac4a98c2621d6d14d8af9f0b",
       },
       "devDependencies": {
         "@axe-core/playwright": "4.14.0",
+        "@moritzbrantner/input-bindings": "git+https://github.com/moritzbrantner/input-bindings.git#68f5a33171c958752971ab50ff3fc81f6431d8e0",
+        "@moritzbrantner/input-bindings-react": "git+https://github.com/moritzbrantner/input-bindings.git#6f29eea4743fc2d199ad3fa67a3886d687b8b504",
+        "@moritzbrantner/input-bindings-runtime": "git+https://github.com/moritzbrantner/input-bindings.git#4f6afa966bd2829c02ec61edad5858c84bbdbb70",
+        "@moritzbrantner/input-bindings-web": "git+https://github.com/moritzbrantner/input-bindings.git#181bf4cd75277008b0d61b72976592b99775101e",
+        "@moritzbrantner/settings-browser": "git+https://github.com/moritzbrantner/settings.git#27904ae572800f7d343c31d5177cfc6cf8c74706",
         "@playwright/test": "1.64.1",
         "@storybook/addon-a11y": "10.6.5",
         "@storybook/addon-docs": "10.6.5",
@@ -170,7 +175,7 @@
     "@moenarch/editor-core",
   ],
   "overrides": {
-    "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#0f7cbac8086bacb971c2f3c398c523c7de28c3e1",
+    "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#06f4bdd38f24920cac4a98c2621d6d14d8af9f0b",
   },
   "packages": {
     "@adobe/css-tools": ["@adobe/css-tools@4.5.0", "", {}, "sha512-6OzddxPio9UiWTCemp4N8cYLV2ZN1ncRnV1cVGtve7dhPOtRkleRyx32GQCYSwDYgaHU3USMm84tNsvKzRCa1Q=="],
@@ -373,9 +378,19 @@
 
     "@moenarch/editor-core": ["@moenarch/editor-core@github:moritzbrantner/editor-core#05ae0d0", { "peerDependencies": { "react": "^19.0.0" }, "optionalPeers": ["react"], "hasInstallScript": true }, "moritzbrantner-editor-core-05ae0d0", "sha512-gxZiKelPMLykKPY8Ocs47YdALI9Y78S/FI+C0ewuF5yNTSXGg9nepsmiqJtnQe+Q6Ur4J6kfIfUjL8FwxFw/zA=="],
 
+    "@moritzbrantner/input-bindings": ["@moritzbrantner/input-bindings@github:moritzbrantner/input-bindings#68f5a33", {}, "moritzbrantner-input-bindings-68f5a33", "sha512-OZ73ASR9XcLuUyRPz/3N381OEHVHLgP9sh/0FhZvYKoBbANaYtcQONFpPC6HxV6kCiCqka009oxxzF5367RXpA=="],
+
+    "@moritzbrantner/input-bindings-react": ["@moritzbrantner/input-bindings-react@github:moritzbrantner/input-bindings#6f29eea", { "dependencies": { "@moritzbrantner/input-bindings": "github:moritzbrantner/input-bindings#68f5a33171c958752971ab50ff3fc81f6431d8e0", "@moritzbrantner/input-bindings-runtime": "github:moritzbrantner/input-bindings#4f6afa966bd2829c02ec61edad5858c84bbdbb70", "@moritzbrantner/input-bindings-web": "github:moritzbrantner/input-bindings#181bf4cd75277008b0d61b72976592b99775101e" }, "peerDependencies": { "react": ">=19" } }, "moritzbrantner-input-bindings-6f29eea", "sha512-dJQVR5WLZ4iFmUNZ/lAFlLDFVG4f1gbyCRWL9oT15cRBGjOMO8JvkDIQt1yfWlJBvw9BTUckiM4IcP9rXYOZ3A=="],
+
+    "@moritzbrantner/input-bindings-runtime": ["@moritzbrantner/input-bindings-runtime@github:moritzbrantner/input-bindings#4f6afa9", { "dependencies": { "@moritzbrantner/input-bindings": "github:moritzbrantner/input-bindings#68f5a33171c958752971ab50ff3fc81f6431d8e0" } }, "moritzbrantner-input-bindings-4f6afa9", "sha512-wZ2iWxS03Pc+NV6fqSU0fV4PuuntMn4w8UUslaCCaLZhwwqcV0BOHa5S139ch34IAn0ASwA1kQpsDrwg6XIUrA=="],
+
+    "@moritzbrantner/input-bindings-web": ["@moritzbrantner/input-bindings-web@github:moritzbrantner/input-bindings#181bf4c", { "dependencies": { "@moritzbrantner/input-bindings": "github:moritzbrantner/input-bindings#68f5a33171c958752971ab50ff3fc81f6431d8e0", "@moritzbrantner/input-bindings-runtime": "github:moritzbrantner/input-bindings#4f6afa966bd2829c02ec61edad5858c84bbdbb70" } }, "moritzbrantner-input-bindings-181bf4c", "sha512-DF6HIBK5QSGhlocJ1h1aQOXim0TlUUiIfXr6NQNQbosGyQQRKnLWDV+cPrrBK2YZQlVNPFcY6mpxGptjuFGTzQ=="],
+
+    "@moritzbrantner/settings-browser": ["@moritzbrantner/settings-browser@github:moritzbrantner/settings#27904ae", { "peerDependencies": { "@moritzbrantner/ui": ">=1.1.0", "react": ">=19.0.0" }, "optionalPeers": ["@moritzbrantner/ui", "react"] }, "moritzbrantner-settings-27904ae", "sha512-GpB0p/1R61MuRjjOAHfBPeT1UWS475BcDsBnhTemdLwVj8yCVrr7rgah5afSkrLQSo5ki4xERoX9V++w3fo2Lg=="],
+
     "@moritzbrantner/timeline-editor": ["@moritzbrantner/timeline-editor@1.0.0", "", { "dependencies": { "@moritzbrantner/ui": "^0.9.1" }, "peerDependencies": { "react": "^19.0.0", "react-dom": "^19.0.0" } }, "sha512-nrhIZ/ZFaTz4cldm0foOmF4p/935jgtyzdGFLCy/oIkYubPH4N8EIj1IZbQZHB/1eE2hFMGOEYWR4TDYDjwTOw=="],
 
-    "@moritzbrantner/ui": ["@moritzbrantner/ui@github:moritzbrantner/ui#0f7cbac", { "dependencies": { "@base-ui/react": "^1.3.0", "@dnd-kit/react": "^0.5.0", "@tanstack/react-table": "^8.21.3", "class-variance-authority": "^0.7.1", "clsx": "^2.1.1", "cmdk": "^1.1.1", "date-fns": "^4.1.0", "embla-carousel-react": "^8.6.0", "input-otp": "^1.4.2", "lucide-react": "^1.7.0", "motion": "^13.1.1", "radix-ui": "^1.4.3", "react-day-picker": "^9.14.0", "react-resizable-panels": "^4.9.0", "sonner": "^2.0.7", "tailwind-merge": "^3.4.0", "tailwindcss": "^4.1.14", "tw-animate-css": "^1.4.0", "vaul": "^1.1.2" }, "peerDependencies": { "react": "^19.0.0", "react-dom": "^19.0.0" }, "hasInstallScript": true }, "moritzbrantner-ui-0f7cbac", "sha512-cXEKk9UTmE25uKmx+6N7pt+fndaAtcG6DDy6aci09FScOkdKwEvgrE4oUKoZsKr2G4Xt1rEipe1ze17aEIZRww=="],
+    "@moritzbrantner/ui": ["@moritzbrantner/ui@github:moritzbrantner/ui#06f4bdd", { "dependencies": { "@base-ui/react": "^1.3.0", "@dnd-kit/react": "^0.5.0", "@tanstack/react-table": "^8.21.3", "class-variance-authority": "^0.7.1", "clsx": "^2.1.1", "cmdk": "^1.1.1", "date-fns": "^4.1.0", "embla-carousel-react": "^8.6.0", "input-otp": "^1.4.2", "lucide-react": "^1.7.0", "motion": "^13.1.1", "radix-ui": "^1.4.3", "react-day-picker": "^9.14.0", "react-resizable-panels": "^4.9.0", "sonner": "^2.0.7", "tailwind-merge": "^3.4.0", "tailwindcss": "^4.1.14", "tw-animate-css": "^1.4.0", "vaul": "^1.1.2" }, "peerDependencies": { "react": "^19.0.0", "react-dom": "^19.0.0" }, "hasInstallScript": true }, "moritzbrantner-ui-06f4bdd", "sha512-rtAJr8NTvQIAIVJY6hqog/FLNGNdT+sIJIcnHEu7qlUwKJg6y7K7W4PksCnhNOMUbb4A1gChvBiCbh8LAi5kpg=="],
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.1.4", "", { "dependencies": { "@tybys/wasm-util": "^0.10.1" }, "peerDependencies": { "@emnapi/core": "^1.7.1", "@emnapi/runtime": "^1.7.1" } }, "sha512-3NQNNgA1YSlJb/kMH1ildASP9HW7/7kYnRI2szWJaofaS1hWmbGI4H+d3+22aGzXXN9IJ+n+GiFVcGipJP18ow=="],
 

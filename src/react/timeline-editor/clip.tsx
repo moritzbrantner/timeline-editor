@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import type { ReactNode } from "react";
 
 import { cn, type MenuActionItem } from "@moritzbrantner/ui";
@@ -57,6 +57,13 @@ function TimelineEditorClipComponent<TItemData>({
     editor?.pixelsPerSecond ?? (timelineWidthPx / Math.max(1, durationMs)) * 1_000;
   const density = getTimelineEditorClipDensity(itemWidthPx);
   const transformPointCount = item.transform?.points.length ?? 0;
+  const keyframePath = useMemo(
+    () =>
+      density === "minimal" || !item.transform?.points.length
+        ? ""
+        : getTimelineEditorKeyframePath(item.transform.points, item.durationMs, itemWidthPx),
+    [density, item.transform?.points, item.durationMs, itemWidthPx],
+  );
   const renderItem = renderItemProp ?? editor?.renderItem;
   // Editor item menus are built when the menu opens, from the latest document and selection.
   const getLazyContextMenuItems =
@@ -156,6 +163,20 @@ function TimelineEditorClipComponent<TItemData>({
         className={cn(handleClassName, "right-0 rounded-r-md")}
         onPointerDown={(event) => handleResizePointerDown("end", event)}
       />
+      {keyframePath ? (
+        <svg
+          aria-hidden="true"
+          focusable="false"
+          data-slot="timeline-editor-clip-keyframes"
+          data-count={transformPointCount}
+          className="pointer-events-none absolute inset-x-0 h-2 w-full text-white"
+          style={{ bottom: -4 }}
+          viewBox={`0 0 ${itemWidthPx} 8`}
+          preserveAspectRatio="none"
+        >
+          <path d={keyframePath} fill="currentColor" stroke="var(--card)" strokeWidth="1" />
+        </svg>
+      ) : null}
     </div>
   );
 
@@ -278,6 +299,23 @@ function getTimelineEditorClipDensity(itemWidthPx: number): TimelineEditorClipDe
 
 function getTimelineEditorClipIdentity<TItemData>(item: TimelineEditorItem<TItemData>) {
   return (item.kind?.trim().charAt(0) || item.label.trim().charAt(0) || "?").toUpperCase();
+}
+
+function getTimelineEditorKeyframePath(
+  points: ReadonlyArray<{ offsetMs: number }>,
+  durationMs: number,
+  widthPx: number,
+) {
+  const maxX = Math.max(4, widthPx - 4);
+
+  return points
+    .filter((point) => Number.isFinite(point.offsetMs))
+    .map((point) => {
+      const x = Math.max(4, Math.min(maxX, (point.offsetMs / Math.max(1, durationMs)) * widthPx));
+
+      return `M ${x.toFixed(2)} 0.5 l 3.5 3.5 -3.5 3.5 -3.5 -3.5 Z`;
+    })
+    .join(" ");
 }
 
 function getTimelineEditorClipMetadata<TItemData>(

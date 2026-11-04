@@ -2,6 +2,34 @@
 
 Generic timeline document utilities and React components for editing time-aligned items.
 
+## Hosted editor playground
+
+The [GitHub Pages playground](https://moritzbrantner.github.io/timeline-editor/) lets you
+interactively try three document shapes:
+
+- **Media editing** — video/audio assets, markers, clip transforms and inspection.
+- **Story & animation** — scenes, narration, pose keyframes and timed effects.
+- **Dense timeline** — 80 tracks and 3,200 items for virtualization and scrolling.
+
+The selected example is encoded in `?scenario=media|story|dense`, so links can be
+shared. The [component story gallery](https://moritzbrantner.github.io/timeline-editor/storybook/)
+provides isolated views of the editor and workbench.
+
+**Settings** uses the commit-pinned `@moritzbrantner/settings-browser` WASM session
+for read-only, snap interval and scale. **Input bindings** embeds the commit-pinned
+`@moritzbrantner/input-bindings-react` workbench, with the Web runtime dispatching
+rebindable `F8` (next example), `F9` (read-only) and `F10` (reset document) shell
+commands. Both foundations persist their own format to browser-local storage;
+documents stay transient and are reset when switching examples. The shell owns
+these commands while the Timeline editor continues to own all clip gestures and
+transport shortcuts.
+
+To run the same playground locally: `bun install --frozen-lockfile && bun run dev`.
+`bun run test:pages` exercises the actual settings, runtime and responsive browser
+surface in desktop and mobile Chromium. A successful hosted CI run provides
+dogfooding evidence; no behavioral or performance claim is implied by simply
+rendering the demo.
+
 ## Install
 
 The package is not published to npm. Install it as a commit-pinned git
@@ -112,6 +140,13 @@ that owns sources outside the workbench import flow. Set `allowUrlImport` with
 Track selection is represented with `selection.trackIds`. The default
 workbench inspector has document, track, range, marker, item, and multi-item
 states, and the track state exposes concrete track metadata plus track actions.
+Track headers remain visible during horizontal timeline scrolling and highlight
+the lane containing a selected clip. The default `TimelineEditor` group header
+has a keyboard-accessible collapse/expand control that changes the host-owned
+`document.groups`; a read-only timeline cannot change it. Clips with transform
+points show non-interactive keyframe diamonds at their times when there is room
+to display them. Actual keyframe editing continues through the workbench
+inspector or a domain extension, rather than adding competing clip gestures.
 
 Workbench import state reports progress, warnings, cancellation, and per-source
 failures when the host uses the optional import context passed to

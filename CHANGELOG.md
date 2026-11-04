@@ -4,6 +4,7 @@
 
 ### Minor Changes
 
+- Keep timeline track headers visible during horizontal scrolling, clarify active lanes, make default track groups directly collapsible, and show transform keyframe positions on clips without changing interaction ownership or document formats.
 - Implement atomic roll trims and adapter-driven slip editing while preserving the existing normal and ripple trim behavior.
 - Add atomic multi-item resize operations with shared snapping and clamping, lock and overlap-policy enforcement, and rigid fail-closed behavior when push handling would move selected items independently.
 - Add an undoable `resize-items` command that applies the atomic multi-item resize primitive through the shared command/history layer without changing existing single-item pointer resize behavior.

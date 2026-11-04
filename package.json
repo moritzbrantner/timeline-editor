@@ -101,10 +101,15 @@
   },
   "dependencies": {
     "@moenarch/editor-core": "git+https://github.com/moritzbrantner/editor-core.git#05ae0d0ef9f782ff70d65e8db0675e6aa2dd6870",
-    "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#0f7cbac8086bacb971c2f3c398c523c7de28c3e1"
+    "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#06f4bdd38f24920cac4a98c2621d6d14d8af9f0b"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
+    "@moritzbrantner/input-bindings": "git+https://github.com/moritzbrantner/input-bindings.git#68f5a33171c958752971ab50ff3fc81f6431d8e0",
+    "@moritzbrantner/input-bindings-react": "git+https://github.com/moritzbrantner/input-bindings.git#6f29eea4743fc2d199ad3fa67a3886d687b8b504",
+    "@moritzbrantner/input-bindings-runtime": "git+https://github.com/moritzbrantner/input-bindings.git#4f6afa966bd2829c02ec61edad5858c84bbdbb70",
+    "@moritzbrantner/input-bindings-web": "git+https://github.com/moritzbrantner/input-bindings.git#181bf4cd75277008b0d61b72976592b99775101e",
+    "@moritzbrantner/settings-browser": "git+https://github.com/moritzbrantner/settings.git#27904ae572800f7d343c31d5177cfc6cf8c74706",
     "@playwright/test": "1.64.1",
     "@storybook/addon-a11y": "10.6.5",
     "@storybook/addon-docs": "10.6.5",
@@ -136,13 +141,14 @@
     "@moritzbrantner/ui"
   ],
   "overrides": {
-    "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#0f7cbac8086bacb971c2f3c398c523c7de28c3e1"
+    "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#06f4bdd38f24920cac4a98c2621d6d14d8af9f0b"
   },
   "scripts": {
     "build": "tsup src/index.ts src/core.ts src/react.tsx src/commands.ts src/history.ts src/serialization.ts src/extensions.ts src/media-types.ts src/media-import.ts src/text.ts src/audio.ts src/video.ts src/image.ts src/data.ts --format esm --dts --clean --out-dir dist",
     "build:packages": "bun run build && (cd packages/compute && bun run build) && for package in packages/*; do if [ -f \"$package/package.json\" ] && [ \"$package\" != \"packages/compute\" ]; then (cd \"$package\" && bun run build); fi; done",
     "build:wasm": "cargo build --workspace --target wasm32-unknown-unknown",
     "build-storybook": "storybook build",
+    "build:pages": "vite build --config examples/dev/vite.config.ts --base /timeline-editor/ --outDir ../../dist-pages --emptyOutDir && TIMELINE_STORYBOOK_BASE=/timeline-editor/storybook/ storybook build --output-dir dist-pages/storybook",
     "dev": "vite --config examples/dev/vite.config.ts --host 127.0.0.1",
     "dev:source": "bun run source:prepare && bun run dev",
     "source:verify-graph": "bash scripts/source-deps verify-graph",
@@ -172,6 +178,7 @@
     "test:lighthouse": "node ./tests/performance/run-unlighthouse.mjs",
     "bench:scrub": "node ./tests/performance/scrub-benchmark.mjs",
     "test:playwright": "playwright test",
+    "test:pages": "playwright test --config playwright.pages.config.ts",
     "test:regression": "playwright test src/react/workbench/workbench-basic-regressions.playwright.spec.ts",
     "test:storybook": "vitest run --config vitest.storybook.config.ts",
     "verify:checks": "bun run format:check && bun run lint && bun run check-types && bun run test && bun run test:packages && bun run test:rust && bun run test:playwright && bun run test:lighthouse && bun run build-storybook && bun run build && bun run build:packages && bun run build:wasm && bun run check-examples && bun run test:package",

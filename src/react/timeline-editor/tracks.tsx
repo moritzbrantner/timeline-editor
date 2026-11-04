@@ -1,5 +1,8 @@
 "use client";
 
+import { cn } from "@moritzbrantner/ui";
+
+import { timelineEditorTrackHeaderWidthPx } from "./constants";
 import { TimelineEditorContextActionMenu } from "./context-menu-items";
 import { getRenderedTimelineEditorTrackRows, getTimelineEditorTrackRows } from "./layout";
 import { useTimelineEditor } from "./provider";
@@ -28,7 +31,7 @@ export function TimelineEditorTracks<
     <div
       data-slot="timeline-editor-tracks"
       data-virtualized={shouldVirtualizeRows ? "true" : undefined}
-      className={shouldVirtualizeRows ? "relative" : "divide-y"}
+      className={shouldVirtualizeRows ? "relative" : undefined}
       style={shouldVirtualizeRows ? { height: totalHeightPx } : undefined}
     >
       {renderedRows.map((row) => {
@@ -62,6 +65,18 @@ export function TimelineEditorTracks<
 export function TimelineEditorTrackGroupRow({ group, style }: TimelineEditorTrackGroupRowProps) {
   const editor = useTimelineEditor();
   const locked = Boolean(group.locked);
+  const toggleCollapsed = () => {
+    if (editor.readOnly) {
+      return;
+    }
+
+    editor.commitDocument({
+      ...editor.document,
+      groups: editor.document.groups?.map((entry) =>
+        entry.id === group.id ? { ...entry, collapsed: !entry.collapsed } : entry,
+      ),
+    });
+  };
   const trackGroupContextMenuItems = editor.getTrackGroupContextMenuItems
     ? editor.getTrackGroupContextMenuItems({
         document: editor.document,
@@ -79,15 +94,33 @@ export function TimelineEditorTrackGroupRow({ group, style }: TimelineEditorTrac
       style={style}
       data-slot="timeline-editor-track-group"
       data-collapsed={group.collapsed ? "true" : undefined}
-      className="flex h-9 items-center border-b bg-muted/50 px-3 text-xs font-medium text-muted-foreground"
+      className={cn(
+        "flex h-9 items-center border-b border-border/70 bg-muted/60 text-xs font-medium text-muted-foreground",
+        editor.renderTrackGroupHeader && "px-3",
+      )}
     >
-      {editor.renderTrackGroupHeader
-        ? editor.renderTrackGroupHeader({
-            group,
-            collapsed: Boolean(group.collapsed),
-            locked,
-          })
-        : group.label}
+      {editor.renderTrackGroupHeader ? (
+        editor.renderTrackGroupHeader({
+          group,
+          collapsed: Boolean(group.collapsed),
+          locked,
+        })
+      ) : (
+        <button
+          type="button"
+          aria-label={`${group.collapsed ? "Expand" : "Collapse"} ${group.label}`}
+          aria-expanded={!group.collapsed}
+          disabled={editor.readOnly}
+          onClick={toggleCollapsed}
+          className="sticky left-0 flex h-full min-w-0 items-center gap-2 border-r bg-muted px-3 text-left hover:bg-accent disabled:cursor-default disabled:hover:bg-muted"
+          style={{ width: timelineEditorTrackHeaderWidthPx }}
+        >
+          <span aria-hidden="true" className="w-3 shrink-0 text-center">
+            {group.collapsed ? "▸" : "▾"}
+          </span>
+          <span className="min-w-0 flex-1 truncate">{group.label}</span>
+        </button>
+      )}
     </div>
   );
 

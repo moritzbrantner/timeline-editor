@@ -7,6 +7,7 @@ import {
   type TimelineEditorDocument,
   type TimelineEditorSelection,
 } from "@moritzbrantner/timeline-editor";
+import { denseDocument, storyAnimationDocument } from "../../examples/scenarios";
 
 const baseDocument: TimelineEditorDocument = {
   durationMs: 12_000,
@@ -74,23 +75,6 @@ const baseDocument: TimelineEditorDocument = {
       ],
     },
   ],
-};
-
-const denseDocument: TimelineEditorDocument = {
-  durationMs: 10 * 60_000,
-  currentTimeMs: 0,
-  tracks: Array.from({ length: 80 }, (_, trackIndex) => ({
-    id: `track-${trackIndex + 1}`,
-    label: `Track ${trackIndex + 1}`,
-    items: Array.from({ length: 40 }, (_, itemIndex) => ({
-      id: `track-${trackIndex + 1}-item-${itemIndex + 1}`,
-      trackId: `track-${trackIndex + 1}`,
-      label: `Item ${trackIndex + 1}-${itemIndex + 1}`,
-      startMs: itemIndex * 4_000,
-      durationMs: 1_200,
-      color: itemIndex % 2 === 0 ? "#2563eb" : "#15803d",
-    })),
-  })),
 };
 
 type TimelineEditorStoryProps = {
@@ -174,5 +158,16 @@ export const DenseVirtualized: Story = {
   play: async ({ canvas }) => {
     await expect(canvas.getByRole("button", { name: "Track 1" })).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Item 1-1" })).toBeVisible();
+  },
+};
+
+export const StoryAndAnimationTracks: Story = {
+  args: { document: storyAnimationDocument },
+  play: async ({ canvas, canvasElement }) => {
+    await expect(canvas.getByRole("button", { name: "Collapse Narrative" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Wave and turn" })).toBeVisible();
+    await expect(
+      canvasElement.querySelector("[data-slot='timeline-editor-clip-keyframes'][data-count='4']"),
+    ).not.toBeNull();
   },
 };

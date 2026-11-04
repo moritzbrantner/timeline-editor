@@ -34,6 +34,7 @@ const config: StorybookConfig = {
   },
   viteFinal: (config) =>
     mergeConfig(config, {
+      ...(process.env.TIMELINE_STORYBOOK_BASE ? { base: process.env.TIMELINE_STORYBOOK_BASE } : {}),
       plugins: [tailwindcss()],
       resolve: { alias },
     }),

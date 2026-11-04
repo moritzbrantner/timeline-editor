@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { beforeAll, describe, expect, test, vi } from "vitest";
 
 import {
@@ -82,6 +82,20 @@ function TimelineEditorPartsHarness() {
   );
 }
 
+function CollapsibleTrackGroupHarness({ readOnly = false }: { readOnly?: boolean }) {
+  const [currentDocument, setCurrentDocument] = useState(document);
+
+  return (
+    <TimelineEditorProvider
+      document={currentDocument}
+      readOnly={readOnly}
+      onDocumentChange={setCurrentDocument}
+    >
+      <TimelineEditorTracks />
+    </TimelineEditorProvider>
+  );
+}
+
 function SnapFeedbackHarness() {
   const editor = useTimelineEditor();
 
@@ -105,9 +119,7 @@ describe("timeline editor component parts", () => {
     expect(container.querySelector("[data-slot='timeline-editor-ruler']")).toBeTruthy();
     expect(container.querySelector("[data-slot='timeline-editor-playhead']")).toBeTruthy();
     expect(container.querySelector("[data-slot='timeline-editor-tracks']")).toBeTruthy();
-    expect(container.querySelector("[data-slot='timeline-editor-track-group']")?.textContent).toBe(
-      "Program",
-    );
+    expect(screen.getByRole("button", { name: "Collapse Program" })).toBeTruthy();
     expect(
       container.querySelector("[data-slot='timeline-editor-track-header-label']")?.textContent,
     ).toBe("Planning");
@@ -115,6 +127,11 @@ describe("timeline editor component parts", () => {
     expect(container.querySelector("[data-slot='timeline-editor-track-tick']")).toBeTruthy();
     expect(container.querySelector("[data-slot='timeline-editor-range-overlay']")).toBeTruthy();
     expect(screen.getByRole("button", { name: /Brief/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(
+      container
+        .querySelector("[data-slot='timeline-editor-track-header']")
+        ?.getAttribute("data-active"),
+    ).toBe("true");
     expect(screen.getByTestId("selection-live-region").textContent).toBe(
       "1 timeline items selected",
     );
@@ -212,6 +229,57 @@ describe("timeline editor component parts", () => {
     expect(clip.textContent).toContain("2 keyframes");
     expect(clip.textContent).toContain("Grouped");
     expect(clip.textContent).toContain("Locked");
+    const keyframes = clip.querySelector("[data-slot='timeline-editor-clip-keyframes']")!;
+    expect(keyframes.getAttribute("aria-hidden")).toBe("true");
+    expect(keyframes.getAttribute("data-count")).toBe("2");
+    expect(keyframes.getAttribute("class")).toContain("pointer-events-none");
+    expect(keyframes.querySelector("path")?.getAttribute("d")).toContain("M 4.00 0.5");
+    expect(keyframes.querySelector("path")?.getAttribute("d")).toContain("M 196.00 0.5");
+  });
+
+  test("renders intermediate keyframe positions without adding interactive controls", () => {
+    const item = {
+      ...document.tracks[0]!.items[0]!,
+      transform: {
+        points: [
+          { offsetMs: 0, values: { x: 0 } },
+          { offsetMs: 1_000, values: { x: 20 } },
+          { offsetMs: 2_000, values: { x: 40 } },
+        ],
+      },
+    };
+    const { container } = render(
+      <TimelineEditorClip item={item} durationMs={6_000} timelineWidthPx={600} />,
+    );
+    const path = container.querySelector("[data-slot='timeline-editor-clip-keyframes'] path")!;
+
+    expect(path.getAttribute("d")).toContain("M 100.00 0.5");
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+  });
+
+  test("collapses and expands default track groups through the controlled document", () => {
+    const { container } = render(<CollapsibleTrackGroupHarness />);
+    const collapse = screen.getByRole("button", { name: "Collapse Program" });
+
+    expect(collapse.getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelectorAll("[data-slot='timeline-editor-track']")).toHaveLength(2);
+    fireEvent.click(collapse);
+
+    expect(
+      screen.getByRole("button", { name: "Expand Program" }).getAttribute("aria-expanded"),
+    ).toBe("false");
+    expect(container.querySelectorAll("[data-slot='timeline-editor-track']")).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Expand Program" }));
+    expect(container.querySelectorAll("[data-slot='timeline-editor-track']")).toHaveLength(2);
+  });
+
+  test("does not mutate groups in a read-only timeline", () => {
+    const { container } = render(<CollapsibleTrackGroupHarness readOnly />);
+    const button = screen.getByRole("button", { name: "Collapse Program" });
+
+    expect(button.hasAttribute("disabled")).toBe(true);
+    fireEvent.click(button);
+    expect(container.querySelectorAll("[data-slot='timeline-editor-track']")).toHaveLength(2);
   });
 
   test("renders default track header metadata and locked state", () => {

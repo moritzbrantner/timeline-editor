@@ -67,7 +67,7 @@ const timelineEditorPlaywrightAlias = [
 
 export default defineConfig({
   root: path.resolve(rootDir, "src/react/workbench/playwright"),
-  publicDir: path.resolve(rootDir, "examples"),
+  publicDir: path.resolve(rootDir, "examples/fixtures"),
   plugins: [tailwindcss()],
   resolve: {
     alias: timelineEditorPlaywrightAlias,
