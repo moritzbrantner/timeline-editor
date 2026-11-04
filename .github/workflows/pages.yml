@@ -6,13 +6,14 @@ on:
       - main
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
 jobs:
   deploy:
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      pages: write
+      id-token: write
     uses: moritzbrantner/reusable-workflows/.github/workflows/deploy-pages.yml@41d30fd97f0b58c148f135112ceb9124e976d7bc
     with:
       bun_version: "1.4.4"
