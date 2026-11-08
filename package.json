@@ -100,7 +100,7 @@
     "react-dom": "^19.0.0"
   },
   "dependencies": {
-    "@moenarch/editor-core": "git+https://github.com/moritzbrantner/editor-core.git#d00922c389810a20581c8424363920da3927c70f",
+    "@moenarch/editor-core": "git+https://github.com/moritzbrantner/editor-core.git#8b8ab9172baaba4fee9f97de9b10652413ca75d5",
     "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#21b3e4764beda65acdee3139270be824c234d69e"
   },
   "devDependencies": {
