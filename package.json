@@ -100,8 +100,8 @@
     "react-dom": "^19.0.0"
   },
   "dependencies": {
-    "@moenarch/editor-core": "git+https://github.com/moritzbrantner/editor-core.git#baacc93bd0f91bb1cb116547aa652974dbcd9935",
-    "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#5e3ef339dde3da4d88ec468c2ec203e45965abb4"
+    "@moenarch/editor-core": "git+https://github.com/moritzbrantner/editor-core.git#cee80b6d91bca59ddfcf20d6d0395de6fc6f9470",
+    "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#b913046a160cca1da6a14b10444a59d530b04355"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
@@ -142,7 +142,7 @@
     "@moritzbrantner/ui"
   ],
   "overrides": {
-    "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#5e3ef339dde3da4d88ec468c2ec203e45965abb4"
+    "@moritzbrantner/ui": "git+https://github.com/moritzbrantner/ui.git#b913046a160cca1da6a14b10444a59d530b04355"
   },
   "scripts": {
     "build": "tsup src/index.ts src/core.ts src/react.tsx src/commands.ts src/history.ts src/serialization.ts src/extensions.ts src/media-types.ts src/media-import.ts src/text.ts src/audio.ts src/video.ts src/image.ts src/data.ts --format esm --dts --clean --out-dir dist",
